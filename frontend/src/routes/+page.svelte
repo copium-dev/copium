@@ -5,15 +5,21 @@
     import { Button } from "$lib/components/ui/button";
     
     function handleGoogleSignIn() {
-        window.location.href = '/api/auth/google';
+        window.location.href = '/auth/google/login';
     }
 </script>
 
-<div class="flex justify-center items-center h-screen">
-    <Card.Root>
+<div class="flex flex-col justify-center gap-12 items-center h-screen">
+    <h1 class="text-4xl font-bold text-center w-3/4">
+        The #1 platform for students in tech to track 
+    </h1>
+    <p class="text-xl text-center">
+        Track your applications, see new postings in real time, and land your dream internship.
+    </p>
+    <Card.Root class="flex flex-row">
         <Card.Header>
         <Card.Title>Create an account</Card.Title>
-            <Card.Description>Sign in with Google</Card.Description>
+            <Card.Description>It's completely free!</Card.Description>
         </Card.Header>
         <Card.Content>
             <p>
