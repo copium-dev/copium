@@ -63,6 +63,7 @@ func New() http.Handler {
 	// Routes
 	mux.HandleFunc("/auth", oauthGoogleLogin)
 	mux.HandleFunc("/auth/google/callback", oauthGoogleCallback)
+	mux.HandleFunc("/verify-cookie", verifyCookie)
 
 	return corsMiddleware(mux)
 }
@@ -114,12 +115,15 @@ func oauthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Create session and set cookie (this is a simplified example)
 	sessionID := "some-session-id" // Generate a real session ID in a real application
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     "session_id",
 		Value:    sessionID,
 		Path:     "/",
 		HttpOnly: true,
-	})
+	}
+
+	log.Printf("cookie: %v", cookie)
+	http.SetCookie(w, cookie)
 
 	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -127,4 +131,26 @@ func oauthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	// Redirect to frontend
 	http.Redirect(w, r, "http://localhost:5173", http.StatusTemporaryRedirect)
 
+}
+
+// verify cookie, httponly
+func verifyCookie(w http.ResponseWriter, r *http.Request) {
+	// Set CORS headers
+	w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	cookie, err := r.Cookie("session_id")
+	if err != nil {
+		log.Printf("Cookie not found: %v", err)
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "Cookie not found",
+		})
+		return
+	}
+
+	log.Printf("Cookie received: %+v", cookie)
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "Cookie found",
+		"value":  cookie.Value,
+	})
 }
