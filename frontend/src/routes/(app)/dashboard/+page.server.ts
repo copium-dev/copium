@@ -4,7 +4,7 @@ import { redirect } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ fetch }) => {
     const response = await fetch(`${BACKEND_URL}/user/dashboard`, {
-        credentials: 'include'  // important for auth cookies
+        credentials: 'include'  // every protected route needs to include credentials
     });
     
     if (!response.ok) {

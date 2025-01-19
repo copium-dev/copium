@@ -1,5 +1,5 @@
 <script lang="ts">
-    import '../app.css';
+    import '../../app.css';
     let { children } = $props();
     import { ModeWatcher } from "mode-watcher";
     import { toggleMode } from "mode-watcher";
@@ -9,6 +9,10 @@
 
     import { Moon } from 'lucide-svelte';
     import { SunMedium } from 'lucide-svelte';
+
+    function signOut () {
+        window.location.href = "/auth/google/logout";
+    }
 </script>
 
 <ModeWatcher />
@@ -25,7 +29,10 @@
                 <Separator orientation="vertical" class="h-6" />
                 <Button variant="ghost">Postings</Button>
             </div>
-            <div class="flex-none">
+            <div class="flex gap-4 self-items-center">
+                <Button on:click={signOut} variant="outline" class="w-[4rem]">
+                    Sign out
+                </Button>
                 <Button on:click={toggleMode} variant="outline" class="w-[4rem]">
                     <SunMedium class="dark:hidden"/>
                     <Moon class="hidden dark:block"/>

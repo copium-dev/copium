@@ -11,6 +11,7 @@ import (
     "cloud.google.com/go/firestore"
 )
 
+// simple struct for returning user data to frontend or other handlers
 type User struct {
 	Email string `json:"email"`
 	Name string `json:"name"`
@@ -21,7 +22,10 @@ type Handler struct {
     firestoreClient *firestore.Client
 }
 
-// initialize a new handler with an AuthHandler (utils/auth.go)
+// initialize a new handler with an AuthHandler (implementation in utils/main.go) and Firestore client
+// authHandler parameter passed in from cmd/main.go
+//      reason: gorilla/mux spins up a new goroutine for each request
+//              so, we pass in the same AuthHandler to each handler to ensure global state is maintained
 func NewHandler(firestoreClient *firestore.Client, authHandler *utils.AuthHandler) *Handler {
     return &Handler{
         AuthHandler: authHandler,
@@ -29,10 +33,10 @@ func NewHandler(firestoreClient *firestore.Client, authHandler *utils.AuthHandle
     }
 }
 
+// {provider} is a variable that can be anything (if we want more providers in the future)
+// in this case, we only support google
 func (h *Handler) RegisterRoutes(router *mux.Router) {
     router.HandleFunc("/auth/{provider}", h.Auth).Methods("GET").Name("auth")
-    // {provider} is a variable that can be anything (if we want more providers in the future)
-    // in this case, we only support google
     router.HandleFunc("/auth/{provider}/callback", h.AuthProviderCallback).Methods("GET").Name("authProviderCallback")
     router.HandleFunc("/auth/{provider}/logout", h.Logout).Methods("GET").Name("logout")
 }
@@ -68,6 +72,8 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    // for some reason CompleteUserAuth isn't properly setting session values so we have to do it manually
+    // this is to guarantee that the user receives a session
     session, _ := h.AuthHandler.Store.Get(r, "session")
     session.Values["user_id"] = user.UserID
     session.Values["email"] = user.Email
@@ -100,6 +106,8 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 
     r = r.WithContext(context.WithValue(r.Context(), "provider", provider))
 
+    // same as AuthProviderCallback, for some reason gothic's logout function isn't properly clearing session
+    // so let's just do it manually. atp why wouldnt i just not use a library lmfao
     session, err := h.AuthHandler.Store.Get(r, "session"); if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
         return
@@ -116,6 +124,9 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 // use the request and gothic.Store.Get to see if user is authed
+// once again, something's wrong with gothic session handling so we have to
+// manually get the session from Store and check if email exists
+// it would be nice to implement this as a middleware but for now just call it directly within each route
 func IsAuthenticated(r *http.Request) (*User, error) {
     session, err := gothic.Store.Get(r, "session")
     if err != nil {
