@@ -7,29 +7,6 @@
     function handleGoogleSignIn() {
         window.location.href = "/auth/google/login";
     }
-
-    // verify cookie
-    // import { onMount } from "svelte";
-    // let cookieStatus = "Checking...";
-
-    // async function checkCookie() {
-    //     try {
-    //         const response = await fetch(
-    //             "http://localhost:8080/verify-cookie",
-    //             {
-    //                 credentials: "include", // Critical for sending/receiving cookies
-    //             },
-    //         );
-    //         const data = await response.json();
-    //         cookieStatus = JSON.stringify(data, null, 2);
-    //     } catch (error) {
-    //         cookieStatus = "Error: " + (error instanceof Error ? error.message : "Unknown error");
-    //     }
-    // }
-
-    // onMount(() => {
-    //     checkCookie();
-    // });
 </script>
 
 <div class="flex flex-col justify-center gap-4 items-center h-full">
@@ -56,10 +33,3 @@
         </Card.Content>
     </Card.Root>
 </div>
-
-<!-- check cookie -->
-<!-- <div>
-    <h3>Cookie Status</h3>
-    <pre>{cookieStatus}</pre>
-    <button on:click={checkCookie}>Check Cookie Again</button>
-</div> -->

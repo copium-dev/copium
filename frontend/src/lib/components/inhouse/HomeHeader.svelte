@@ -1,0 +1,29 @@
+<script lang="ts">
+    import { Separator } from "$lib/components/ui/separator";
+    import { Button } from "$lib/components/ui/button";
+
+    import { Moon } from 'lucide-svelte';
+    import { SunMedium } from 'lucide-svelte';
+</script>
+
+<header class="bg-background z-50">
+    <div class="mx-auto flex max-w-7xl items-center justify-between p-6 lg:px-8">
+        <div class="flex-none">
+            <a href="/" class="text-2xl font-bold hover:underline">
+                jtracker
+            </a>
+        </div>
+        <div class="flex items-center gap-4 mx-8">
+            <Button variant="ghost">Profile</Button>
+            <Separator orientation="vertical" class="h-6" />
+            <Button variant="ghost">Postings</Button>
+        </div>
+        <div class="flex-none">
+            <Button on:click={toggleMode} variant="outline" class="w-[4rem]">
+                <SunMedium class="dark:hidden"/>
+                <Moon class="hidden dark:block"/>
+                <span class="sr-only">Toggle theme</span>
+            </Button>
+        </div>
+    </div>
+</header>
