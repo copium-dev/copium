@@ -16,7 +16,7 @@
     <h1>Dashboard</h1>
     {#if data.email}
         <pre>{JSON.stringify(data.email, null, 2)}</pre>
-        <div class="w-full max-w-3xl space-y-4 text-black">
+        <div class="p-3 rounded-lg">
             {#each jobs as job (job.id)}
                 <Job
                     id={job.id}
