@@ -2,7 +2,7 @@
     export let data;
 
     // job component
-    import Job from "./job.svelte";
+    import { Job } from "$lib/components/Job";
 
     // mock data json file
     import mockData from "./mockdata.json";
