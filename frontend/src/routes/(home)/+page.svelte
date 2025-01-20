@@ -10,14 +10,14 @@
 </script>
 
 <div class="flex flex-col justify-center gap-4 items-center h-full">
-    <h1 class="text-4xl font-bold text-center w-1/2">
+    <h1 class="text-2xl sm:text-4xl font-bold text-center w-3/4 sm:w-1/2">
         Streamline your <span class="text-violet-500">tech internship</span> hunt.
     </h1>
-    <p class="text-xl text-center w-1/2">
+    <p class="text-base sm:text-xl text-center w-3/4 sm:w-1/2">
         Track applications, discover new opportunities, and jumpstart your
         career.
     </p>
-    <Card.Root class="flex flex-row mt-16">
+    <Card.Root class="flex flex-col items-center sm:items-start sm:flex-row mt-16">
         <Card.Header>
             <Card.Title>Created by students, for students.</Card.Title>
             <Card.Description

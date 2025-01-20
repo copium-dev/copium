@@ -16,17 +16,17 @@
     <header class="bg-background z-50">
         <div class="mx-auto flex max-w-7xl items-center justify-between p-6 lg:px-8">
             <div class="flex-none">
-                <a href="/" class="text-2xl font-bold hover:underline">
+                <a href="/" class="text-lg sm:text-2xl font-bold hover:underline">
                     jtracker
                 </a>
             </div>
-            <div class="flex items-center gap-4 mx-8">
-                <Button variant="ghost">Profile</Button>
-                <Separator orientation="vertical" class="h-6" />
-                <Button variant="ghost">Postings</Button>
+            <div class="flex items-center gap-2 sm:gap-4 mx-4 sm:mx-8">
+                <Button variant="ghost" class="text-xs sm:text-sm">Profile</Button>
+                <Separator orientation="vertical" class="h-4 sm:h-6" />
+                <Button variant="ghost" class="text-xs sm:text-sm">Postings</Button>
             </div>
             <div class="flex-none">
-                <Button on:click={toggleMode} variant="outline" class="w-[4rem]">
+                <Button on:click={toggleMode} variant="outline" class="w-12 sm:w-16">
                     <SunMedium class="dark:hidden"/>
                     <Moon class="hidden dark:block"/>
                     <span class="sr-only">Toggle theme</span>
