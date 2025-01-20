@@ -21,9 +21,9 @@
                 </a>
             </div>
             <div class="flex items-center gap-2 sm:gap-4 mx-4 sm:mx-8">
-                <Button variant="ghost" class="text-xs sm:text-sm">Profile</Button>
-                <Separator orientation="vertical" class="h-4 sm:h-6" />
-                <Button variant="ghost" class="text-xs sm:text-sm">Postings</Button>
+                <!-- <Button variant="ghost" class="text-xs sm:text-sm">Profile</Button> -->
+                <!-- <Separator orientation="vertical" class="h-4 sm:h-6" /> -->
+                <!-- <Button variant="ghost" class="text-xs sm:text-sm">Postings</Button> -->
             </div>
             <div class="flex-none">
                 <Button on:click={toggleMode} variant="outline" class="w-12 sm:w-16">

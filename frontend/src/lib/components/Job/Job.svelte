@@ -76,13 +76,13 @@
             </div>
         </div>
 
-        <div class="flex justify-end items-center bg-white right-0">
+        <div class="flex justify-end items-center right-0">
             <button
-                class=" px-2 py-1 text-xs text-gray-700 border-r border-gray-300"
+                class=" px-2 py-1 text-xs text-gray-500 border-r border-gray-300"
             >
                 Edit
             </button>
-            <button class=" px-2 py-1 text-xs text-red-700"> Delete </button>
+            <button class=" px-2 py-1 text-xs text-red-500"> Delete </button>
         </div>
     </div>
 </div>

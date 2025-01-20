@@ -29,6 +29,7 @@
 		"@fortawesome/free-brands-svg-icons": "^6.7.2",
 		"lucide-svelte": "^0.473.0",
 		"mode-watcher": "^0.5.0",
-		"svelte-fa": "^4.0.3"
+		"svelte-fa": "^4.0.3",
+		"svelte-radix": "^2.0.1"
 	}
 }
