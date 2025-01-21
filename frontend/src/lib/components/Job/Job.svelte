@@ -12,6 +12,25 @@
 
     import { Button } from "$lib/components/ui/button";
     import { Separator } from "$lib/components/ui/separator";
+
+    // progress bar
+    import { onMount } from "svelte";
+    import { Progress } from "$lib/components/ui/progress/index.js";
+
+    let value = 43;
+
+    const statusValues = {
+        Rejected: 11,
+        Ghosted: 29,
+        Applied: 43,
+        Screen: 58,
+        Interview: 76,
+        Offer: 100,
+    };
+
+    function updateStatus(newStatus: keyof typeof statusValues) {
+        value = statusValues[newStatus];
+    }
 </script>
 
 <Separator orientation="horizontal" class="my-5" />
@@ -37,43 +56,29 @@
         </div>
 
         <div class="px-5 h-full flex items-center">
-            <!-- <p class="border px-2 rounded border-gray-300">{status}</p> -->
-            <div class="flex w-full justify-evenly gap-3 p-2">
-                <div
-                    class="flex flex-col justify-center items-center text-xs gap-1"
-                >
-                    <button class="w-5 h-5 shadow rounded"></button>
-                    <p>Rejected</p>
+            <div class="flex flex-col w-full relative">
+                <!-- Progress bar in background -->
+                <div class="absolute w-full top-2.5">
+                    <Progress {value} max={100} class="w-full" />
                 </div>
-                <div
-                    class="flex flex-col justify-center items-center text-xs gap-1"
-                >
-                    <button class="w-5 h-5 shadow rounded"></button>
-                    <p>Ghosted</p>
-                </div>
-                <div
-                    class="flex flex-col justify-center items-center text-xs gap-1"
-                >
-                    <button class="w-5 h-5 shadow rounded"></button>
-                    <p>Applied</p>
-                </div>
-                <div
-                    class="flex flex-col justify-center items-center text-xs gap-1"
-                >
-                    <button class="w-5 h-5 shadow rounded"></button>
-                    <p>Screen</p>
-                </div>
-                <div
-                    class="flex flex-col justify-center items-center text-xs gap-1"
-                >
-                    <button class="w-5 h-5 shadow rounded"></button>
-                    <p>Interview</p>
-                </div>
-                <div
-                    class="flex flex-col justify-center items-center text-xs gap-1"
-                >
-                    <button class="w-5 h-5 shadow rounded"></button>
-                    <p>Offer</p>
+
+                <!-- Buttons overlaid on top -->
+                <div class="flex w-full justify-evenly gap-3 p-2 relative z-10">
+                    {#each Object.entries(statusValues) as [status, progressValue]}
+                        <div
+                            class="flex flex-col justify-center items-center text-xs gap-1"
+                        >
+                            <button
+                                class="w-3 h-3 shadow rounded hover:ring-2 ring-offset-2 {value ===
+                                progressValue
+                                    ? 'bg-red-500'
+                                    : 'bg-gray-200'}"
+                                on:click={() => updateStatus(status as keyof typeof statusValues)}
+                                aria-label={`Set status to ${status}`}
+                            ></button>
+                            <p>{status}</p>
+                        </div>
+                    {/each}
                 </div>
             </div>
         </div>
