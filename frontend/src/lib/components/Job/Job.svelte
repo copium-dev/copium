@@ -69,10 +69,10 @@
                             class="flex flex-col justify-center items-center text-xs gap-1"
                         >
                             <button
-                                class="w-3 h-3 shadow rounded hover:ring-2 ring-offset-2 {value ===
+                                class="w-3 h-3 shadow rounded hover:ring-3 ring-offset-2 {value ===
                                 progressValue
                                     ? 'bg-red-500'
-                                    : 'bg-gray-200'}"
+                                    : 'bg-gray-300'}"
                                 on:click={() => updateStatus(status as keyof typeof statusValues)}
                                 aria-label={`Set status to ${status}`}
                             ></button>

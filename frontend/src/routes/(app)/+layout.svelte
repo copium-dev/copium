@@ -17,8 +17,15 @@
     import User from "lucide-svelte/icons/user";
     import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
 
+    // sign out
     function signOut() {
         window.location.href = "/auth/google/logout";
+    }
+
+    // redirect to profile
+    import { goto } from "$app/navigation";
+    function profile() {
+        goto('/profile');
     }
 </script>
 
@@ -66,7 +73,7 @@
                         <!-- <DropdownMenu.Label>My Account</DropdownMenu.Label> -->
 
                         <DropdownMenu.Group>
-                            <DropdownMenu.Item>
+                            <DropdownMenu.Item on:click={profile}>
                                 <User class="mr-2 h-4 w-4" />
                                 <span>Profile</span>
                             </DropdownMenu.Item>
