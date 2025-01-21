@@ -4,7 +4,6 @@
     import { ModeWatcher } from "mode-watcher";
     import { toggleMode } from "mode-watcher";
 
-    import { Separator } from "$lib/components/ui/separator";
     import { Button } from "$lib/components/ui/button";
 
     // darkmode
@@ -17,16 +16,16 @@
     import User from "lucide-svelte/icons/user";
     import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
 
-    // sign out
+    import { goto } from "$app/navigation";
+
     function signOut() {
         window.location.href = "/auth/google/logout";
     }
 
-    // redirect to profile
-    import { goto } from "$app/navigation";
-    function profile() {
-        goto('/profile');
+    function handleProfileClick() {
+        goto("/profile");
     }
+
 </script>
 
 <ModeWatcher />
@@ -40,24 +39,6 @@
                     jtracker
                 </a>
             </div>
-            <div class="flex items-center gap-4 mx-8">
-                <!-- <Button variant="ghost" class="text-xs sm:text-sm"
-                    >Profile</Button
-                > -->
-                <!-- <Separator orientation="vertical" class="h-4 sm:h-6" />
-                <Button variant="ghost" class="text-xs sm:text-sm">Postings</Button> -->
-            </div>
-            <!-- <div class="flex gap-4 items-center">
-                <Button on:click={signOut} variant="outline" class="w-16">
-                    Sign out
-                </Button>
-                <Separator orientation="vertical" class="h-6" />
-                <Button on:click={toggleMode} variant="outline" class="w-16">
-                    <SunMedium class="dark:hidden" />
-                    <Moon class="hidden dark:block" />
-                    <span class="sr-only">Toggle theme</span>
-                </Button>
-            </div> -->
             <div>
                 <DropdownMenu.Root>
                     <DropdownMenu.Trigger asChild let:builder>
@@ -71,9 +52,8 @@
                     </DropdownMenu.Trigger>
                     <DropdownMenu.Content class="w-56">
                         <!-- <DropdownMenu.Label>My Account</DropdownMenu.Label> -->
-
                         <DropdownMenu.Group>
-                            <DropdownMenu.Item on:click={profile}>
+                            <DropdownMenu.Item on:click={handleProfileClick}>
                                 <User class="mr-2 h-4 w-4" />
                                 <span>Profile</span>
                             </DropdownMenu.Item>

@@ -7,5 +7,5 @@ export interface JobProps {
     role: string;
     appliedDate: Date;
     location: string;
-    status?: string;
+    status: string;
 }
