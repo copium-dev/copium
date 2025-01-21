@@ -71,7 +71,7 @@
                             <button
                                 class="w-3 h-3 shadow rounded hover:ring-3 ring-offset-2 {value ===
                                 progressValue
-                                    ? 'bg-red-500'
+                                    ? 'bg-gray-900'
                                     : 'bg-gray-300'}"
                                 on:click={() => updateStatus(status as keyof typeof statusValues)}
                                 aria-label={`Set status to ${status}`}
