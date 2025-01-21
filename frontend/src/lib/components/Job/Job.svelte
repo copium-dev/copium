@@ -58,8 +58,8 @@
         <div class="px-5 h-full flex items-center">
             <div class="flex flex-col w-full relative">
                 <!-- Progress bar in background -->
-                <div class="absolute w-full top-2.5">
-                    <Progress {value} max={100} class="w-full" />
+                <div class="absolute w-full top-3">
+                    <Progress {value} max={100} class="w-full h-1 dark:bg-zinc-800" />
                 </div>
 
                 <!-- Buttons overlaid on top -->
@@ -71,8 +71,8 @@
                             <button
                                 class="w-3 h-3 shadow rounded hover:ring-3 ring-offset-2 {value ===
                                 progressValue
-                                    ? 'bg-gray-900'
-                                    : 'bg-gray-300'}"
+                                    ? 'bg-zinc-900 dark:bg-zinc-100'
+                                    : 'bg-zinc-300 dark:bg-zinc-700'}"
                                 on:click={() => updateStatus(status as keyof typeof statusValues)}
                                 aria-label={`Set status to ${status}`}
                             ></button>
