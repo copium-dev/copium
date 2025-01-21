@@ -1,6 +1,8 @@
 <script lang="ts">
     export let data;
     import { Button } from "$lib/components/ui/button";
+    import { Input } from "$lib/components/ui/input";
+    import { Separator } from "$lib/components/ui/separator";
     import Fa from "svelte-fa";
 
     // job component
@@ -15,16 +17,38 @@
 </script>
 
 <div class="flex flex-col justify-center gap-4 items-center h-full">
-    <h1>Dashboard</h1>
+    <!-- <h1>Dashboard</h1> -->
     {#if data.email}
         <pre>{JSON.stringify(data.email, null, 2)}</pre>
-        <div class="w-fit p-3">
-            <div class="flex flex-row justify-end w-full">
-                <Button variant="outline" class="w-16">
-                    <!-- <Fa icon={} />  -->
-                    Add
-                </Button>
+
+        <div class="w-fit p-3 my-10">
+            <div class="flex flex-col justify-center gap-4 items-center w-full">
+                <div class="flex w-full items-center gap-2">
+                    <Button variant="ghost" class="w-16">
+                        <!-- <Fa icon={} />  -->
+                        Add
+                    </Button>
+                    <Separator orientation="vertical" class="h-4 sm:h-6" />
+                    <Input
+                        type="email"
+                        placeholder="Search for roles or companies"
+                    />
+                    <div class="flex items-center gap-2">
+                        <Button variant="ghost" type="submit"
+                            >Applied from</Button
+                        >
+                        <Separator orientation="horizontal" class="w-2 sm:w-3" />
+                        <Button variant="ghost" type="submit"
+                            >Applied until</Button
+                        >
+                    </div>
+                    <Separator orientation="vertical" class="h-4 sm:h-6" />
+                    <Button variant="ghost" type="submit">Job Type</Button>
+                    <Separator orientation="vertical" class="h-4 sm:h-6" />
+                    <Button variant="ghost" type="submit">Status</Button>
+                </div>
             </div>
+
             <div class="rounded-lg">
                 {#each jobs as job (job.id)}
                     <Job

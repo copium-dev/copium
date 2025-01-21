@@ -11,12 +11,14 @@
     import "./icons.css";
 
     import { Button } from "$lib/components/ui/button";
+    import { Separator } from "$lib/components/ui/separator";
 </script>
 
+<Separator orientation="horizontal" class="my-5" />
 <div class="flex flex-row justify-start items-center">
     <!-- <p>Id: {id}</p> -->
     <div
-        class="w-full grid grid-cols-[2fr_2fr_6fr_1fr] justify-start items-center p-3 my-3 rounded-lg border border-gray-300"
+        class="w-full grid grid-cols-[2fr_2fr_6fr_1fr] justify-start items-center p-3 my-3"
     >
         <div class="flex flex-col gap-1 border-r border-gray-300 px-5">
             <p>{company}</p>
