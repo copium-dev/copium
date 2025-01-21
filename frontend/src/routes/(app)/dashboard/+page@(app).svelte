@@ -24,7 +24,7 @@
         <div class="w-fit p-3 my-10">
             <div class="flex flex-col justify-center gap-4 items-center w-full">
                 <div class="flex w-full items-center gap-2">
-                    <Button variant="ghost" class="w-16">
+                    <Button variant="outline" class="w-16">
                         <!-- <Fa icon={} />  -->
                         Add
                     </Button>
