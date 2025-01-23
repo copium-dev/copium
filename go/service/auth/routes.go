@@ -94,6 +94,23 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    defaultApplication := map[string]interface{}{
+        "company": "Google",
+        "role": "Software Engineer Intern",
+        "location": "Mountain View, CA",
+        "appliedDate": "2021-01-01",
+        "status": "Applied",
+        "link": "https://www.google.com",
+    }
+
+    // add default application to user/{email}/applications
+    _, _, err = h.firestoreClient.Collection("users").Doc(user.Email).Collection("applications").Add(r.Context(), defaultApplication)
+    if err != nil {
+        fmt.Printf("Error adding default application to firestore: %v\n", err)
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
     http.Redirect(w, r, "http://localhost:5173/dashboard", http.StatusFound)
 }
 
@@ -133,10 +150,26 @@ func IsAuthenticated(r *http.Request) (*User, error) {
         return nil, err
     }
 
-    email, ok := session.Values["email"].(string)
+    // Print the session values for debugging purposes
+    fmt.Printf("Session Values: %+v\n", session.Values)
+
+    // Retrieve the email from the session and assert its type
+    emailValue, ok := session.Values["email"]
     if !ok {
         return nil, fmt.Errorf("email not found in session")
     }
 
+    // Print the type of the email value for debugging purposes
+    fmt.Printf("Email Value Type: %T\n", emailValue)
+
+    email, ok := emailValue.(string)
+    if !ok {
+        return nil, fmt.Errorf("email is not a string")
+    }
+
+    // Print the email for debugging purposes
+    fmt.Printf("Email: %s\n", email)
+
+    // Return the user with the retrieved email
     return &User{Email: email}, nil
 }

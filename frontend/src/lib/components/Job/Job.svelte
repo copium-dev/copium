@@ -11,9 +11,10 @@
     export let id: string;  // temporarily not used; will be used for db operations later
     export let company: string;
     export let role: string;
-    export let appliedDate: Date;
+    export let appliedDate: string;
     export let location: string;
     export let status: string;
+    export let link: string | undefined | null;
 
     const statusValues: Record<string, number> = {
         "Rejected": 10.75,
@@ -28,10 +29,36 @@
         value = statusValues[newStatus];
     }
 
+    function formatDate(dateString: string): string {
+        const date = new Date(dateString);
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${month}-${day}-${year}`;
+    }
+
+    // call /dashboard?/delete with id
+    // this should then refresh the dashboard
+    async function deleteApplication() {
+        const formData = new FormData();
+        formData.append("id", id);
+
+        const response = await fetch(`/dashboard?/delete`, {
+            method: "POST",
+            body: formData,
+        });
+
+        if (!response.ok) {
+            console.error("Failed to delete application");
+        } else {
+            console.log("Application deleted successfully");
+            window.location.reload();
+        }
+    }
+
     onMount(() => {
         value = statusValues[status];
     });
-
     
     let value = statusValues[status];
 
@@ -55,10 +82,16 @@
 
         <div class="flex flex-row items-center">
             <div class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-5">
-                <p>{role}</p>
+                <p>
+                    {#if link}
+                        <a href={link} target="_blank" rel="noopener noreferrer" class="hover:underline">{role}</a>
+                    {:else}
+                        {role}
+                    {/if}
+                </p>
                 <p class="flex flex-row items-center gap-1 text-xs h-full">
                     <Calendar class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0" />
-                    {appliedDate.toDateString().split(" ").slice(1).join(" ")}
+                    {formatDate(appliedDate)}
                 </p>
             </div>
             <Separator orientation="vertical" class="h-12 ml-auto invisible sm:visible" />
@@ -96,7 +129,7 @@
         <div class="flex ml-1.5 sm:ml-0">
             <Button variant="ghost" class="text-xs">Edit</Button>
             <!-- looks weird to have hover:text-red-500 but ghost automatically does hover:text-primary so this is a workaround -->
-            <Button variant="ghost" class="text-xs text-red-500 hover:text-red-500">Delete</Button>
+            <Button variant="ghost" class="text-xs text-red-500 hover:text-red-500" on:click={deleteApplication}>Delete</Button>
         </div>
     </div>
 </div>
