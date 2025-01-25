@@ -3,6 +3,7 @@
 
     import { Map } from "lucide-svelte";
     import { Calendar } from "lucide-svelte";
+    import { Pencil } from "lucide-svelte";
 
     import { Button } from "$lib/components/ui/button";
     import { Separator } from "$lib/components/ui/separator";
@@ -25,6 +26,14 @@
         Offer: 100,
     };
 
+    // edit
+    let edit = false;
+
+    function toggleEdit() {
+        edit = !edit;
+        console.log("edit: ", edit);
+    }
+
     function formatDate(dateString: string): string {
         const date = new Date(dateString);
         const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -33,6 +42,7 @@
         return `${month}-${day}-${year}`;
     }
 
+    // status update
     async function updateStatus(newStatus: keyof typeof statusValues) {
         value = statusValues[newStatus];
         const formData = new FormData();
@@ -86,10 +96,21 @@
             <div
                 class="flex flex-row sm:flex-col items-center sm:items-baseline sm:gap-1 px-5"
             >
-                <p class="font-bold">{company}</p>
+                <p class="flex items-center font-bold">
+                    {company}{#if edit}
+                        <Pencil
+                            class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0 pl-1"
+                        />
+                    {/if}
+                </p>
                 <p class="flex flex-row items-center gap-1 text-xs h-full">
                     <Map class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0" />
                     {location}
+                    {#if edit}
+                        <Pencil
+                            class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0 pl-1"
+                        />
+                    {/if}
                 </p>
             </div>
             <Separator
@@ -102,7 +123,7 @@
             <div
                 class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-5"
             >
-                <p>
+                <p class="flex items-center">
                     {#if link}
                         <a
                             href={link}
@@ -113,12 +134,22 @@
                     {:else}
                         {role}
                     {/if}
+                    {#if edit}
+                        <Pencil
+                            class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0 pl-1"
+                        />
+                    {/if}
                 </p>
                 <p class="flex flex-row items-center gap-1 text-xs h-full">
                     <Calendar
                         class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0"
                     />
                     {formatDate(appliedDate)}
+                    {#if edit}
+                        <Pencil
+                            class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0 pl-1"
+                        />
+                    {/if}
                 </p>
             </div>
             <Separator
@@ -160,7 +191,9 @@
         </div>
 
         <div class="flex ml-1.5 sm:ml-0">
-            <Button variant="ghost" class="text-xs">Edit</Button>
+            <Button on:click={toggleEdit} variant="ghost" class="text-xs"
+                >Edit</Button
+            >
             <!-- looks weird to have hover:text-red-500 but ghost automatically does hover:text-primary so this is a workaround -->
             <Button
                 variant="ghost"
