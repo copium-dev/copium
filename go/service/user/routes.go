@@ -1,39 +1,44 @@
 package user
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"encoding/json"
 
 	"github.com/juhun32/jtracker-backend/service/auth"
 	"github.com/juhun32/jtracker-backend/utils"
 
-	"github.com/gorilla/mux"
 	"cloud.google.com/go/firestore"
+	"github.com/gorilla/mux"
 	"google.golang.org/api/iterator"
 )
 
 type AddApplicationRequest struct {
-	Role string `json:"role"`
-	Company string `json:"company"`
-	Location string `json:"location"`
+	Role        string `json:"role"`
+	Company     string `json:"company"`
+	Location    string `json:"location"`
 	AppliedDate string `json:"appliedDate"`
-	Status string `json:"status"`
-	Link string `json:"link"`
+	Status      string `json:"status"`
+	Link        string `json:"link"`
 }
 
 type Application struct {
-    ID          string `json:"id"`
-    Role        string `json:"role"`
-    Company     string `json:"company"`
-    Location    string `json:"location"`
-    AppliedDate string `json:"appliedDate"`
-    Status      string `json:"status"`
-    Link        string `json:"link"`
+	ID          string `json:"id"`
+	Role        string `json:"role"`
+	Company     string `json:"company"`
+	Location    string `json:"location"`
+	AppliedDate string `json:"appliedDate"`
+	Status      string `json:"status"`
+	Link        string `json:"link"`
 }
 
 type DeleteApplicationRequest struct {
-    ID string `json:"id"`
+	ID string `json:"id"`
+}
+
+type EditStatusApplicationRequest struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
 }
 
 type Handler struct {
@@ -50,61 +55,62 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/user/dashboard", h.Dashboard).Methods("GET").Name("dashboard")
 	router.HandleFunc("/user/addApplication", h.AddApplication).Methods("POST").Name("addApplication")
 	router.HandleFunc("/user/deleteApplication", h.DeleteApplication).Methods("POST").Name("deleteApplication")
+	router.HandleFunc("/user/editStatus", h.EditStatus).Methods("POST").Name("editStatus")
 }
 
 func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
-    user, err := auth.IsAuthenticated(r)
-    if err != nil {
-        fmt.Printf("Error: %v\n", err)
-        http.Error(w, "Unauthorized", http.StatusUnauthorized)
-        return
-    }
+	user, err := auth.IsAuthenticated(r)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
-    // for user's email (unique ID), add application and assign unique jobID
-    email := user.Email
-    
-    fmt.Println(email)
-    
-    // extract json from request body
-    var addApplicationRequest AddApplicationRequest
-    err = json.NewDecoder(r.Body).Decode(&addApplicationRequest)
-    if err != nil {
-        http.Error(w, "Error decoding request body", http.StatusBadRequest)
-        return
-    }
+	// for user's email (unique ID), add application and assign unique jobID
+	email := user.Email
 
-    // add application to Firestore using users/{email} where jobs is a document within the user's collection
-    _, _, err = h.firestoreClient.Collection("users").Doc(email).Collection("applications").Add(r.Context(), map[string]interface{}{
-        "role":        addApplicationRequest.Role,
-        "company":     addApplicationRequest.Company,
-        "location":    addApplicationRequest.Location,
-        "appliedDate": addApplicationRequest.AppliedDate,
-        "status":      addApplicationRequest.Status,
-        "link":        addApplicationRequest.Link,
-    })
-    if err != nil {
-        fmt.Printf("Error adding application: %v\n", err)
-        http.Error(w, "Error adding application", http.StatusInternalServerError)
-        return
-    }
-    w.WriteHeader(http.StatusCreated)
+	fmt.Println(email)
 
-    // TODO: update algolia index after returning ok (aka decouple this from the request)
+	// extract json from request body
+	var addApplicationRequest AddApplicationRequest
+	err = json.NewDecoder(r.Body).Decode(&addApplicationRequest)
+	if err != nil {
+		http.Error(w, "Error decoding request body", http.StatusBadRequest)
+		return
+	}
+
+	// add application to Firestore using users/{email} where jobs is a document within the user's collection
+	_, _, err = h.firestoreClient.Collection("users").Doc(email).Collection("applications").Add(r.Context(), map[string]interface{}{
+		"role":        addApplicationRequest.Role,
+		"company":     addApplicationRequest.Company,
+		"location":    addApplicationRequest.Location,
+		"appliedDate": addApplicationRequest.AppliedDate,
+		"status":      addApplicationRequest.Status,
+		"link":        addApplicationRequest.Link,
+	})
+	if err != nil {
+		fmt.Printf("Error adding application: %v\n", err)
+		http.Error(w, "Error adding application", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+
+	// TODO: update algolia index after returning ok (aka decouple this from the request)
 }
 
 // current implementation is TEMPORARY!!!!
 // actual implementation doesn't query Firestore, it queries Algolia
-// Firestore is just a backup in case we want to switch to a diff search engine 
+// Firestore is just a backup in case we want to switch to a diff search engine
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
-    user, err := auth.IsAuthenticated(r)
+	user, err := auth.IsAuthenticated(r)
 
-    if err != nil {
-        fmt.Printf("Error: %v\n", err)
-        http.Error(w, "Unauthorized", http.StatusUnauthorized)
-        return
-    }
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
-    fmt.Println("user", user)
+	fmt.Println("user", user)
 
 	// the actual implementation of this will use the user object from auth.IsAuthenticated
 	// TEMP: query firestore for user's applications
@@ -115,30 +121,30 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	var applications []Application
 
 	for {
-        doc, err := iter.Next()
-        if err == iterator.Done {
-            break
-        }
-        if err != nil {
-            fmt.Printf("Error: %v\n", err)
-            http.Error(w, "Error querying Firestore", http.StatusInternalServerError)
-            return
-        }
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			http.Error(w, "Error querying Firestore", http.StatusInternalServerError)
+			return
+		}
 
-        application := doc.Data()
-        applications = append(applications, Application{
-            ID:          doc.Ref.ID,
-            Role:        utils.GetString(application, "role"),	
-            Company:     utils.GetString(application, "company"),
-            Location:    utils.GetString(application, "location"),
-            AppliedDate: utils.GetString(application, "appliedDate"),
-            Status:      utils.GetString(application, "status"),
-            Link:        utils.GetString(application, "link"),		// link might be nil so getString
-        })
-    }
+		application := doc.Data()
+		applications = append(applications, Application{
+			ID:          doc.Ref.ID,
+			Role:        utils.GetString(application, "role"),
+			Company:     utils.GetString(application, "company"),
+			Location:    utils.GetString(application, "location"),
+			AppliedDate: utils.GetString(application, "appliedDate"),
+			Status:      utils.GetString(application, "status"),
+			Link:        utils.GetString(application, "link"), // link might be nil so getString
+		})
+	}
 
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(applications)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(applications)
 }
 
 func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
@@ -150,16 +156,16 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email := user.Email
-    
-    // extract json from request body
-    var deleteApplicationRequest DeleteApplicationRequest
-    err = json.NewDecoder(r.Body).Decode(&deleteApplicationRequest)
-    if err != nil {
-        http.Error(w, "Error decoding request body", http.StatusBadRequest)
-        return
-    }
 
-    applicationID := deleteApplicationRequest.ID
+	// extract json from request body
+	var deleteApplicationRequest DeleteApplicationRequest
+	err = json.NewDecoder(r.Body).Decode(&deleteApplicationRequest)
+	if err != nil {
+		http.Error(w, "Error decoding request body", http.StatusBadRequest)
+		return
+	}
+
+	applicationID := deleteApplicationRequest.ID
 
 	// delete application from Firestore
 	_, err = h.firestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Delete(r.Context())
@@ -168,20 +174,41 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error deleting application", http.StatusInternalServerError)
 		return
 	}
-    
+
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *Handler) EditApplication(w http.ReponseWriter, r *http.Request) {
-    user, err := auth.isAuthenticated(r)
-    if err != nil {
-        fmt.Printf("Error: %v\n", err)
-        http.Error(w, "Unauthorized", http.StatusUnauthorized)
-        return
-    }
+func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.IsAuthenticated(r)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
-    email := user.Email
+	email := user.Email
 
-    // struct will hold all editable fields
-    // if any are non-empty, update it in 
+	// extract json from request body
+	var editStatusApplicationRequest EditStatusApplicationRequest
+	err = json.NewDecoder(r.Body).Decode(&editStatusApplicationRequest)
+	if err != nil {
+		http.Error(w, "Error decoding request body", http.StatusBadRequest)
+		return
+	}
+
+	applicationID := editStatusApplicationRequest.ID
+
+	// edit application in Firestore
+	_, err = h.firestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
+		{
+			Path:  "status",
+			Value: editStatusApplicationRequest.Status,
+		},
+	})
+	if err != nil {
+		fmt.Printf("Error adding application: %v\n", err)
+		http.Error(w, "Error adding application", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
 }

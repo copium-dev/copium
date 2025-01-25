@@ -8,7 +8,7 @@
     import { Separator } from "$lib/components/ui/separator";
     import { Progress } from "$lib/components/ui/progress/index.js";
 
-    export let id: string;  // temporarily not used; will be used for db operations later
+    export let id: string; // temporarily not used; will be used for db operations later
     export let company: string;
     export let role: string;
     export let appliedDate: string;
@@ -17,24 +17,38 @@
     export let link: string | undefined | null;
 
     const statusValues: Record<string, number> = {
-        "Rejected": 10.75,
-        "Ghosted": 28,
-        "Applied": 43,
-        "Screen": 58,
-        "Interviewing": 74,
-        "Offer": 100,
+        Rejected: 10.75,
+        Ghosted: 28,
+        Applied: 43,
+        Screen: 58,
+        Interviewing: 74,
+        Offer: 100,
     };
-
-    function updateStatus(newStatus: keyof typeof statusValues) {
-        value = statusValues[newStatus];
-    }
 
     function formatDate(dateString: string): string {
         const date = new Date(dateString);
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
         const year = date.getFullYear();
         return `${month}-${day}-${year}`;
+    }
+
+    async function updateStatus(newStatus: keyof typeof statusValues) {
+        value = statusValues[newStatus];
+        const formData = new FormData();
+        formData.append("id", id);
+        formData.append("status", newStatus);
+
+        const response = await fetch(`/dashboard?/editstatus`, {
+            method: "POST",
+            body: formData,
+        });
+
+        if (!response.ok) {
+            console.error("Failed to update application");
+        } else {
+            console.log("Application updated successfully");
+        }
     }
 
     // call /dashboard?/delete with id
@@ -59,9 +73,8 @@
     onMount(() => {
         value = statusValues[status];
     });
-    
-    let value = statusValues[status];
 
+    let value = statusValues[status];
 </script>
 
 <Separator orientation="horizontal" class="my-5 mx-auto w-full" />
@@ -70,31 +83,48 @@
         class="w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center p-3 sm:my-3"
     >
         <div class="flex flex-row items-center">
-            <div class="flex flex-row sm:flex-col items-center sm:items-baseline sm:gap-1 px-5">
+            <div
+                class="flex flex-row sm:flex-col items-center sm:items-baseline sm:gap-1 px-5"
+            >
                 <p class="font-bold">{company}</p>
                 <p class="flex flex-row items-center gap-1 text-xs h-full">
                     <Map class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0" />
                     {location}
                 </p>
             </div>
-            <Separator orientation="vertical" class="h-12 ml-auto invisible sm:visible" />
+            <Separator
+                orientation="vertical"
+                class="h-12 ml-auto invisible sm:visible"
+            />
         </div>
 
         <div class="flex flex-row items-center">
-            <div class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-5">
+            <div
+                class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-5"
+            >
                 <p>
                     {#if link}
-                        <a href={link} target="_blank" rel="noopener noreferrer" class="hover:underline">{role}</a>
+                        <a
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="hover:underline">{role}</a
+                        >
                     {:else}
                         {role}
                     {/if}
                 </p>
                 <p class="flex flex-row items-center gap-1 text-xs h-full">
-                    <Calendar class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0" />
+                    <Calendar
+                        class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0"
+                    />
                     {formatDate(appliedDate)}
                 </p>
             </div>
-            <Separator orientation="vertical" class="h-12 ml-auto invisible sm:visible" />
+            <Separator
+                orientation="vertical"
+                class="h-12 ml-auto invisible sm:visible"
+            />
         </div>
 
         <div class="px-5 h-full flex items-center">
@@ -112,11 +142,14 @@
                         >
                             <Button
                                 size="icon"
-                                class="w-3 h-3 {value ===
-                                progressValue
+                                class="w-3 h-3 {value === progressValue
                                     ? 'bg-primary dark:bg-secondary-foreground'
                                     : 'bg-secondary dark:bg-primary-foreground'}"
-                                on:click={() => updateStatus(status as keyof typeof statusValues)}
+                                on:click={() => {
+                                    updateStatus(
+                                        status as keyof typeof statusValues,
+                                    );
+                                }}
                                 aria-label={`Set status to ${status}`}
                             ></Button>
                             <p>{status}</p>
@@ -129,7 +162,11 @@
         <div class="flex ml-1.5 sm:ml-0">
             <Button variant="ghost" class="text-xs">Edit</Button>
             <!-- looks weird to have hover:text-red-500 but ghost automatically does hover:text-primary so this is a workaround -->
-            <Button variant="ghost" class="text-xs text-red-500 hover:text-red-500" on:click={deleteApplication}>Delete</Button>
+            <Button
+                variant="ghost"
+                class="text-xs text-red-500 hover:text-red-500"
+                on:click={deleteApplication}>Delete</Button
+            >
         </div>
     </div>
 </div>

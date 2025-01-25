@@ -78,4 +78,32 @@ export const actions = {
             message: 'Application deleted successfully'
         };
     },
+    editstatus: async ({ request, fetch }) => {
+        const formData = await request.formData();
+        const body = {
+            id: formData.get('id'),
+            status: formData.get('status')
+        }
+
+        const response = await fetch(`${BACKEND_URL}/user/editStatus`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            return {
+                type: 'error',
+                message: 'Failed to update application status'
+            };
+        }
+        
+        return {
+            type: 'success',
+            message: 'Application status updated successfully'
+        };
+    },
 } satisfies Actions;
