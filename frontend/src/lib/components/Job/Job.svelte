@@ -11,6 +11,9 @@
     import { Input } from "$lib/components/ui/input";
     import { Label } from "$lib/components/ui/label";
 
+    import placeholder from "./assets/logo.png";
+    import { PUBLIC_LOGO_KEY } from "$env/static/public";
+
     export let id: string; // temporarily not used; will be used for db operations later
     export let company: string;
     export let role: string;
@@ -18,6 +21,8 @@
     export let location: string;
     export let status: string;
     export let link: string | undefined | null;
+
+    console.log(PUBLIC_LOGO_KEY);
 
     const statusValues: Record<string, number> = {
         Rejected: 10.75,
@@ -36,32 +41,37 @@
 
     // format date for display
     function formatDate(dateString: string): string {
-        if (!dateString) return '';
-        
+        if (!dateString) return "";
+
         const date = new Date(dateString);
-        if (isNaN(date.getTime())) return '';
-        
+        if (isNaN(date.getTime())) return "";
+
         // Adjust for timezone
-        const adjustedDate = new Date(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
-        
+        const adjustedDate = new Date(
+            date.getTime() + date.getTimezoneOffset() * 60 * 1000,
+        );
+
         const month = String(adjustedDate.getMonth() + 1).padStart(2, "0");
         const day = String(adjustedDate.getDate()).padStart(2, "0");
         const year = adjustedDate.getFullYear();
-        
+
         return `${month}-${day}-${year}`;
     }
 
     // format date for edit input
     function formatDateForInput(dateString: string): string {
-        if (!dateString) return new Date().toISOString().split('T')[0];
-        
+        if (!dateString) return new Date().toISOString().split("T")[0];
+
         const parsedDate = new Date(dateString);
-        if (isNaN(parsedDate.getTime())) return new Date().toISOString().split('T')[0];
-        
+        if (isNaN(parsedDate.getTime()))
+            return new Date().toISOString().split("T")[0];
+
         // Adjust for timezone
-        const adjustedDate = new Date(parsedDate.getTime() + parsedDate.getTimezoneOffset() * 60 * 1000);
-        
-        return adjustedDate.toISOString().split('T')[0];
+        const adjustedDate = new Date(
+            parsedDate.getTime() + parsedDate.getTimezoneOffset() * 60 * 1000,
+        );
+
+        return adjustedDate.toISOString().split("T")[0];
     }
 
     async function updateStatus(newStatus: keyof typeof statusValues) {
@@ -104,6 +114,13 @@
     });
 
     let value = statusValues[status];
+
+    // handle error when logo fails to load
+    let hasError = false;
+
+    function handleError() {
+        hasError = true;
+    }
 </script>
 
 <Separator orientation="horizontal" class="my-5 mx-auto w-full" />
@@ -112,6 +129,21 @@
         class="w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center p-3 sm:my-3"
     >
         <div class="flex flex-row items-center">
+            {#if hasError}
+                <img
+                    src={placeholder}
+                    alt={`${company} logo`}
+                    class="w-10 h-10 rounded-lg object-cover"
+                />
+                {console.log(`https://cdn.brandfetch.io/${company}.com/w/400/h/400?c=${PUBLIC_LOGO_KEY}`)}
+            {:else}
+                <img
+                    src={`https://cdn.brandfetch.io/${company}.com/w/400/h/400?c=${PUBLIC_LOGO_KEY}`}
+                    alt={`${company} logo`}
+                    class="w-10 h-10 rounded-lg object-cover"
+                    on:error={handleError}
+                />
+            {/if}
             <div
                 class="flex flex-row sm:flex-col items-center sm:items-baseline sm:gap-1 px-5"
             >
@@ -191,8 +223,12 @@
         </div>
 
         {#if edit}
-            <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                <div class="relative flex flex-col gap-2 my-2 inline-block w-full overflow-visible rounded-2xl bg-white dark:bg-zinc-900 px-4 py-5 sm:p-6 text-left align-bottom shadow-xl transition-all sm:align-middle sm:max-w-3xl">
+            <div
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+            >
+                <div
+                    class="relative flex flex-col gap-2 my-2 inline-block w-full overflow-visible rounded-2xl bg-white dark:bg-zinc-900 px-4 py-5 sm:p-6 text-left align-bottom shadow-xl transition-all sm:align-middle sm:max-w-3xl"
+                >
                     <h1 class="text-xl">Edit Application</h1>
                     <form
                         action="/dashboard?/editapplication"
@@ -206,32 +242,99 @@
                         }}
                     >
                         <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
-                        <input type="hidden" name="id" value={id} />    <!-- hidden id field for db operations -->
-                        <div class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5">
-                            <Label for="role" class="text-sm text-gray-500 font-light">Role</Label>
-                            <Input type="text" name="role" placeholder="Role" value={role} />
+                        <input type="hidden" name="id" value={id} />
+                        <!-- hidden id field for db operations -->
+                        <div
+                            class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                        >
+                            <Label
+                                for="role"
+                                class="text-sm text-gray-500 font-light"
+                                >Role</Label
+                            >
+                            <Input
+                                type="text"
+                                name="role"
+                                placeholder="Role"
+                                value={role}
+                            />
                         </div>
-                        <div class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5">
-                            <Label for="company" class="text-sm text-gray-500 font-light">Company</Label>
-                            <Input type="text" name="company" placeholder="Company" value={company} />
+                        <div
+                            class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                        >
+                            <Label
+                                for="company"
+                                class="text-sm text-gray-500 font-light"
+                                >Company</Label
+                            >
+                            <Input
+                                type="text"
+                                name="company"
+                                placeholder="Company"
+                                value={company}
+                            />
                         </div>
-                        <div class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5">
-                            <Label for="location" class="text-sm text-gray-500 font-light">Location</Label>
-                            <Input type="text" name="location" placeholder="Location" value={location} />
+                        <div
+                            class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                        >
+                            <Label
+                                for="location"
+                                class="text-sm text-gray-500 font-light"
+                                >Location</Label
+                            >
+                            <Input
+                                type="text"
+                                name="location"
+                                placeholder="Location"
+                                value={location}
+                            />
                         </div>
-                        <div class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5">
-                            <Label for="link" class="text-sm text-gray-500 font-light">Link</Label>
-                            <Input type="text" name="link" placeholder="Link" value={link} />
+                        <div
+                            class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                        >
+                            <Label
+                                for="link"
+                                class="text-sm text-gray-500 font-light"
+                                >Link</Label
+                            >
+                            <Input
+                                type="text"
+                                name="link"
+                                placeholder="Link"
+                                value={link}
+                            />
                         </div>
-                        <div class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5">
-                            <Label for="appliedDate" class="text-sm text-gray-500 font-light">Applied Date</Label>
-                            <Input type="date" name="appliedDate" placeholder="Applied Date" value={formatDateForInput(appliedDate)} />
+                        <div
+                            class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                        >
+                            <Label
+                                for="appliedDate"
+                                class="text-sm text-gray-500 font-light"
+                                >Applied Date</Label
+                            >
+                            <Input
+                                type="date"
+                                name="appliedDate"
+                                placeholder="Applied Date"
+                                value={formatDateForInput(appliedDate)}
+                            />
                         </div>
-                        <div class="flex flex-row gap-2 items-stretch justify-between w-full">
-                            <Button type="button" variant="outline" class="flex-grow text-red-500 hover:text-red-500" on:click={toggleEdit}>
+                        <div
+                            class="flex flex-row gap-2 items-stretch justify-between w-full"
+                        >
+                            <Button
+                                type="button"
+                                variant="outline"
+                                class="flex-grow text-red-500 hover:text-red-500"
+                                on:click={toggleEdit}
+                            >
                                 Cancel
                             </Button>
-                            <Button type="submit" variant="outline" class="flex-grow">
+                            <Button
+                                type="submit"
+                                variant="outline"
+                                class="flex-grow"
+                            >
                                 Save
                             </Button>
                         </div>
@@ -241,11 +344,7 @@
         {/if}
 
         <div class="flex ml-1.5 sm:ml-0">
-            <Button
-                on:click={toggleEdit}
-                variant="ghost"
-                class="text-xs"
-            >
+            <Button on:click={toggleEdit} variant="ghost" class="text-xs">
                 Edit
             </Button>
             <Button
@@ -254,7 +353,7 @@
                 on:click={deleteApplication}
             >
                 Delete
-            </Button>   
+            </Button>
         </div>
     </div>
 </div>
