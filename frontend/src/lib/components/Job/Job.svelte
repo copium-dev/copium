@@ -11,7 +11,7 @@
     import { Input } from "$lib/components/ui/input";
     import { Label } from "$lib/components/ui/label";
 
-    import placeholder from "./assets/logo.png";
+    import placeholder from "$lib/images/placeholder.png";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
 
     export let id: string; // temporarily not used; will be used for db operations later
@@ -21,8 +21,6 @@
     export let location: string;
     export let status: string;
     export let link: string | undefined | null;
-
-    console.log(PUBLIC_LOGO_KEY);
 
     const statusValues: Record<string, number> = {
         Rejected: 10.75,
@@ -111,16 +109,25 @@
 
     onMount(() => {
         value = statusValues[status];
+        
+        const fetchLogo = async () => {
+            const res = await fetch(
+                `https://api.brandfetch.io/v2/search/${company}?c=${PUBLIC_LOGO_KEY}`
+            );
+
+            if (res.ok) {
+                const data = await res.json();
+                imgSrc = data.length > 0 ? data[0].icon : placeholder;
+            } else {
+                imgSrc = placeholder;
+            }
+        };
+
+        fetchLogo();
     });
 
     let value = statusValues[status];
-
-    // handle error when logo fails to load
-    let hasError = false;
-
-    function handleError() {
-        hasError = true;
-    }
+    let imgSrc: string;
 </script>
 
 <Separator orientation="horizontal" class="my-5 mx-auto w-full" />
@@ -129,29 +136,19 @@
         class="w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center p-3 sm:my-3"
     >
         <div class="flex flex-row items-center">
-            {#if hasError}
-                <img
-                    src={placeholder}
-                    alt={`${company} logo`}
-                    class="w-10 h-10 rounded-lg object-cover"
-                />
-                {console.log(`https://cdn.brandfetch.io/${company}.com/w/400/h/400?c=${PUBLIC_LOGO_KEY}`)}
-            {:else}
-                <img
-                    src={`https://cdn.brandfetch.io/${company}.com/w/400/h/400?c=${PUBLIC_LOGO_KEY}`}
-                    alt={`${company} logo`}
-                    class="w-10 h-10 rounded-lg object-cover"
-                    on:error={handleError}
-                />
-            {/if}
+            <img
+                src={imgSrc}
+                alt={`${company} logo`}
+                class="w-10 h-10 rounded-lg object-cover"
+            />
             <div
-                class="flex flex-row sm:flex-col items-center sm:items-baseline sm:gap-1 px-5"
+                class="flex flex-col items-baseline sm:gap-1 px-5 w-full"
             >
                 <p class="flex flex-row items-end font-bold gap-1 h-full">
                     {company}
                 </p>
                 <p class="flex flex-row items-end gap-1 text-xs h-full">
-                    <Map class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0" />
+                    <Map class="w-[15px] h-[15px] stroke-[1.5]" />
                     {location}
                 </p>
             </div>
@@ -163,7 +160,7 @@
 
         <div class="flex flex-row items-center">
             <div
-                class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-5"
+                class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-0 sm:px-5"
             >
                 <p class="flex items-end">
                     {#if link}
@@ -190,7 +187,7 @@
             />
         </div>
 
-        <div class="px-5 h-full flex items-center">
+        <div class="px-0 sm:px-5 h-full flex items-start items-center">
             <div class="flex w-full relative">
                 <!-- Progress bar in background -->
                 <div class="absolute w-full top-[13px]">
@@ -220,8 +217,11 @@
                     {/each}
                 </div>
             </div>
+            <Separator
+                orientation="vertical"
+                class="h-12 ml-5 invisible sm:visible"
+            />
         </div>
-
         {#if edit}
             <div
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
@@ -343,17 +343,19 @@
             </div>
         {/if}
 
-        <div class="flex ml-1.5 sm:ml-0">
-            <Button on:click={toggleEdit} variant="ghost" class="text-xs">
+        <div class="mt-4 flex w-full items-stretch justify-between gap-4 sm:gap-2">
+            <button
+                on:click={toggleEdit}
+                class="focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none sm:hover:bg-transparent sm:hover:bg-accent"
+            >
                 Edit
-            </Button>
-            <Button
-                variant="ghost"
-                class="text-xs text-red-500 hover:text-red-500"
+            </button>
+            <button
                 on:click={deleteApplication}
+                class="text-red-500 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none sm:hover:bg-transparent hover:text-red-500 sm:hover:bg-accent"
             >
                 Delete
-            </Button>
+            </button>
         </div>
     </div>
 </div>
