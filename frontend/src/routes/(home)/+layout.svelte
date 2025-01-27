@@ -13,7 +13,7 @@
 <ModeWatcher />
 <div class="min-h-screen grid grid-rows-[auto_1fr]">
     <header class="bg-background z-50">
-        <div class="mx-auto flex max-w-7xl items-center justify-between p-6 lg:px-8">
+        <div class="mx-auto flex items-center justify-between p-6 lg:px-8">
             <div class="flex-none">
                 <a href="/" aria-label="Home" class="group hover:opacity-80 transition-all">
                     <svg version="1.0" xmlns="http://www.w3.org/2000/svg" class="w-12 sm:w-16 h-auto" width="500.000000pt" height="200.000000pt" viewBox="0 150 1.000000 200.000000" preserveAspectRatio="xMidYMid meet">

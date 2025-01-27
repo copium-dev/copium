@@ -41,6 +41,16 @@ type EditStatusApplicationRequest struct {
 	Status string `json:"status"`
 }
 
+// edit application does not include status because status is edited separately
+type EditApplicationRequest struct {
+	ID 			string `json:"id"`
+	Role		string `json:"role"`
+	Company		string `json:"company"`
+	Location	string `json:"location"`
+	AppliedDate	string `json:"appliedDate"`
+	Link 		string `json:"link"`
+}
+
 type Handler struct {
 	firestoreClient *firestore.Client
 }
@@ -56,6 +66,7 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/user/addApplication", h.AddApplication).Methods("POST").Name("addApplication")
 	router.HandleFunc("/user/deleteApplication", h.DeleteApplication).Methods("POST").Name("deleteApplication")
 	router.HandleFunc("/user/editStatus", h.EditStatus).Methods("POST").Name("editStatus")
+	router.HandleFunc("/user/editApplication", h.EditApplication).Methods("POST").Name("editApplication")
 }
 
 func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
@@ -211,4 +222,56 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
+}
+
+func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
+	user, err := auth.IsAuthenticated(r)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	email := user.Email
+
+	// extract json from request body
+	var addApplicationRequest EditApplicationRequest
+	err = json.NewDecoder(r.Body).Decode(&addApplicationRequest)
+	if err != nil {
+		http.Error(w, "Error decoding request body", http.StatusBadRequest)
+		return
+	}
+
+	applicationID := addApplicationRequest.ID
+
+	// frontend will send all fields, so we need to update all fields
+	_, err = h.firestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
+		{
+			Path:  "role",
+			Value: addApplicationRequest.Role,
+		},
+		{
+			Path:  "company",
+			Value: addApplicationRequest.Company,
+		},
+		{
+			Path:  "location",
+			Value: addApplicationRequest.Location,
+		},
+		{
+			Path:  "link",
+			Value: addApplicationRequest.Link,
+		},
+		{
+			Path:  "appliedDate",
+			Value: addApplicationRequest.AppliedDate,
+		},
+	})
+	if err != nil {
+		fmt.Printf("Error editing application: %v\n", err)
+		http.Error(w, "Error editing application", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

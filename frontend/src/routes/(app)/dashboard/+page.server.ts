@@ -106,4 +106,33 @@ export const actions = {
             message: 'Application status updated successfully'
         };
     },
+    editapplication: async({ request, fetch }) => {
+        const formData = await request.formData();
+        const body = {
+            id: formData.get('id'),
+            role: formData.get('role'),
+            company: formData.get('company'),
+            location: formData.get('location'),
+            appliedDate: new Date(formData.get('appliedDate') as string),
+            link: formData.get('link'),
+        }
+
+        const response = await fetch(`${BACKEND_URL}/user/editApplication`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            return {
+                type: 'error',
+                message: 'Failed to update application'
+            };
+        }
+
+        throw redirect(303, '/dashboard');
+    }
 } satisfies Actions;

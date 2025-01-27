@@ -34,7 +34,7 @@
 <div class="min-h-screen grid grid-rows-[auto_1fr]">
     <header class="bg-background z-50">
         <div
-            class="mx-auto flex max-w-7xl items-center justify-between p-6 sm:px-8"
+            class="mx-auto flex items-center justify-between p-6 sm:px-8"
         >
             <div class="flex-none">
                 <a href="/" aria-label="Home" class="group hover:opacity-80 transition-all">
@@ -57,7 +57,7 @@
                         <Button
                             builders={[builder]}
                             variant="outline"
-                            class="w-16"
+                            class="w-12 sm:w-16"
                         >
                             <Settings />
                         </Button>
@@ -86,7 +86,7 @@
             </div>
         </div>
     </header>
-    <main class="bg-background overflow-auto">
+    <main class="w-full bg-background overflow-auto">
         {@render children()}
     </main>
 </div>

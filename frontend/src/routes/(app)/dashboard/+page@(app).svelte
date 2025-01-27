@@ -60,7 +60,7 @@
                 <Input type="text" placeholder="Search for roles or companies" />
             </div>
             <div class="flex flex-row gap-2 sm:gap-4 items-center w-full sm:w-auto">
-                <div class="flex items-center gap-0 sm:gap-2">
+                <div class="flex items-center gap-0 sm:gap-2 -ml-3 sm:ml-0">
                     <Button variant="ghost" type="button" class="text-xs sm:text-sm">Applied from</Button>
                     <Separator orientation="horizontal" class="w-2 sm:w-3" />
                     <Button variant="ghost" type="button" class="text-xs sm:text-sm">Applied until</Button>
