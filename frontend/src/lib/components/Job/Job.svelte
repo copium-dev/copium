@@ -207,24 +207,24 @@
                     >
                         <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
                         <input type="hidden" name="id" value={id} />    <!-- hidden id field for db operations -->
-                        <div class="grid w-full items-center gap-1.5">
-                            <Label for="role" class="text-sm font-bold">Role</Label>
+                        <div class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5">
+                            <Label for="role" class="text-sm text-gray-500 font-light">Role</Label>
                             <Input type="text" name="role" placeholder="Role" value={role} />
                         </div>
-                        <div class="grid w-full items-center gap-1.5">
-                            <Label for="company" class="text-sm font-bold">Company</Label>
+                        <div class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5">
+                            <Label for="company" class="text-sm text-gray-500 font-light">Company</Label>
                             <Input type="text" name="company" placeholder="Company" value={company} />
                         </div>
-                        <div class="grid w-full items-center gap-1.5">
-                            <Label for="location" class="text-sm font-bold">Location</Label>
+                        <div class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5">
+                            <Label for="location" class="text-sm text-gray-500 font-light">Location</Label>
                             <Input type="text" name="location" placeholder="Location" value={location} />
                         </div>
-                        <div class="grid w-full items-center gap-1.5">
-                            <Label for="link" class="text-sm font-bold">Link</Label>
+                        <div class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5">
+                            <Label for="link" class="text-sm text-gray-500 font-light">Link</Label>
                             <Input type="text" name="link" placeholder="Link" value={link} />
                         </div>
-                        <div class="grid w-full items-center gap-1.5">
-                            <Label for="appliedDate" class="text-sm font-bold">Applied Date</Label>
+                        <div class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5">
+                            <Label for="appliedDate" class="text-sm text-gray-500 font-light">Applied Date</Label>
                             <Input type="date" name="appliedDate" placeholder="Applied Date" value={formatDateForInput(appliedDate)} />
                         </div>
                         <div class="flex flex-row gap-2 items-stretch justify-between w-full">

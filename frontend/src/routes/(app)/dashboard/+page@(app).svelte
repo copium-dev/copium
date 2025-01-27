@@ -18,8 +18,8 @@
 </script>
 
 <div class="flex flex-col justify-start gap-4 items-center h-full">
-    <div class="w-fit p-3 my-10">
-        <div class="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full">
+    <div class="w-fit p-3 my-10 ">
+        <div class="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full  sm:min-w-[72vw]">
             <div class="flex flex-row flex-grow gap-4 items-center w-full sm:w-auto">
                 <Button variant="outline" class="w-16" on:click={toggleAdd}>
                     Add
