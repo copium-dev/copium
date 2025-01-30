@@ -3,26 +3,37 @@ package api
 import (
     "log"
     "net/http"
-
-    "github.com/gorilla/mux"
-    "github.com/rs/cors"
-    "github.com/juhun32/jtracker-backend/service/user"
+    
+	"github.com/juhun32/jtracker-backend/service/user"
     "github.com/juhun32/jtracker-backend/service/auth"
     "github.com/juhun32/jtracker-backend/utils"
-    "cloud.google.com/go/firestore"
+    
+	"cloud.google.com/go/firestore"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/gorilla/mux"
+    "github.com/rs/cors"
 )
 
 type APIServer struct {
     addr            string
     firestoreClient *firestore.Client
     authHandler     *utils.AuthHandler
+	rabbitCh 		*amqp.Channel
+	rabbitQ 		amqp.Queue
 }
 
-func NewAPIServer(addr string, firestoreClient *firestore.Client, authHandler *utils.AuthHandler) *APIServer {
+func NewAPIServer(addr string,
+	firestoreClient *firestore.Client,
+	authHandler *utils.AuthHandler,
+	rabbitCh *amqp.Channel,
+	rabbitQ amqp.Queue,
+) *APIServer {
     return &APIServer{
         addr:            addr,
         firestoreClient: firestoreClient,
         authHandler:     authHandler,
+		rabbitCh: 	  	rabbitCh,
+		rabbitQ: 	  	rabbitQ,
     }
 }
 
@@ -32,11 +43,10 @@ func (s *APIServer) Run() error {
 
     log.Println("Listening on", s.addr)
 
-    // only user data requires firestore client
-    userHandler := user.NewHandler(s.firestoreClient)
+    userHandler := user.NewHandler(s.firestoreClient, s.rabbitCh, s.rabbitQ)
     userHandler.RegisterRoutes(router)
 
-    authHandler := auth.NewHandler(s.firestoreClient, s.authHandler)
+    authHandler := auth.NewHandler(s.firestoreClient, s.authHandler, s.rabbitCh, s.rabbitQ)
     authHandler.RegisterRoutes(router)
 
     // create new CORS handler

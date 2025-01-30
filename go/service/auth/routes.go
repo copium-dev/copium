@@ -9,6 +9,7 @@ import (
     "github.com/markbates/goth/gothic"
     "github.com/gorilla/mux"
     "cloud.google.com/go/firestore"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // simple struct for returning user data to frontend or other handlers
@@ -20,16 +21,25 @@ type User struct {
 type Handler struct {
     AuthHandler *utils.AuthHandler
     firestoreClient *firestore.Client
+	rabbitCh *amqp.Channel
+	rabbitQ amqp.Queue
 }
 
 // initialize a new handler with an AuthHandler (implementation in utils/main.go) and Firestore client
 // authHandler parameter passed in from cmd/main.go
 //      reason: gorilla/mux spins up a new goroutine for each request
 //              so, we pass in the same AuthHandler to each handler to ensure global state is maintained
-func NewHandler(firestoreClient *firestore.Client, authHandler *utils.AuthHandler) *Handler {
+func NewHandler(
+	firestoreClient *firestore.Client,
+	authHandler *utils.AuthHandler,
+	rabbitCh *amqp.Channel,
+	rabbitQ amqp.Queue,
+) *Handler {
     return &Handler{
         AuthHandler: authHandler,
         firestoreClient: firestoreClient,
+		rabbitCh: rabbitCh,
+		rabbitQ: rabbitQ,
     }
 }
 
@@ -112,6 +122,21 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
     }
 
     http.Redirect(w, r, "http://localhost:5173/dashboard", http.StatusFound)
+
+	// publish message to rabbit after sending 'ok' (later we need to ensure that the default app is indexed)
+	// what we definitely should do is make a function in utils/ for any publishing to rabbit
+	err = h.rabbitCh.Publish(
+		"",     // exchange
+		h.rabbitQ.Name, // routing key
+		false,  // mandatory
+		false,  // immediate
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte("User authenticated"),
+		})
+	if err != nil {
+		fmt.Printf("Error publishing message: %v\n", err)
+	}
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {

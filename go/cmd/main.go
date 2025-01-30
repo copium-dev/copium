@@ -3,10 +3,13 @@ package main
 import (
     "log"
     "context"
+	"fmt"
     "os"
 
     "github.com/juhun32/jtracker-backend/cmd/api"
     "github.com/juhun32/jtracker-backend/utils"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 
     firebase "firebase.google.com/go"
     "google.golang.org/api/option"
@@ -59,10 +62,46 @@ func main() {
 
     authHandler := utils.NewAuthHandler()
 
+	// initialize rabbit (this is the producer)
+	ch, q, err := initializeRabbit()
+	if err != nil {
+		log.Fatal(err)
+	}
+
     // temp: firestore emulator is on 8080 so use 8000 for API server
     // in prod, use Google Cloud Run's default PORT env variable
-    server := api.NewAPIServer(":" + port, firestoreClient, authHandler)
+    server := api.NewAPIServer(":" + port, firestoreClient, authHandler, ch, q)
     if err := server.Run(); err != nil {
         log.Fatal(err)
     }
+}
+
+func initializeRabbit() (*amqp.Channel, amqp.Queue, error) {
+    conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+    if err != nil {
+        return nil, amqp.Queue{}, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+    }
+    // Don't defer conn.Close() - connection should stay open
+
+    ch, err := conn.Channel()
+    if err != nil {
+        conn.Close()
+        return nil, amqp.Queue{}, fmt.Errorf("failed to open channel: %w", err)
+    }
+
+    q, err := ch.QueueDeclare(
+        "my-rabbit", // name
+        false,       // durable
+        false,       // delete when unused
+        false,       // exclusive
+        false,       // no-wait
+        nil,        // arguments
+    )
+    if err != nil {
+        ch.Close()
+        conn.Close()
+        return nil, amqp.Queue{}, fmt.Errorf("failed to declare queue: %w", err)
+    }
+
+    return ch, q, nil
 }

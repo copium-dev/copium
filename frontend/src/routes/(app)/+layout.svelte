@@ -31,7 +31,7 @@
 </script>
 
 <ModeWatcher />
-<div class="min-h-screen grid grid-rows-[auto_1fr]">
+<div class="min-h-screen grid grid-rows-[auto_1fr] justify-center">
     <header class="bg-background z-50">
         <div
             class="mx-auto flex items-center justify-between p-6 sm:px-8"

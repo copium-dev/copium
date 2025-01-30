@@ -11,6 +11,7 @@ import (
 	"cloud.google.com/go/firestore"
 	"github.com/gorilla/mux"
 	"google.golang.org/api/iterator"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type AddApplicationRequest struct {
@@ -53,11 +54,18 @@ type EditApplicationRequest struct {
 
 type Handler struct {
 	firestoreClient *firestore.Client
+	rabbitCh *amqp.Channel
+	rabbitQ amqp.Queue
 }
 
-func NewHandler(firestoreClient *firestore.Client) *Handler {
+func NewHandler(firestoreClient *firestore.Client,
+	rabbitCh *amqp.Channel,
+	rabbitQ amqp.Queue,
+) *Handler {
 	return &Handler{
 		firestoreClient: firestoreClient,
+		rabbitCh: rabbitCh,
+		rabbitQ: rabbitQ,
 	}
 }
 
@@ -106,7 +114,19 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusCreated)
 
-	// TODO: update algolia index after returning ok (aka decouple this from the request)
+	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
+	err = h.rabbitCh.Publish(
+		"",     // exchange
+		h.rabbitQ.Name, // routing key
+		false,  // mandatory
+		false,  // immediate
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte("Application added"),
+		})
+	if err != nil {
+		fmt.Printf("Error publishing message: %v\n", err)
+	}
 }
 
 // current implementation is TEMPORARY!!!!
@@ -187,6 +207,20 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+
+	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
+	err = h.rabbitCh.Publish(
+		"",     // exchange
+		h.rabbitQ.Name, // routing key
+		false,  // mandatory
+		false,  // immediate
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte("Application deleted"),
+		})
+	if err != nil {
+		fmt.Printf("Error publishing message: %v\n", err)
+	}
 }
 
 func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
@@ -221,7 +255,22 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error adding application", http.StatusInternalServerError)
 		return
 	}
+
 	w.WriteHeader(http.StatusCreated)
+
+	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
+	err = h.rabbitCh.Publish(
+		"",     // exchange
+		h.rabbitQ.Name, // routing key
+		false,  // mandatory
+		false,  // immediate
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte("Application status edited"),
+		})
+	if err != nil {
+		fmt.Printf("Error publishing message: %v\n", err)
+	}
 }
 
 func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
@@ -274,4 +323,18 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+
+	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
+	err = h.rabbitCh.Publish(
+		"",     // exchange
+		h.rabbitQ.Name, // routing key
+		false,  // mandatory
+		false,  // immediate
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte("Application edited" + applicationID + " " + email),
+		})
+	if err != nil {
+		fmt.Printf("Error publishing message: %v\n", err)
+	}
 }
