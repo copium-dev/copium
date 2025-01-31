@@ -65,7 +65,9 @@ func main() {
 	// initialize rabbit (this is the producer)
 	ch, q, err := initializeRabbit()
 	if err != nil {
-		log.Fatal(err)
+		// dont log.Fatal; db is source of truth anyway so if sync issues due to failed rabbitmq,
+		// we can simply import the data from firestore to Algolia and then restart rabbitmq
+		fmt.Println("Failed to initialize RabbitMQ", err)	
 	}
 
     // temp: firestore emulator is on 8080 so use 8000 for API server
