@@ -10,8 +10,8 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/gorilla/mux"
-	"google.golang.org/api/iterator"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"google.golang.org/api/iterator"
 )
 
 type AddApplicationRequest struct {
@@ -44,18 +44,18 @@ type EditStatusApplicationRequest struct {
 
 // edit application does not include status because status is edited separately
 type EditApplicationRequest struct {
-	ID 			string `json:"id"`
-	Role		string `json:"role"`
-	Company		string `json:"company"`
-	Location	string `json:"location"`
-	AppliedDate	string `json:"appliedDate"`
-	Link 		string `json:"link"`
+	ID          string `json:"id"`
+	Role        string `json:"role"`
+	Company     string `json:"company"`
+	Location    string `json:"location"`
+	AppliedDate string `json:"appliedDate"`
+	Link        string `json:"link"`
 }
 
 type Handler struct {
 	firestoreClient *firestore.Client
-	rabbitCh *amqp.Channel
-	rabbitQ amqp.Queue
+	rabbitCh        *amqp.Channel
+	rabbitQ         amqp.Queue
 }
 
 func NewHandler(firestoreClient *firestore.Client,
@@ -64,8 +64,8 @@ func NewHandler(firestoreClient *firestore.Client,
 ) *Handler {
 	return &Handler{
 		firestoreClient: firestoreClient,
-		rabbitCh: rabbitCh,
-		rabbitQ: rabbitQ,
+		rabbitCh:        rabbitCh,
+		rabbitQ:         rabbitQ,
 	}
 }
 
@@ -99,7 +99,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// add application to Firestore using users/{email} where jobs is a document within the user's collection
-	_, _, err = h.firestoreClient.Collection("users").Doc(email).Collection("applications").Add(r.Context(), map[string]interface{}{
+	doc, _, err := h.firestoreClient.Collection("users").Doc(email).Collection("applications").Add(r.Context(), map[string]interface{}{
 		"role":        addApplicationRequest.Role,
 		"company":     addApplicationRequest.Company,
 		"location":    addApplicationRequest.Location,
@@ -115,14 +115,32 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 
 	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
+	message := map[string]string{
+		"operation":   "add",
+		"email":       email,
+		"appliedDate": addApplicationRequest.AppliedDate,
+		"company":     addApplicationRequest.Company,
+		"link":        addApplicationRequest.Link,
+		"location":    addApplicationRequest.Location,
+		"role":        addApplicationRequest.Role,
+		"status":      addApplicationRequest.Status,
+		"objectID":    doc.ID,
+	}
+
+	messageBody, err := json.Marshal(message)
+	if err != nil {
+		fmt.Printf("Error marshaling message: %v\n", err)
+		return
+	}
+
 	err = h.rabbitCh.Publish(
-		"",     // exchange
+		"",             // exchange
 		h.rabbitQ.Name, // routing key
-		false,  // mandatory
-		false,  // immediate
+		false,          // mandatory
+		false,          // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
-			Body:        []byte("Application added"),
+			Body:        messageBody,
 		})
 	if err != nil {
 		fmt.Printf("Error publishing message: %v\n", err)
@@ -210,10 +228,10 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 
 	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
 	err = h.rabbitCh.Publish(
-		"",     // exchange
+		"",             // exchange
 		h.rabbitQ.Name, // routing key
-		false,  // mandatory
-		false,  // immediate
+		false,          // mandatory
+		false,          // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
 			Body:        []byte("Application deleted"),
@@ -260,10 +278,10 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 
 	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
 	err = h.rabbitCh.Publish(
-		"",     // exchange
+		"",             // exchange
 		h.rabbitQ.Name, // routing key
-		false,  // mandatory
-		false,  // immediate
+		false,          // mandatory
+		false,          // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
 			Body:        []byte("Application status edited"),
@@ -326,10 +344,10 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 
 	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
 	err = h.rabbitCh.Publish(
-		"",     // exchange
+		"",             // exchange
 		h.rabbitQ.Name, // routing key
-		false,  // mandatory
-		false,  // immediate
+		false,          // mandatory
+		false,          // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
 			Body:        []byte("Application edited" + applicationID + " " + email),

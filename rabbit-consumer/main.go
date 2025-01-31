@@ -3,8 +3,10 @@ package main
 // simple consumer; for now just receive and print
 // later, use worker pools (goroutines) to handle messages to index algolia
 import (
-	amqp "github.com/rabbitmq/amqp091-go"
+	"encoding/json"
 	"log"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // idk im tired of having to write log.Fatalf so why not just make a function
@@ -32,15 +34,15 @@ func main() {
 	// declare a queue to consume from
 	q, err := ch.QueueDeclare(
 		"my-rabbit", // name
-		false,   // durable
-		false,   // delete when unused
-		false,   // exclusive
-		false,   // no-wait
-		nil,     // arguments
+		false,       // durable
+		false,       // delete when unused
+		false,       // exclusive
+		false,       // no-wait
+		nil,         // arguments
 	)
 	failOnError(err, "Failed to declare a queue")
 
-	// register a consumer 
+	// register a consumer
 	msgs, err := ch.Consume(
 		q.Name, // queue
 		"",     // consumer
@@ -59,10 +61,21 @@ func main() {
 	go func() {
 		for d := range msgs {
 			log.Printf("Received a message: %s", d.Body)
+
+			var message map[string]string
+
+			// unmarshal the message
+			err := json.Unmarshal(d.Body, &message)
+			if err != nil {
+				log.Printf("Error unmarshaling message: %s", err)
+				continue
+			}
+
+			log.Printf("Message: %s", message["message"])
 		}
 	}()
 
 	// log readiness, wait indefinitely (until manually killed or interrupted)
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
-	<- forever
+	<-forever
 }
