@@ -39,8 +39,9 @@ def read_json():
     print(f"JSON file read successfully, {len(data)} items loaded.")
     return data
 
-# proposed change for algolia indexing. this not need to go thru rabbitmq since there's no 'producer consumer' model here
-async def send_messages_to_channels(message, role=None):
+# proposed change for algolia indexing. this not need to go thru rabbitmq since there's no real 'load' just a single
+# script called like idk every 15 minutes or something.
+async def send_message(message, role=None):
     print("Sending message:")
     print(message)
     print("--------------------------------")
@@ -88,11 +89,11 @@ def check_for_new_roles():
 
     for role in new_roles:
         message = f"New role: {role['title']} at {role['company_name']}"
-        asyncio.run(send_messages_to_channels(message))
+        asyncio.run(send_message(message))
 
     for role in deactivated_roles:
         message = f"Role {role['title']} at {role['company_name']} is now inactive."
-        asyncio.run(send_messages_to_channels(message))
+        asyncio.run(send_message(message))
 
     with open('previous_data.json', 'w') as file:
         json.dump(new_data, file)

@@ -4,6 +4,8 @@ import (
     "context"
     "fmt"
     "net/http"
+	"encoding/json"
+	"log"
 
     "github.com/juhun32/jtracker-backend/utils"
     "github.com/markbates/goth/gothic"
@@ -53,6 +55,8 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 
 // note: gothic uses a global Store variable so we can just directly call gothic
 func (h *Handler) Auth(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] Auth [*]")
+	log.Println("-----------------")
     provider := mux.Vars(r)["provider"]
     r = r.WithContext(context.WithValue(r.Context(), "provider", provider))
     
@@ -64,6 +68,9 @@ func (h *Handler) Auth(w http.ResponseWriter, r *http.Request) {
     }
 
     gothic.BeginAuthHandler(w, r)
+
+	log.Println("Auth complete")
+	log.Println("-----------------")
 }
 
 func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +121,7 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
     }
 
     // add default application to user/{email}/applications
-    _, _, err = h.firestoreClient.Collection("users").Doc(user.Email).Collection("applications").Add(r.Context(), defaultApplication)
+    doc, _, err := h.firestoreClient.Collection("users").Doc(user.Email).Collection("applications").Add(r.Context(), defaultApplication)
     if err != nil {
         fmt.Printf("Error adding default application to firestore: %v\n", err)
         http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -122,6 +129,25 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
     }
 
     http.Redirect(w, r, "http://localhost:5173/dashboard", http.StatusFound)
+
+	// weird but we have to send the default app to rabbit haha
+	message := map[string]interface{}{
+		"email": user.Email,
+		"objectID": doc.ID,
+		"company": "Google",
+		"role": "Software Engineer Intern",
+		"location": "Mountain View, CA",
+		"appliedDate": "2021-01-01",
+		"status": "Applied",
+		"link": "https://www.google.com",
+	}
+
+	messageBody, err := json.Marshal(message)
+	if err != nil {
+		fmt.Printf("Error marshalling message: %v\n", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// publish message to rabbit after sending 'ok' (later we need to ensure that the default app is indexed)
 	// what we definitely should do is make a function in utils/ for any publishing to rabbit
@@ -132,7 +158,7 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 		false,  // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
-			Body:        []byte("User authenticated"),
+			Body:        messageBody,
 		})
 	if err != nil {
 		fmt.Printf("Error publishing message: %v\n", err)
@@ -140,6 +166,9 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] Logout [*]")
+	log.Println("-----------------")
+
     provider := mux.Vars(r)["provider"]
     if provider != "google" {
         http.Error(w, "Invalid provider", http.StatusBadRequest)
@@ -170,31 +199,26 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 // manually get the session from Store and check if email exists
 // it would be nice to implement this as a middleware but for now just call it directly within each route
 func IsAuthenticated(r *http.Request) (*User, error) {
+	log.Println("[*] IsAuthenticated [*]")
+	log.Println("-----------------")
+
     session, err := gothic.Store.Get(r, "session")
     if err != nil {
         return nil, err
     }
 
-    // Print the session values for debugging purposes
-    fmt.Printf("Session Values: %+v\n", session.Values)
-
-    // Retrieve the email from the session and assert its type
     emailValue, ok := session.Values["email"]
     if !ok {
         return nil, fmt.Errorf("email not found in session")
     }
-
-    // Print the type of the email value for debugging purposes
-    fmt.Printf("Email Value Type: %T\n", emailValue)
 
     email, ok := emailValue.(string)
     if !ok {
         return nil, fmt.Errorf("email is not a string")
     }
 
-    // Print the email for debugging purposes
-    fmt.Printf("Email: %s\n", email)
-
-    // Return the user with the retrieved email
+	log.Println("Authenticated")
+	log.Println("-----------------")
+  
     return &User{Email: email}, nil
 }

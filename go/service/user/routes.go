@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"log"
 
 	"github.com/juhun32/jtracker-backend/service/auth"
 	"github.com/juhun32/jtracker-backend/utils"
@@ -78,6 +79,9 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 }
 
 func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] AddApplication [*]")
+	log.Println("-----------------")
+
 	user, err := auth.IsAuthenticated(r)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
@@ -88,7 +92,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	// for user's email (unique ID), add application and assign unique jobID
 	email := user.Email
 
-	fmt.Println(email)
+	log.Println("User authenticated")
 
 	// extract json from request body
 	var addApplicationRequest AddApplicationRequest
@@ -112,6 +116,9 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error adding application", http.StatusInternalServerError)
 		return
 	}
+	
+	log.Println("Application added")
+
 	w.WriteHeader(http.StatusCreated)
 
 	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
@@ -145,12 +152,18 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Printf("Error publishing message: %v\n", err)
 	}
+
+	log.Println("Message published")
+	log.Println("-----------------")
 }
 
 // current implementation is TEMPORARY!!!!
 // actual implementation doesn't query Firestore, it queries Algolia
 // Firestore is just a backup in case we want to switch to a diff search engine
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] Dashboard [*]")
+	log.Println("-----------------")
+
 	user, err := auth.IsAuthenticated(r)
 
 	if err != nil {
@@ -159,7 +172,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("user", user)
+	log.Println("User authenticated")
 
 	// the actual implementation of this will use the user object from auth.IsAuthenticated
 	// TEMP: query firestore for user's applications
@@ -192,11 +205,17 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	log.Println("Applications retrieved")
+	log.Println("-----------------")
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(applications)
 }
 
 func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] DeleteApplication [*]")
+	log.Println("-----------------")
+
 	user, err := auth.IsAuthenticated(r)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
@@ -205,6 +224,8 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email := user.Email
+
+	log.Println("User authenticated")
 
 	// extract json from request body
 	var deleteApplicationRequest DeleteApplicationRequest
@@ -224,7 +245,21 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Println("Application deleted")
+
 	w.WriteHeader(http.StatusOK)
+
+	message := map[string]string{
+		"operation": "delete",
+		"email":     email,
+		"objectID":  applicationID,
+	}
+
+	messageBody, err := json.Marshal(message)
+	if err != nil {
+		fmt.Printf("Error marshaling message: %v\n", err)
+		return
+	}
 
 	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
 	err = h.rabbitCh.Publish(
@@ -234,14 +269,20 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 		false,          // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
-			Body:        []byte("Application deleted"),
+			Body:        messageBody,
 		})
 	if err != nil {
 		fmt.Printf("Error publishing message: %v\n", err)
 	}
+
+	log.Println("Message published")
+	log.Println("-----------------")
 }
 
 func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] EditStatus [*]")
+	log.Println("-----------------")
+
 	user, err := auth.IsAuthenticated(r)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
@@ -250,6 +291,8 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email := user.Email
+
+	log.Println("User authenticated")
 
 	// extract json from request body
 	var editStatusApplicationRequest EditStatusApplicationRequest
@@ -274,7 +317,22 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Println("Application status edited")
+
 	w.WriteHeader(http.StatusCreated)
+
+	message := map[string]string{
+		"operation": "edit",
+		"email":     email,
+		"objectID":  applicationID,
+		"status":    editStatusApplicationRequest.Status,
+	}
+
+	messageBody, err := json.Marshal(message)
+	if err != nil {
+		fmt.Printf("Error marshaling message: %v\n", err)
+		return
+	}
 
 	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
 	err = h.rabbitCh.Publish(
@@ -284,14 +342,20 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		false,          // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
-			Body:        []byte("Application status edited"),
+			Body:        messageBody,
 		})
 	if err != nil {
 		fmt.Printf("Error publishing message: %v\n", err)
 	}
+
+	log.Println("Message published")
+	log.Println("-----------------")
 }
 
 func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] EditApplication [*]")
+	log.Println("-----------------")
+
 	user, err := auth.IsAuthenticated(r)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
@@ -300,6 +364,8 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email := user.Email
+
+	log.Println("User authenticated")
 
 	// extract json from request body
 	var addApplicationRequest EditApplicationRequest
@@ -340,7 +406,26 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Println("Application edited")
+
 	w.WriteHeader(http.StatusOK)
+
+	message := map[string]string{
+		"operation":   "edit",
+		"email":       email,
+		"appliedDate": addApplicationRequest.AppliedDate,
+		"company":     addApplicationRequest.Company,
+		"link":        addApplicationRequest.Link,
+		"location":    addApplicationRequest.Location,
+		"role":        addApplicationRequest.Role,
+		"objectID":    applicationID,
+	}
+
+	messageBody, err := json.Marshal(message)
+	if err != nil {
+		fmt.Printf("Error marshaling message: %v\n", err)
+		return
+	}
 
 	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
 	err = h.rabbitCh.Publish(
@@ -350,9 +435,12 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		false,          // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
-			Body:        []byte("Application edited" + applicationID + " " + email),
+			Body:        messageBody,
 		})
 	if err != nil {
 		fmt.Printf("Error publishing message: %v\n", err)
 	}
+
+	log.Println("Message published")
+	log.Println("-----------------")
 }

@@ -3,25 +3,23 @@ package main
 // simple consumer; for now just receive and print
 // later, use worker pools (goroutines) to handle messages to index algolia
 import (
-	"encoding/json"
 	"log"
+
+    "github.com/juhun32/copium/rabbit-consumer/config"
+    "github.com/juhun32/copium/rabbit-consumer/pool"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-// idk im tired of having to write log.Fatalf so why not just make a function
-func failOnError(err error, msg string) {
-	if err != nil {
-		log.Fatalf("%s: %s", msg, err)
-	}
-}
-
+// docker run -d --hostname my-rabbit --name rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+// to close:
+//	docker stop rabbit
+// 	docker rm rabbit
 func main() {
-	// connects to rabbitmq server (make sure you ran below command first lol)
-	// docker run -d --hostname my-rabbit --name rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management
-	// to close:
-	//	docker stop rabbit
-	// 	docker rm rabbit
+    // configure worker pool
+    cfg := config.NewConfig(10000, "my-rabbit")
+
+	// connect to rabbit
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
@@ -57,25 +55,38 @@ func main() {
 	// create a channel to keep main function running
 	forever := make(chan bool)
 
-	// consume messages from the queue
+    // create worker pool w/ config
+	p := pool.NewPool(cfg.NumWorkers)
+
+	p.Run()
+
+    // run forever; for each message...
+    // 1. log 
+    // 2. send to worker pool's job queue
+    //  - a worker will pick up the job and process it. If no available workers, enqueue the job
 	go func() {
+		var counter int32 = 1
 		for d := range msgs {
 			log.Printf("Received a message: %s", d.Body)
 
-			var message map[string]string
-
-			// unmarshal the message
-			err := json.Unmarshal(d.Body, &message)
-			if err != nil {
-				log.Printf("Error unmarshaling message: %s", err)
-				continue
+            // NOTE: We don't want to unmarshal the message here, rather 
+            // the worker should do this. This is because unmarshaling here
+            // will block message receiving so let the worker do it 
+			p.JobQueue <- pool.Job{
+				ID:        counter,
+				Data:      d.Body,
 			}
-
-			log.Printf("Message: %s", message["message"])
+			counter++
 		}
 	}()
 
-	// log readiness, wait indefinitely (until manually killed or interrupted)
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
 	<-forever
+
+}
+
+func failOnError(err error, msg string) {
+	if err != nil {
+		log.Fatalf("%s: %s", msg, err)
+	}
 }
