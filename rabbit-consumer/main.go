@@ -4,20 +4,43 @@ package main
 // later, use worker pools (goroutines) to handle messages to index algolia
 import (
 	"log"
+    "os"
 
     "github.com/juhun32/copium/rabbit-consumer/config"
     "github.com/juhun32/copium/rabbit-consumer/pool"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+    "github.com/algolia/algoliasearch-client-go/v4/algolia/search"
+    "github.com/joho/godotenv"
 )
+
+func initializeAlgoliaClient() (*search.APIClient, error){
+    appID := os.Getenv("ALGOLIA_APP_ID")
+    writeApiKey := os.Getenv("ALGOLIA_WRITE_API_KEY")
+
+    algoliaClient, err := search.NewClient(appID, writeApiKey); if err != nil {
+        return nil, err
+    }
+
+    return algoliaClient, nil
+}
 
 // docker run -d --hostname my-rabbit --name rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management
 // to close:
 //	docker stop rabbit
 // 	docker rm rabbit
 func main() {
-    // configure worker pool
-    cfg := config.NewConfig(10000, "my-rabbit")
+    err := godotenv.Load(); if err != nil {
+        log.Fatalf("Error loading .env file")
+    }
+
+    // create an algolia client (shared across all workers)
+    algoliaClient, err := initializeAlgoliaClient(); if err != nil {
+        log.Fatalf("Error initializing algolia client")
+    }
+
+    // configure worker pool with num workers, queue name, and algolia client
+    cfg := config.NewConfig(10000, "my-rabbit", algoliaClient)
 
 	// connect to rabbit
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
@@ -56,7 +79,7 @@ func main() {
 	forever := make(chan bool)
 
     // create worker pool w/ config
-	p := pool.NewPool(cfg.NumWorkers)
+	p := pool.NewPool(cfg.NumWorkers, cfg.AlgoliaClient)
 
 	p.Run()
 
@@ -75,6 +98,7 @@ func main() {
 			p.JobQueue <- pool.Job{
 				ID:        counter,
 				Data:      d.Body,
+                
 			}
 			counter++
 		}

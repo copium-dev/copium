@@ -4,6 +4,8 @@ package pool
 import (
 	"encoding/json"
 	"log"
+
+	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
 )
 
 // note: id is not strictly necessary but useful for debugging
@@ -15,6 +17,7 @@ type Job struct {
 // a pool of workers with channels for job distribution, job queueing, and stopping
 type Pool struct {
 	NumWorkers 	int32
+	AlgoliaClient *search.APIClient
 	JobChannels chan chan Job
 	JobQueue 	chan Job
 	Stopped 	chan bool
@@ -22,20 +25,24 @@ type Pool struct {
 
 // a worker with a unique ID and a dedicated job channel (to receive jobs from another goroutine)
 // has a shared channel for job registration and a quit channel to signal termination
+// note: worker uses shared algolia client
 type Worker struct {
 	ID 			int
+	AlgoliaClient *search.APIClient
 	JobChannel 	chan Job
 	JobChannels chan chan Job
 	Quit 		chan bool
 }
 
 // initialize a new worker pool 
-func NewPool(numWorkers int32) Pool {
+func NewPool(numWorkers int32, algoliaClient *search.APIClient) Pool {
 	return Pool{
 		NumWorkers:  numWorkers,
+		AlgoliaClient: algoliaClient,
 		JobChannels: make(chan chan Job),
 		JobQueue:    make(chan Job),
 		Stopped:     make(chan bool),
+		
 	}
 }
 
@@ -45,6 +52,7 @@ func (p *Pool) Run() {
 	for i := 0; i < int(p.NumWorkers); i++ {
 		worker := Worker{
 			ID:          (i + 1),
+			AlgoliaClient: p.AlgoliaClient,
 			JobChannel:  make(chan Job),
 			JobChannels: p.JobChannels,
 			Quit:        make(chan bool),
@@ -105,10 +113,38 @@ func (w *Worker) work(job Job) {
 	log.Printf("Job Data: %v", data)
 
 	// 1. figure out the operation (add edit delete)
+	operation := data["operation"].(string)
+	log.Printf("Operation: %s", operation)
+
+	// we know the operation now, we can delete it.
+	delete(data, "operation")
+
 	// 2. call the correct function w/ data 
-	// 3. log the result. done
+	if operation == "add" {
+		w.addApplication(data)
+	} else if operation == "edit" {
+		// editApplication(data)
+	} else if operation == "delete" {
+		// deleteApplication(data)
+	} else {
+		log.Printf("Unknown operation: %s", operation)
+	}
 
 	// end; log completion
 	log.Printf("Processed Job With ID [%d] & content: [%s]", job.ID, job.Data)
 	log.Printf("-------")
 }
+
+func (w *Worker) addApplication(data map[string]interface{}) {
+	// add the application to algolia
+	saveRes, err := w.AlgoliaClient.SaveObject(
+		w.AlgoliaClient.NewApiSaveObjectRequest("users", data),
+	)
+	if err != nil {
+		log.Printf("Failed to save object: %s", err)
+		return
+	}
+
+	log.Printf("Saved object: %v", saveRes)
+}
+
