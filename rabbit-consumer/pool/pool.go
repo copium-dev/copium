@@ -145,6 +145,13 @@ func (w *Worker) addApplication(data map[string]interface{}) {
 		return
 	}
 
+	// wait for task to finish before exiting function
+	_, err = w.AlgoliaClient.WaitForTask("users", saveRes.TaskID)
+    if err != nil {
+        log.Printf("Error waiting for task to finish: %s", err)
+		return
+    }
+
 	log.Printf("Saved object: %v", saveRes)
 }
 
