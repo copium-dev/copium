@@ -3,72 +3,145 @@
     import { Input } from "$lib/components/ui/input";
     import { Separator } from "$lib/components/ui/separator";
     import { Job } from "$lib/components/Job";
+    import * as AlertDialog from "$lib/components/ui/alert-dialog";
 
     import { enhance } from "$app/forms";
-    import type { PageData } from './$types';
-    
-    let isAddOpen = false;
+    import type { PageData } from "./$types";
 
-    function toggleAdd() {
-        isAddOpen = !isAddOpen;
-    }
+    let open = false;
 
     export let data: PageData;
-
 </script>
 
-<div class="flex flex-col justify-start gap-4 items-stretch w-full sm:w-5/6 mx-auto h-full">
-    <div class="p-3 my-10 ">
-        <div class="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full sm:min-w-[72vw]">
-            <div class="flex flex-row flex-grow gap-4 items-center w-full sm:w-auto">
-                <Button variant="outline" class="w-16" on:click={toggleAdd}>
-                    Add
-                </Button>
-                {#if isAddOpen}
-                    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                        <div class="relative flex flex-col gap-2 my-2 inline-block w-full overflow-visible rounded-2xl bg-white dark:bg-zinc-900 px-4 py-5 sm:p-6 text-left align-bottom shadow-xl transition-all sm:align-middle sm:max-w-3xl">
-                            <h1 class="text-xl">Add Application</h1>
-                            <form
-                                action="?/add"
-                                method="POST"
-                                class="flex flex-col gap-2 w-full"
-                                use:enhance={() => {
-                                    toggleAdd();
-                                    return ({ update }) => {
-                                        update();
-                                    };
-                                }}
+<div
+    class="flex flex-col justify-start gap-4 items-stretch w-full sm:w-5/6 mx-auto h-full"
+>
+    <div class="p-3 my-10">
+        <div
+            class="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full sm:min-w-[72vw]"
+        >
+            <div
+                class="flex flex-row flex-grow gap-4 items-center w-full sm:w-auto"
+            >
+                <AlertDialog.Root bind:open>
+                    <AlertDialog.Trigger asChild let:builder>
+                        <Button
+                            builders={[builder]}
+                            variant="outline"
+                            class="w-16"
+                            on:click={() => {
+                                open = true;
+                            }}
+                        >
+                            Add
+                        </Button>
+                    </AlertDialog.Trigger>
+                    <AlertDialog.Content>
+                        <AlertDialog.Header>
+                            <AlertDialog.Title
+                                >Add Application</AlertDialog.Title
                             >
-                                <Input type="text" name="role" placeholder="Role" required />
-                                <Input type="text" name="company" placeholder="Company" required />
-                                <Input type="text" name="location" placeholder="Location" required />
-                                <Input type="text" name="link" placeholder="Link (Optional)" />
-                                <Input type="date" name="appliedDate" placeholder="Applied Date" required />
-                                <div class="flex flex-row gap-2 items-stretch justify-between w-full">
-                                    <Button type="button" variant="outline" class="flex-grow text-red-500 hover:text-red-500" on:click={toggleAdd}>
+                            <AlertDialog.Description>
+                                Add a new application to your list. Defaults to
+                                'Applied' status.
+                            </AlertDialog.Description>
+                            <form
+                            action="?/add"
+                            method="POST"
+                            class="flex flex-col gap-2 w-full"
+                            use:enhance={(data) => {
+                                return async ({ update }) => {
+                                  if (data.formElement.checkValidity()) {
+                                    open = false;
+                                    update();
+                                  } else {
+                                    // Report validity errors so the dialog remains open.
+                                    data.formElement.reportValidity();
+                                  }
+                                };
+                              }}
+                        >
+                                <Input
+                                    type="text"
+                                    name="role"
+                                    placeholder="Role"
+                                    required
+                                />
+                                <Input
+                                    type="text"
+                                    name="company"
+                                    placeholder="Company"
+                                    required
+                                />
+                                <Input
+                                    type="text"
+                                    name="location"
+                                    placeholder="Location"
+                                    required
+                                />
+                                <Input
+                                    type="text"
+                                    name="link"
+                                    placeholder="Link (Optional)"
+                                />
+                                <Input
+                                    type="date"
+                                    name="appliedDate"
+                                    placeholder="Applied Date"
+                                    required
+                                />
+                                <AlertDialog.Footer>
+                                    <AlertDialog.Cancel
+                                        on:click={() => {
+                                            open = false;
+                                        }}
+                                    >
                                         Cancel
-                                    </Button>
-                                    <Button type="submit" variant="outline" class="flex-grow">
-                                        Add
-                                    </Button>
-                                </div>
+                                    </AlertDialog.Cancel
+                                    >
+                                    <AlertDialog.Action asChild>
+                                        <Button
+                                            type="submit"
+                                        >
+                                            Add
+                                        </Button>
+                                    </AlertDialog.Action>
+                                </AlertDialog.Footer>
                             </form>
-                        </div>
-                    </div>
-                {/if}
+                        </AlertDialog.Header>
+                    </AlertDialog.Content>
+                </AlertDialog.Root>
+
                 <Separator orientation="vertical" class="h-6" />
-                <Input type="text" placeholder="Search for roles or companies" />
+                <Input
+                    type="text"
+                    placeholder="Search for roles or companies"
+                />
             </div>
-            <div class="flex flex-row gap-2 sm:gap-4 items-center w-full sm:w-auto">
+            <div
+                class="flex flex-row gap-2 sm:gap-4 items-center w-full sm:w-auto"
+            >
                 <div class="flex items-center gap-0 sm:gap-2 -ml-3 sm:ml-0">
-                    <Button variant="ghost" type="button" class="text-xs sm:text-sm">Applied from</Button>
+                    <Button
+                        variant="ghost"
+                        type="button"
+                        class="text-xs sm:text-sm">Applied from</Button
+                    >
                     <Separator orientation="horizontal" class="w-2 sm:w-3" />
-                    <Button variant="ghost" type="button" class="text-xs sm:text-sm">Applied until</Button>
+                    <Button
+                        variant="ghost"
+                        type="button"
+                        class="text-xs sm:text-sm">Applied until</Button
+                    >
                 </div>
                 <Separator orientation="vertical" class="h-4 sm:h-6" />
-                <Button variant="ghost" type="button" class="text-xs sm:text-sm">Job Type</Button>
+                <Button variant="ghost" type="button" class="text-xs sm:text-sm"
+                    >Job Type</Button
+                >
                 <Separator orientation="vertical" class="h-4 sm:h-6" />
-                <Button variant="ghost" type="button" class="text-xs sm:text-sm">Status</Button>
+                <Button variant="ghost" type="button" class="text-xs sm:text-sm"
+                    >Status</Button
+                >
             </div>
         </div>
 

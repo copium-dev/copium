@@ -1,19 +1,49 @@
-// import type { PageServerLoad } from './$types';
-// import { BACKEND_URL } from '$env/static/private';
-// import { redirect } from '@sveltejs/kit';
+import type { PageServerLoad } from './$types';
+import { BACKEND_URL } from '$env/static/private';
+import { redirect } from '@sveltejs/kit';
+import type { Actions } from './$types';
 
-// export const load: PageServerLoad = async ({ fetch }) => {
-//     const response = await fetch(`${BACKEND_URL}/user/profile`, {
-//         credentials: 'include'  // every protected route needs to include credentials
-//     });
+// load function 
+export const load: PageServerLoad = async ({ fetch }) => {
+    const response = await fetch(`${BACKEND_URL}/user/profile`, {
+        credentials: 'include'  // every protected route needs to include credentials
+    });
     
-//     if (!response.ok) {
-//         throw redirect(303, `${BACKEND_URL}/auth/google`);
-//     }
+    if (!response.ok) {
+        throw redirect(303, `${BACKEND_URL}/auth/google`);
+    }
 
-//     const data = await response.json();
+    const applications = await response.json();
     
-//     return {
-//         email: data.email
-//     };
-// };
+    return {
+        email: applications.email,
+    };
+};
+
+export const actions = {
+    delete: async ({ request, fetch }) => {
+        const formData = await request.formData();
+        const body = formData.get('id');
+
+        const response = await fetch(`${BACKEND_URL}/user/deleteApplication`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ id: body })
+        });
+
+        if (!response.ok) {
+            return {
+                type: 'error',
+                message: 'Failed to delete application'
+            };
+        }
+        
+        return {
+            type: 'success',
+            message: 'Application deleted successfully'
+        };
+    },
+} satisfies Actions;

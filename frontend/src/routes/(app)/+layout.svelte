@@ -7,6 +7,7 @@
     import { toggleMode } from "mode-watcher";
 
     import { Button } from "$lib/components/ui/button";
+    import { Separator } from "$lib/components/ui/separator";
 
     // darkmode
     import { Moon } from "lucide-svelte";
@@ -50,6 +51,13 @@
                         </g>
                     </svg>
                 </a>
+            </div>
+            <div class="flex items-center gap-4 mx-8">
+                <Button variant="ghost" on:click={() => goto("/postings")}>Postings</Button>
+                <Separator orientation="vertical" class="h-6" />
+                <Button variant="ghost" on:click={() => goto("/dashboard")}>Dashboard</Button>
+                <Separator orientation="vertical" class="h-6" />
+                <Button variant="ghost" on:click={() => goto("/profile")}>Profile</Button>
             </div>
             <div>
                 <DropdownMenu.Root>

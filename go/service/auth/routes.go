@@ -8,6 +8,7 @@ import (
 	"log"
 
     "github.com/juhun32/jtracker-backend/utils"
+
     "github.com/markbates/goth/gothic"
     "github.com/gorilla/mux"
     "cloud.google.com/go/firestore"
@@ -151,18 +152,17 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 
 	// publish message to rabbit after sending 'ok' (later we need to ensure that the default app is indexed)
 	// what we definitely should do is make a function in utils/ for any publishing to rabbit
-	err = h.rabbitCh.Publish(
-		"",     // exchange
-		h.rabbitQ.Name, // routing key
-		false,  // mandatory
-		false,  // immediate
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        messageBody,
-		})
-	if err != nil {
-		fmt.Printf("Error publishing message: %v\n", err)
-	}
+    err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+        ContentType: "text/plain",
+        Body:        messageBody,
+    })
+    if err != nil {
+        fmt.Printf("Error publishing message after retries: %v\n", err)
+        // Optionally, you can add extra error handling here.
+    } else {
+        log.Println("Message published")
+        log.Println("-----------------")
+    }
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {

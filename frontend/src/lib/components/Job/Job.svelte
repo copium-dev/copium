@@ -10,6 +10,7 @@
     import { Progress } from "$lib/components/ui/progress/index.js";
     import { Input } from "$lib/components/ui/input";
     import { Label } from "$lib/components/ui/label";
+    import * as AlertDialog from "$lib/components/ui/alert-dialog";
 
     import placeholder from "$lib/images/placeholder.png";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
@@ -30,12 +31,6 @@
         Interviewing: 74,
         Offer: 100,
     };
-
-    let edit = false;
-
-    function toggleEdit() {
-        edit = !edit;
-    }
 
     // format date for display
     function formatDate(dateString: string): string {
@@ -109,10 +104,10 @@
 
     onMount(() => {
         value = statusValues[status];
-        
+
         const fetchLogo = async () => {
             const res = await fetch(
-                `https://api.brandfetch.io/v2/search/${company}?c=${PUBLIC_LOGO_KEY}`
+                `https://api.brandfetch.io/v2/search/${company}?c=${PUBLIC_LOGO_KEY}`,
             );
 
             if (res.ok) {
@@ -141,9 +136,7 @@
                 alt={`${company} logo`}
                 class="w-10 h-10 rounded-lg object-cover"
             />
-            <div
-                class="flex flex-col items-baseline sm:gap-1 px-5 w-full"
-            >
+            <div class="flex flex-col items-baseline sm:gap-1 px-5 w-full">
                 <p class="flex flex-row items-end font-bold gap-1 h-full">
                     {company}
                 </p>
@@ -222,140 +215,131 @@
                 class="h-12 ml-5 invisible sm:visible"
             />
         </div>
-        {#if edit}
-            <div
-                class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-            >
-                <div
-                    class="relative flex flex-col gap-2 my-2 inline-block w-full overflow-visible rounded-2xl bg-white dark:bg-zinc-900 px-4 py-5 sm:p-6 text-left align-bottom shadow-xl transition-all sm:align-middle sm:max-w-3xl"
-                >
-                    <h1 class="text-xl">Edit Application</h1>
-                    <form
-                        action="/dashboard?/editapplication"
-                        method="POST"
-                        class="flex flex-col gap-2 w-full"
-                        use:enhance={() => {
-                            toggleEdit();
-                            return ({ update }) => {
-                                update();
-                            };
-                        }}
-                    >
-                        <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
-                        <input type="hidden" name="id" value={id} />
-                        <!-- hidden id field for db operations -->
-                        <div
-                            class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
-                        >
-                            <Label
-                                for="role"
-                                class="text-sm text-gray-500 font-light"
-                                >Role</Label
-                            >
-                            <Input
-                                type="text"
-                                name="role"
-                                placeholder="Role"
-                                value={role}
-                            />
-                        </div>
-                        <div
-                            class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
-                        >
-                            <Label
-                                for="company"
-                                class="text-sm text-gray-500 font-light"
-                                >Company</Label
-                            >
-                            <Input
-                                type="text"
-                                name="company"
-                                placeholder="Company"
-                                value={company}
-                            />
-                        </div>
-                        <div
-                            class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
-                        >
-                            <Label
-                                for="location"
-                                class="text-sm text-gray-500 font-light"
-                                >Location</Label
-                            >
-                            <Input
-                                type="text"
-                                name="location"
-                                placeholder="Location"
-                                value={location}
-                            />
-                        </div>
-                        <div
-                            class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
-                        >
-                            <Label
-                                for="link"
-                                class="text-sm text-gray-500 font-light"
-                                >Link</Label
-                            >
-                            <Input
-                                type="text"
-                                name="link"
-                                placeholder="Link"
-                                value={link}
-                            />
-                        </div>
-                        <div
-                            class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
-                        >
-                            <Label
-                                for="appliedDate"
-                                class="text-sm text-gray-500 font-light"
-                                >Applied Date</Label
-                            >
-                            <Input
-                                type="date"
-                                name="appliedDate"
-                                placeholder="Applied Date"
-                                value={formatDateForInput(appliedDate)}
-                            />
-                        </div>
-                        <div
-                            class="flex flex-row gap-2 items-stretch justify-between w-full"
-                        >
-                            <Button
-                                type="button"
-                                variant="outline"
-                                class="flex-grow text-red-500 hover:text-red-500"
-                                on:click={toggleEdit}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                type="submit"
-                                variant="outline"
-                                class="flex-grow"
-                            >
-                                Save
-                            </Button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        {/if}
 
-        <div class="mt-4 flex w-full items-stretch justify-between gap-4 sm:gap-2">
-            <button
-                on:click={toggleEdit}
-                class="focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none sm:hover:bg-transparent sm:hover:bg-accent"
-            >
-                Edit
-            </button>
-            <button
+        <div
+            class="mt-4 flex w-full items-stretch justify-between gap-4 sm:gap-2"
+        >
+            <AlertDialog.Root>
+                <AlertDialog.Trigger asChild let:builder>
+                    <Button
+                        builders={[builder]}
+                        variant="outline"
+                        class="text-primary focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none sm:hover:bg-transparent sm:hover:bg-accent"
+                    >
+                        Edit
+                    </Button>
+                </AlertDialog.Trigger>
+                <AlertDialog.Content>
+                    <AlertDialog.Header>
+                        <AlertDialog.Title>Edit Application</AlertDialog.Title>
+                        <AlertDialog.Description>
+                            Update your application. Unmodified fields will
+                            remain unchanged.
+                        </AlertDialog.Description>
+                        <form
+                            action="/dashboard?/editapplication"
+                            method="POST"
+                            class="flex flex-col gap-2 w-full"
+                            use:enhance={() => {
+                                return ({ update }) => {
+                                    update();
+                                };
+                            }}
+                        >
+                            <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
+                            <input type="hidden" name="id" value={id} />
+                            <!-- hidden id field for db operations -->
+                            <div
+                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                            >
+                                <Label
+                                    for="role"
+                                    class="text-sm text-gray-500 font-light"
+                                    >Role</Label
+                                >
+                                <Input
+                                    type="text"
+                                    name="role"
+                                    placeholder="Role"
+                                    value={role}
+                                />
+                            </div>
+                            <div
+                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                            >
+                                <Label
+                                    for="company"
+                                    class="text-sm text-gray-500 font-light"
+                                    >Company</Label
+                                >
+                                <Input
+                                    type="text"
+                                    name="company"
+                                    placeholder="Company"
+                                    value={company}
+                                />
+                            </div>
+                            <div
+                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                            >
+                                <Label
+                                    for="location"
+                                    class="text-sm text-gray-500 font-light"
+                                    >Location</Label
+                                >
+                                <Input
+                                    type="text"
+                                    name="location"
+                                    placeholder="Location"
+                                    value={location}
+                                />
+                            </div>
+                            <div
+                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                            >
+                                <Label
+                                    for="link"
+                                    class="text-sm text-gray-500 font-light"
+                                    >Link</Label
+                                >
+                                <Input
+                                    type="text"
+                                    name="link"
+                                    placeholder="Link"
+                                    value={link}
+                                />
+                            </div>
+                            <div
+                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                            >
+                                <Label
+                                    for="appliedDate"
+                                    class="text-sm text-gray-500 font-light"
+                                    >Applied Date</Label
+                                >
+                                <Input
+                                    type="date"
+                                    name="appliedDate"
+                                    placeholder="Applied Date"
+                                    value={formatDateForInput(appliedDate)}
+                                />
+                            </div>
+                            <AlertDialog.Footer>
+                                <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+                                <AlertDialog.Action type="submit"
+                                    >Save</AlertDialog.Action
+                                >
+                            </AlertDialog.Footer>
+                        </form>
+                    </AlertDialog.Header>
+                </AlertDialog.Content>
+            </AlertDialog.Root>
+            <Button
                 on:click={deleteApplication}
                 class="text-red-500 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none sm:hover:bg-transparent hover:text-red-500 sm:hover:bg-accent"
             >
                 Delete
-            </button>
+            </Button>
         </div>
     </div>
 </div>

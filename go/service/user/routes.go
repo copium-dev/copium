@@ -72,6 +72,7 @@ func NewHandler(firestoreClient *firestore.Client,
 
 func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/user/dashboard", h.Dashboard).Methods("GET").Name("dashboard")
+	router.HandleFunc("/user/profile", h.Profile).Methods("GET").Name("profile")
 	router.HandleFunc("/user/addApplication", h.AddApplication).Methods("POST").Name("addApplication")
 	router.HandleFunc("/user/deleteApplication", h.DeleteApplication).Methods("POST").Name("deleteApplication")
 	router.HandleFunc("/user/editStatus", h.EditStatus).Methods("POST").Name("editStatus")
@@ -140,21 +141,39 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.rabbitCh.Publish(
-		"",             // exchange
-		h.rabbitQ.Name, // routing key
-		false,          // mandatory
-		false,          // immediate
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        messageBody,
-		})
+    err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+        ContentType: "text/plain",
+        Body:        messageBody,
+    })
+    if err != nil {
+        fmt.Printf("Error publishing message after retries: %v\n", err)
+        // Optionally, you can add extra error handling here.
+    } else {
+        log.Println("Message published")
+        log.Println("-----------------")
+    }
+}
+
+func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] Profile [*]")
+	log.Println("-----------------")
+
+	user, err := auth.IsAuthenticated(r)
+
 	if err != nil {
-		fmt.Printf("Error publishing message: %v\n", err)
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
 	}
 
-	log.Println("Message published")
-	log.Println("-----------------")
+	log.Println("User authenticated")
+
+	email := user.Email
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"email": email,
+	})
 }
 
 // current implementation is TEMPORARY!!!!
@@ -261,22 +280,17 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
-	err = h.rabbitCh.Publish(
-		"",             // exchange
-		h.rabbitQ.Name, // routing key
-		false,          // mandatory
-		false,          // immediate
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        messageBody,
-		})
-	if err != nil {
-		fmt.Printf("Error publishing message: %v\n", err)
-	}
-
-	log.Println("Message published")
-	log.Println("-----------------")
+    err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+        ContentType: "text/plain",
+        Body:        messageBody,
+    })
+    if err != nil {
+        fmt.Printf("Error publishing message after retries: %v\n", err)
+        // Optionally, you can add extra error handling here.
+    } else {
+        log.Println("Message published")
+        log.Println("-----------------")
+    }
 }
 
 func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
@@ -334,22 +348,17 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
-	err = h.rabbitCh.Publish(
-		"",             // exchange
-		h.rabbitQ.Name, // routing key
-		false,          // mandatory
-		false,          // immediate
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        messageBody,
-		})
-	if err != nil {
-		fmt.Printf("Error publishing message: %v\n", err)
-	}
-
-	log.Println("Message published")
-	log.Println("-----------------")
+    err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+        ContentType: "text/plain",
+        Body:        messageBody,
+    })
+    if err != nil {
+        fmt.Printf("Error publishing message after retries: %v\n", err)
+        // Optionally, you can add extra error handling here.
+    } else {
+        log.Println("Message published")
+        log.Println("-----------------")
+    }
 }
 
 func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
@@ -427,20 +436,15 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
-	err = h.rabbitCh.Publish(
-		"",             // exchange
-		h.rabbitQ.Name, // routing key
-		false,          // mandatory
-		false,          // immediate
-		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        messageBody,
-		})
-	if err != nil {
-		fmt.Printf("Error publishing message: %v\n", err)
-	}
-
-	log.Println("Message published")
-	log.Println("-----------------")
+    err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+        ContentType: "text/plain",
+        Body:        messageBody,
+    })
+    if err != nil {
+        fmt.Printf("Error publishing message after retries: %v\n", err)
+        // Optionally, you can add extra error handling here.
+    } else {
+        log.Println("Message published")
+        log.Println("-----------------")
+    }
 }
