@@ -10,39 +10,38 @@ import (
 
 // note: id is not strictly necessary but useful for debugging
 type Job struct {
-	ID 		  int32
-	Data      json.RawMessage
+	ID   int32
+	Data json.RawMessage
 }
 
 // a pool of workers with channels for job distribution, job queueing, and stopping
 type Pool struct {
-	NumWorkers 	int32
+	NumWorkers    int32
 	AlgoliaClient *search.APIClient
-	JobChannels chan chan Job
-	JobQueue 	chan Job
-	Stopped 	chan bool
+	JobChannels   chan chan Job
+	JobQueue      chan Job
+	Stopped       chan bool
 }
 
 // a worker with a unique ID and a dedicated job channel (to receive jobs from another goroutine)
 // has a shared channel for job registration and a quit channel to signal termination
 // note: worker uses shared algolia client
 type Worker struct {
-	ID 			int
+	ID            int
 	AlgoliaClient *search.APIClient
-	JobChannel 	chan Job
-	JobChannels chan chan Job
-	Quit 		chan bool
+	JobChannel    chan Job
+	JobChannels   chan chan Job
+	Quit          chan bool
 }
 
-// initialize a new worker pool 
+// initialize a new worker pool
 func NewPool(numWorkers int32, algoliaClient *search.APIClient) Pool {
 	return Pool{
-		NumWorkers:  numWorkers,
+		NumWorkers:    numWorkers,
 		AlgoliaClient: algoliaClient,
-		JobChannels: make(chan chan Job),
-		JobQueue:    make(chan Job),
-		Stopped:     make(chan bool),
-		
+		JobChannels:   make(chan chan Job),
+		JobQueue:      make(chan Job),
+		Stopped:       make(chan bool),
 	}
 }
 
@@ -51,11 +50,11 @@ func (p *Pool) Run() {
 	log.Println("Spawning the workers")
 	for i := 0; i < int(p.NumWorkers); i++ {
 		worker := Worker{
-			ID:          (i + 1),
+			ID:            (i + 1),
 			AlgoliaClient: p.AlgoliaClient,
-			JobChannel:  make(chan Job),
-			JobChannels: p.JobChannels,
-			Quit:        make(chan bool),
+			JobChannel:    make(chan Job),
+			JobChannels:   p.JobChannels,
+			Quit:          make(chan bool),
 		}
 		worker.Start()
 	}
@@ -119,7 +118,7 @@ func (w *Worker) work(job Job) {
 	// we know the operation now, we can delete it.
 	delete(data, "operation")
 
-	// 2. call the correct function w/ data 
+	// 2. call the correct function w/ data
 	if operation == "add" {
 		w.addApplication(data)
 	} else if operation == "edit" {
@@ -147,11 +146,18 @@ func (w *Worker) addApplication(data map[string]interface{}) {
 
 	// wait for task to finish before exiting function
 	_, err = w.AlgoliaClient.WaitForTask("users", saveRes.TaskID)
-    if err != nil {
-        log.Printf("Error waiting for task to finish: %s", err)
+	if err != nil {
+		log.Printf("Error waiting for task to finish: %s", err)
 		return
-    }
+	}
 
 	log.Printf("Saved object: %v", saveRes)
 }
 
+func (w *Worker) editApplication(data map[string]interface{}) {
+	// edit the application in algolia
+}
+
+func (w *Worker) deleteApplication(data map[string]interface{}) {
+	// delete the application from algolia
+}

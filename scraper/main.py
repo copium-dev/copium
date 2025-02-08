@@ -1,3 +1,4 @@
+from algoliasearch.search.client import SearchClientSync
 import json
 import os
 import time
@@ -41,22 +42,34 @@ def read_json():
 
 # proposed change for algolia indexing. this not need to go thru rabbitmq since there's no real 'load' just a single
 # script called like idk every 15 minutes or something.
+ALGOLIA_ID = os.getenv('ALGOLIA_APP_ID')
+ALGOLIA_KEY = os.getenv('ALGOLIA_API_KEY')
+ALGOLIA_INDEX = os.getenv('INDEX_NAME')
+
+class AlgoliaClient:
+    def __init__(self, app_id, api_key):
+        self.client = SearchClientSync(app_id, api_key)
+
+    def update_role(self, role, index):
+        try:
+            if role['active'] and role['is_visible']:
+                self.client.save_object(index_name=index, body=role)
+                print(f"Indexed: {role['title']} at {role['company_name']}")
+            else:
+                # Remove from Algolia if inactive or not visible
+                self.client.delete_object(role['id'])
+                # objectID being company + title is not unique enough so lets use id from the data
+                print(f"Removed from index: {role['title']} at {role['company_name']}")
+
+        except Exception as e:
+            print(f"Error indexing {role['title']} at {role['company_name']}: {e}")
+
 async def send_message(message, role=None):
-    print("Sending message:")
-    print(message)
+    print(f"Sending message: {message}")
     print("--------------------------------")
-    # if role:
-    #         if role['active']:
-    #             # Add or update role in Algolia
-    #             role['objectID'] = f"{role['company_name']}_{role['title']}"  # Unique identifier
-    #             index.save_object(role)
-    #             print(f"Indexed: {role['title']} at {role['company_name']}")
-    #         else:
-    #             # Remove from Algolia if inactive
-    #             object_id = f"{role['company_name']}_{role['title']}"
-    #             index.delete_object(object_id)
-    #             print(f"Removed from index: {role['title']} at {role['company_name']}")
-    # ^^^^^ something of this sort; maybe objectID being company + title is not unique enough but u get the idea
+    if role:
+        algolia_client = AlgoliaClient(ALGOLIA_ID, ALGOLIA_KEY)
+        algolia_client.update_role(role, ALGOLIA_INDEX)
 
 def check_for_new_roles():
     print("Checking for new roles...")
@@ -89,11 +102,11 @@ def check_for_new_roles():
 
     for role in new_roles:
         message = f"New role: {role['title']} at {role['company_name']}"
-        asyncio.run(send_message(message))
+        asyncio.run(send_message(message, role))
 
     for role in deactivated_roles:
         message = f"Role {role['title']} at {role['company_name']} is now inactive."
-        asyncio.run(send_message(message))
+        asyncio.run(send_message(message, role))
 
     with open('previous_data.json', 'w') as file:
         json.dump(new_data, file)
