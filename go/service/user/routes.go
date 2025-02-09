@@ -3,8 +3,8 @@ package user
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"log"
+	"net/http"
 
 	"github.com/juhun32/jtracker-backend/service/auth"
 	"github.com/juhun32/jtracker-backend/utils"
@@ -117,7 +117,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error adding application", http.StatusInternalServerError)
 		return
 	}
-	
+
 	log.Println("Application added")
 
 	w.WriteHeader(http.StatusCreated)
@@ -141,17 +141,17 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-        ContentType: "text/plain",
-        Body:        messageBody,
-    })
-    if err != nil {
-        fmt.Printf("Error publishing message after retries: %v\n", err)
-        // Optionally, you can add extra error handling here.
-    } else {
-        log.Println("Message published")
-        log.Println("-----------------")
-    }
+	err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+		ContentType: "text/plain",
+		Body:        messageBody,
+	})
+	if err != nil {
+		fmt.Printf("Error publishing message after retries: %v\n", err)
+		// Optionally, you can add extra error handling here.
+	} else {
+		log.Println("Message published")
+		log.Println("-----------------")
+	}
 }
 
 func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
@@ -170,9 +170,29 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 
 	email := user.Email
 
+	// Query Firestore for the user's applications
+	iter := h.firestoreClient.Collection("users").Doc(email).Collection("applications").Documents(r.Context())
+	var applicationsCount int
+
+	for {
+		_, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			http.Error(w, "Error querying Firestore", http.StatusInternalServerError)
+			return
+		}
+		applicationsCount++
+	}
+
+	log.Println("Applications count retrieved, number of applications:", applicationsCount)
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"email": email,
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"email":             email,
+		"applicationsCount": applicationsCount,
 	})
 }
 
@@ -280,17 +300,17 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-        ContentType: "text/plain",
-        Body:        messageBody,
-    })
-    if err != nil {
-        fmt.Printf("Error publishing message after retries: %v\n", err)
-        // Optionally, you can add extra error handling here.
-    } else {
-        log.Println("Message published")
-        log.Println("-----------------")
-    }
+	err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+		ContentType: "text/plain",
+		Body:        messageBody,
+	})
+	if err != nil {
+		fmt.Printf("Error publishing message after retries: %v\n", err)
+		// Optionally, you can add extra error handling here.
+	} else {
+		log.Println("Message published")
+		log.Println("-----------------")
+	}
 }
 
 func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
@@ -348,17 +368,17 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-        ContentType: "text/plain",
-        Body:        messageBody,
-    })
-    if err != nil {
-        fmt.Printf("Error publishing message after retries: %v\n", err)
-        // Optionally, you can add extra error handling here.
-    } else {
-        log.Println("Message published")
-        log.Println("-----------------")
-    }
+	err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+		ContentType: "text/plain",
+		Body:        messageBody,
+	})
+	if err != nil {
+		fmt.Printf("Error publishing message after retries: %v\n", err)
+		// Optionally, you can add extra error handling here.
+	} else {
+		log.Println("Message published")
+		log.Println("-----------------")
+	}
 }
 
 func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
@@ -436,15 +456,15 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-        ContentType: "text/plain",
-        Body:        messageBody,
-    })
-    if err != nil {
-        fmt.Printf("Error publishing message after retries: %v\n", err)
-        // Optionally, you can add extra error handling here.
-    } else {
-        log.Println("Message published")
-        log.Println("-----------------")
-    }
+	err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+		ContentType: "text/plain",
+		Body:        messageBody,
+	})
+	if err != nil {
+		fmt.Printf("Error publishing message after retries: %v\n", err)
+		// Optionally, you can add extra error handling here.
+	} else {
+		log.Println("Message published")
+		log.Println("-----------------")
+	}
 }

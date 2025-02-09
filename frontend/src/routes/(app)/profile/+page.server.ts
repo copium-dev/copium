@@ -17,6 +17,7 @@ export const load: PageServerLoad = async ({ fetch }) => {
     
     return {
         email: applications.email,
+        applicationsCount: applications.applicationsCount
     };
 };
 

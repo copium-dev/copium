@@ -26,7 +26,7 @@
             <Card.Root class="w-1/3">
                 <Card.Header>
                     <Card.Title>{data.email}</Card.Title>
-                    <Card.Description>Total Applications: 0</Card.Description>
+                    <Card.Description>Total Applications: {data.applicationsCount}</Card.Description>
                 </Card.Header>
                 <Card.Content>
                     <div class="grid grid-cols-2 gap-2">

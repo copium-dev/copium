@@ -112,7 +112,11 @@ func (w *Worker) work(job Job) {
 	log.Printf("Job Data: %v", data)
 
 	// 1. figure out the operation (add edit delete)
-	operation := data["operation"].(string)
+	operation, ok := data["operation"].(string)
+	if !ok {
+		log.Printf("Failed to get operation from data")
+		return
+	}
 	log.Printf("Operation: %s", operation)
 
 	// we know the operation now, we can delete it.
@@ -122,9 +126,9 @@ func (w *Worker) work(job Job) {
 	if operation == "add" {
 		w.addApplication(data)
 	} else if operation == "edit" {
-		// editApplication(data)
+		w.editApplication(data)
 	} else if operation == "delete" {
-		// deleteApplication(data)
+		w.deleteApplication(data)
 	} else {
 		log.Printf("Unknown operation: %s", operation)
 	}
@@ -156,8 +160,51 @@ func (w *Worker) addApplication(data map[string]interface{}) {
 
 func (w *Worker) editApplication(data map[string]interface{}) {
 	// edit the application in algolia
+	objectID, ok := data["objectID"].(string)
+	if !ok {
+		log.Printf("Failed to get objectID from data")
+		return
+	}
+
+	updateRes, err := w.AlgoliaClient.PartialUpdateObject(
+		w.AlgoliaClient.NewApiPartialUpdateObjectRequest("users", objectID, data),
+	)
+	if err != nil {
+		log.Printf("Failed to update object: %s", err)
+		return
+	}
+
+	// wait for task to finish before exiting function
+	_, err = w.AlgoliaClient.WaitForTask("users", *updateRes.TaskID)
+	if err != nil {
+		log.Printf("Error waiting for task to finish: %s", err)
+		return
+	}
+	log.Printf("Updated object: %v", updateRes)
+
 }
 
 func (w *Worker) deleteApplication(data map[string]interface{}) {
 	// delete the application from algolia
+	objectID, ok := data["objectID"].(string)
+	if !ok {
+		log.Printf("Failed to get objectID from data")
+		return
+	}
+
+	deleteRes, err := w.AlgoliaClient.DeleteObject(
+		w.AlgoliaClient.NewApiDeleteObjectRequest("users", objectID),
+	)
+	if err != nil {
+		log.Printf("Failed to delete object: %s", err)
+		return
+	}
+
+	// wait for task to finish before exiting function
+	_, err = w.AlgoliaClient.WaitForTask("users", deleteRes.TaskID)
+	if err != nil {
+		log.Printf("Error waiting for task to finish: %s", err)
+		return
+	}
+	log.Printf("Deleted object: %v", deleteRes)
 }
