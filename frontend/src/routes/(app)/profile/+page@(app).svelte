@@ -1,16 +1,38 @@
 <script lang="ts">
     import { Button } from "$lib/components/ui/button";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
-    import { Input } from "$lib/components/ui/input";
-    import { Separator } from "$lib/components/ui/separator";
     import * as Card from "$lib/components/ui/card/index.js";
 
-    import { enhance } from "$app/forms";
+    import { ModeWatcher } from "mode-watcher";
+    import { toggleMode } from "mode-watcher";
+
+    import { enhance } from "$app/forms";   
     import type { PageData } from "./$types";
+
+    function signOut() {
+        window.location.href = "/auth/google/logout";
+    }
+
+    // method not allowed error with method DELETE
+    // even though cors is set up correctly so just post with empty body
+    async function deleteAccount() {
+        const formData = new FormData();
+        const response = await fetch("?/delete", {
+            method: "POST",
+            body: formData
+        });
+
+        if (!response.ok) {
+            console.error("Failed to delete account");
+        }
+        
+        signOut();
+    }
 
     export let data: PageData;
 </script>
 
+<ModeWatcher />
 <div
     class="flex flex-col justify-start gap-4 items-stretch w-full sm:w-5/6 mx-auto h-full"
 >
@@ -31,13 +53,13 @@
                 <Card.Content>
                     <div class="grid grid-cols-2 gap-2">
                         <div class="col-span-1 flex justify-center">
-                            <Button variant="outline" class="w-full">
-                                Sign Out
+                            <Button variant="outline" class="w-full" on:click={signOut}>
+                                Sign out
                             </Button>
                         </div>
                         <div class="col-span-1 flex justify-center">
-                            <Button variant="outline" class="w-full">
-                                Toggle Theme
+                            <Button variant="outline" class="w-full" on:click={toggleMode}>
+                                Toggle theme
                             </Button>
                         </div>
                     </div>
@@ -46,7 +68,7 @@
                         <AlertDialog.Root>
                             <AlertDialog.Trigger asChild let:builder>
                                 <Button builders={[builder]} variant="outline" class="text-red-500 hover:text-red-500">
-                                    Delete Account
+                                    Delete account
                                 </Button>
                               </AlertDialog.Trigger>
                               <AlertDialog.Content>
@@ -59,7 +81,11 @@
                                 </AlertDialog.Header>
                                 <AlertDialog.Footer>
                                   <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-                                  <AlertDialog.Action>Continue</AlertDialog.Action>
+                                  <AlertDialog.Action
+                                    on:click={deleteAccount}
+                                  >
+                                    Continue
+                                    </AlertDialog.Action>
                                 </AlertDialog.Footer>
                               </AlertDialog.Content>
                         </AlertDialog.Root>

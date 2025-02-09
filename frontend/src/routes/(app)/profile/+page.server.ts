@@ -13,40 +13,27 @@ export const load: PageServerLoad = async ({ fetch }) => {
         throw redirect(303, `${BACKEND_URL}/auth/google`);
     }
 
-    const applications = await response.json();
-
-    console.log(applications);
+    const data = await response.json();
     
     return {
-        email: applications.email,
-        applicationsCount: applications.applicationsCount,
+        email: data.email,
+        applicationsCount: data.applicationsCount,
     };
 };
 
 export const actions = {
-    delete: async ({ request, fetch }) => {
-        const formData = await request.formData();
-        const body = formData.get('id');
-
-        const response = await fetch(`${BACKEND_URL}/user/deleteApplication`, {
+    delete: async ({ fetch }) => {
+        const response = await fetch(`${BACKEND_URL}/user/deleteUser`, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json'
             },
-            credentials: 'include',
-            body: JSON.stringify({ id: body })
+            body: JSON.stringify({}),
         });
 
         if (!response.ok) {
-            return {
-                type: 'error',
-                message: 'Failed to delete application'
-            };
+            throw new Error('Failed to delete user');
         }
-        
-        return {
-            type: 'success',
-            message: 'Application deleted successfully'
-        };
     },
 } satisfies Actions;
