@@ -120,6 +120,39 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Application added")
 
+	// Read the current applicationsCount from the user's document
+	userDoc, err := h.firestoreClient.Collection("users").Doc(email).Get(r.Context())
+	if err != nil {
+		fmt.Printf("Error retrieving user data: %v\n", err)
+		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
+		return
+	}
+
+	applicationsCount, ok := userDoc.Data()["applicationsCount"].(int64)
+	if !ok {
+		fmt.Printf("Error: applicationsCount is not an integer")
+		http.Error(w, "Error retrieving applications count", http.StatusInternalServerError)
+		return
+	}
+
+	// Increment the applicationsCount by 1
+	applicationsCount++
+
+	// Update the applicationsCount in the user's document
+	_, err = h.firestoreClient.Collection("users").Doc(email).Update(r.Context(), []firestore.Update{
+		{
+			Path:  "applicationsCount",
+			Value: applicationsCount,
+		},
+	})
+	if err != nil {
+		fmt.Printf("Error updating applications count: %v\n", err)
+		http.Error(w, "Error updating applications count", http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("Applications count updated, added by 1")
+
 	w.WriteHeader(http.StatusCreated)
 
 	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
@@ -168,11 +201,24 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("User authenticated")
 
+	// get user's email
 	email := user.Email
+
+	// get user's applications count
+	doc, err := h.firestoreClient.Collection("users").Doc(email).Get(r.Context())
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
+		return
+	}
+	applicationsCount := doc.Data()["applicationsCount"].(int64)
+	log.Println("Applications count retrieved")
+	log.Println("-----------------")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"email": email,
+		"email":             email,
+		"applicationsCount": applicationsCount,
 	})
 }
 
@@ -265,6 +311,41 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("Application deleted")
+
+	// Read the current applicationsCount from the user's document
+	userDoc, err := h.firestoreClient.Collection("users").Doc(email).Get(r.Context())
+	if err != nil {
+		fmt.Printf("Error retrieving user data: %v\n", err)
+		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
+		return
+	}
+
+	applicationsCount, ok := userDoc.Data()["applicationsCount"].(int64)
+	if !ok {
+		fmt.Printf("Error: applicationsCount is not an integer")
+		http.Error(w, "Error retrieving applications count", http.StatusInternalServerError)
+		return
+	}
+
+	// Decrement the applicationsCount by 1 if it's greater than 0
+	if applicationsCount > 0 {
+		applicationsCount--
+	}
+
+	// Update the applicationsCount in the user's document
+	_, err = h.firestoreClient.Collection("users").Doc(email).Update(r.Context(), []firestore.Update{
+		{
+			Path:  "applicationsCount",
+			Value: applicationsCount,
+		},
+	})
+	if err != nil {
+		fmt.Printf("Error updating applications count: %v\n", err)
+		http.Error(w, "Error updating applications count", http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("Applications count updated, subtracted by 1")
 
 	w.WriteHeader(http.StatusOK)
 

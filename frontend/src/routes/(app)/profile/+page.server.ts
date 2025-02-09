@@ -14,10 +14,12 @@ export const load: PageServerLoad = async ({ fetch }) => {
     }
 
     const applications = await response.json();
+
+    console.log(applications);
     
     return {
         email: applications.email,
-        applicationsCount: applications.applicationsCount
+        applicationsCount: applications.applicationsCount,
     };
 };
 

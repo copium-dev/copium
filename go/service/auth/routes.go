@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -118,7 +117,8 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 		// add user to firestore (gmail document id)
 		// by default, firestore will create a new document if it doesnt exist
 		_, err = h.firestoreClient.Collection("users").Doc(user.Email).Set(r.Context(), map[string]interface{}{
-			"email": user.Email,
+			"email":             user.Email,
+			"applicationsCount": 0,
 		})
 		if err != nil {
 			fmt.Printf("Error adding user to Firestore: %v\n", err)
@@ -126,54 +126,54 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		defaultApplication := map[string]interface{}{
-			"company":     "Google",
-			"role":        "Software Engineer Intern",
-			"location":    "Mountain View, CA",
-			"appliedDate": "2021-01-01",
-			"status":      "Applied",
-			"link":        "https://www.google.com",
-		}
+		// defaultApplication := map[string]interface{}{
+		// 	"company":     "Google",
+		// 	"role":        "Software Engineer Intern",
+		// 	"location":    "Mountain View, CA",
+		// 	"appliedDate": "2021-01-01",
+		// 	"status":      "Applied",
+		// 	"link":        "https://www.google.com",
+		// }
 
-		// Add default application to user/{email}/applications
-		doc, _, err := h.firestoreClient.Collection("users").Doc(user.Email).Collection("applications").Add(r.Context(), defaultApplication)
-		if err != nil {
-			fmt.Printf("Error adding default application to Firestore: %v\n", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		// // Add default application to user/{email}/applications
+		// doc, _, err := h.firestoreClient.Collection("users").Doc(user.Email).Collection("applications").Add(r.Context(), defaultApplication)
+		// if err != nil {
+		// 	fmt.Printf("Error adding default application to Firestore: %v\n", err)
+		// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+		// 	return
+		// }
 
-		// Send the default application to RabbitMQ
-		message := map[string]interface{}{
-			"email":       user.Email,
-			"objectID":    doc.ID,
-			"company":     "Google",
-			"role":        "Software Engineer Intern",
-			"location":    "Mountain View, CA",
-			"appliedDate": "2021-01-01",
-			"status":      "Applied",
-			"link":        "https://www.google.com",
-			"operation":   "add", // operation to perform in algolia
-		}
+		// // Send the default application to RabbitMQ
+		// message := map[string]interface{}{
+		// 	"email":       user.Email,
+		// 	"objectID":    doc.ID,
+		// 	"company":     "Google",
+		// 	"role":        "Software Engineer Intern",
+		// 	"location":    "Mountain View, CA",
+		// 	"appliedDate": "2021-01-01",
+		// 	"status":      "Applied",
+		// 	"link":        "https://www.google.com",
+		// 	"operation":   "add",
+		// }
 
-		messageBody, err := json.Marshal(message)
-		if err != nil {
-			fmt.Printf("Error marshalling message: %v\n", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		// messageBody, err := json.Marshal(message)
+		// if err != nil {
+		// 	fmt.Printf("Error marshalling message: %v\n", err)
+		// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+		// 	return
+		// }
 
-		// Publish message to RabbitMQ
-		err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        messageBody,
-		})
-		if err != nil {
-			fmt.Printf("Error publishing message after retries: %v\n", err)
-		} else {
-			log.Println("Message published")
-			log.Println("-----------------")
-		}
+		// // Publish message to RabbitMQ
+		// err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+		// 	ContentType: "text/plain",
+		// 	Body:        messageBody,
+		// })
+		// if err != nil {
+		// 	fmt.Printf("Error publishing message after retries: %v\n", err)
+		// } else {
+		// 	log.Println("Message published")
+		// 	log.Println("-----------------")
+		// }
 	}
 
 	http.Redirect(w, r, "http://localhost:5173/dashboard", http.StatusFound)
