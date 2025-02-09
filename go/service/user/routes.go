@@ -170,29 +170,9 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 
 	email := user.Email
 
-	// Query Firestore for the user's applications
-	iter := h.firestoreClient.Collection("users").Doc(email).Collection("applications").Documents(r.Context())
-	var applicationsCount int
-
-	for {
-		_, err := iter.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			http.Error(w, "Error querying Firestore", http.StatusInternalServerError)
-			return
-		}
-		applicationsCount++
-	}
-
-	log.Println("Applications count retrieved, number of applications:", applicationsCount)
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"email":             email,
-		"applicationsCount": applicationsCount,
+		"email": email,
 	})
 }
 
