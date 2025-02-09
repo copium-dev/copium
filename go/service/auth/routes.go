@@ -153,6 +153,7 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 			"appliedDate": "2021-01-01",
 			"status":      "Applied",
 			"link":        "https://www.google.com",
+			"operation":   "add", // operation to perform in algolia
 		}
 
 		messageBody, err := json.Marshal(message)
