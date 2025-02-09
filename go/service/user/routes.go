@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"context"
 
 	"github.com/juhun32/jtracker-backend/service/auth"
 	"github.com/juhun32/jtracker-backend/utils"
@@ -77,6 +78,7 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/user/deleteApplication", h.DeleteApplication).Methods("POST").Name("deleteApplication")
 	router.HandleFunc("/user/editStatus", h.EditStatus).Methods("POST").Name("editStatus")
 	router.HandleFunc("/user/editApplication", h.EditApplication).Methods("POST").Name("editApplication")
+	router.HandleFunc("/user/deleteUser", h.DeleteUser).Methods("POST").Name("deleteUser")
 }
 
 func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +182,6 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		fmt.Printf("Error publishing message after retries: %v\n", err)
-		// Optionally, you can add extra error handling here.
 	} else {
 		log.Println("Message published")
 		log.Println("-----------------")
@@ -367,7 +368,6 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		fmt.Printf("Error publishing message after retries: %v\n", err)
-		// Optionally, you can add extra error handling here.
 	} else {
 		log.Println("Message published")
 		log.Println("-----------------")
@@ -435,7 +435,6 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		fmt.Printf("Error publishing message after retries: %v\n", err)
-		// Optionally, you can add extra error handling here.
 	} else {
 		log.Println("Message published")
 		log.Println("-----------------")
@@ -523,9 +522,109 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		fmt.Printf("Error publishing message after retries: %v\n", err)
-		// Optionally, you can add extra error handling here.
 	} else {
 		log.Println("Message published")
 		log.Println("-----------------")
 	}
+}
+
+func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] DeleteUser [*]")
+	log.Println("-----------------")
+
+	user, err := auth.IsAuthenticated(r)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	email := user.Email
+
+	log.Println("User authenticated")
+
+	// delete user in Firestore
+	err = h.deleteUserFromFirestore(email, 10)
+	if err != nil {
+		fmt.Printf("Error deleting user: %v\n", err)
+		http.Error(w, "Error deleting user", http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("User deleted")
+
+	w.WriteHeader(http.StatusOK)
+
+	// send to algolia to delete all applications associated with this user
+	message := map[string]string{
+		"operation": "userDelete",
+		"email":     email,
+	}
+
+	messageBody, err := json.Marshal(message)
+	if err != nil {
+		fmt.Printf("Error marshaling message: %v\n", err)
+		return
+	}
+
+	err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+		ContentType: "text/plain",
+		Body:        messageBody,
+	})
+	if err != nil {
+		fmt.Printf("Error publishing message after retries: %v\n", err)
+	} else {
+		log.Println("Message published")
+		log.Println("-----------------")
+	}
+}
+
+// Firestore does not delete subcollections automatically
+// so, delete all documents in users/{email}/applications
+// then, delete users/{email}
+func (h *Handler) deleteUserFromFirestore(email string, batchSize int) error {
+	ctx := context.Background()
+
+	// delete subcollection FIRST (just applications)
+	applicationsCollection := h.firestoreClient.Collection("users").Doc(email).Collection("applications")
+	bulkWriter := h.firestoreClient.BulkWriter(ctx)
+
+	// for each batch... 
+	for {
+		iter := applicationsCollection.Limit(batchSize).Documents(ctx)
+		numDeleted := 0
+
+		// for each document...
+		for {
+			doc, err := iter.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return fmt.Errorf("Failed to iterate: %v", err)
+			}
+
+			bulkWriter.Delete(doc.Ref)
+			numDeleted++
+		}
+
+		if numDeleted == 0 {
+			bulkWriter.End()
+			break
+		}
+
+		bulkWriter.Flush()
+	}
+
+	fmt.Println("Applications subcollection deleted for user", email)
+
+	// delete user document
+	_, err := h.firestoreClient.Collection("users").Doc(email).Delete(ctx)
+	if err != nil {
+		return fmt.Errorf("Failed to delete user document: %v", err)
+	}
+
+	fmt.Println("User document deleted for user", email)
+
+	return nil
 }

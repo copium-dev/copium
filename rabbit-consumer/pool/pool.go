@@ -4,6 +4,7 @@ package pool
 import (
 	"encoding/json"
 	"log"
+	"fmt"
 
 	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
 )
@@ -129,6 +130,8 @@ func (w *Worker) work(job Job) {
 		w.editApplication(data)
 	} else if operation == "delete" {
 		w.deleteApplication(data)
+	} else if operation == "userDelete" {
+		w.userDelete(data)
 	} else {
 		log.Printf("Unknown operation: %s", operation)
 	}
@@ -180,8 +183,8 @@ func (w *Worker) editApplication(data map[string]interface{}) {
 		log.Printf("Error waiting for task to finish: %s", err)
 		return
 	}
-	log.Printf("Updated object: %v", updateRes)
 
+	log.Printf("Updated object: %v", updateRes)
 }
 
 func (w *Worker) deleteApplication(data map[string]interface{}) {
@@ -206,5 +209,38 @@ func (w *Worker) deleteApplication(data map[string]interface{}) {
 		log.Printf("Error waiting for task to finish: %s", err)
 		return
 	}
+	
 	log.Printf("Deleted object: %v", deleteRes)
+}
+
+// note: DeleteBy is resource intensive so we should carefully monitor
+func (w *Worker) userDelete(data map[string]interface{}) {
+	// extract and delete every objectID where email == data["email"]
+	email, ok := data["email"].(string)
+	if !ok {
+		log.Printf("Failed to get email from data")
+		return
+	}
+	
+	filter := fmt.Sprintf("email:%s", email)
+
+	res, err := w.AlgoliaClient.DeleteBy(
+		w.AlgoliaClient.NewApiDeleteByRequest(
+			"users",
+			search.NewEmptyDeleteByParams().SetFilters(filter),
+		),
+	)
+	if err != nil {
+		log.Printf("Failed to delete by: %s", err)
+		return
+	}
+
+	// wait for task to finish before exiting function
+	_, err = w.AlgoliaClient.WaitForTask("users", res.TaskID)
+	if err != nil {
+		log.Printf("Error waiting for task to finish: %s", err)
+		return
+	}
+
+	log.Printf("Deleted objects: %s", res)
 }

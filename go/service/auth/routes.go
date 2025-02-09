@@ -106,7 +106,7 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// check if user exists in Firestore
-	userExists, err := CheckUserExists(user.Email, h.firestoreClient, r.Context())
+	userExists, err := checkUserExists(user.Email, h.firestoreClient, r.Context())
 	if err != nil {
 		fmt.Println("Error checking if user exists:", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -116,6 +116,7 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 	if !userExists {
 		// add user to firestore (gmail document id)
 		// by default, firestore will create a new document if it doesnt exist
+		// no need to create a default application subcollection since it will be created on first add application request
 		_, err = h.firestoreClient.Collection("users").Doc(user.Email).Set(r.Context(), map[string]interface{}{
 			"email":             user.Email,
 			"applicationsCount": 0,
@@ -125,72 +126,9 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		// defaultApplication := map[string]interface{}{
-		// 	"company":     "Google",
-		// 	"role":        "Software Engineer Intern",
-		// 	"location":    "Mountain View, CA",
-		// 	"appliedDate": "2021-01-01",
-		// 	"status":      "Applied",
-		// 	"link":        "https://www.google.com",
-		// }
-
-		// // Add default application to user/{email}/applications
-		// doc, _, err := h.firestoreClient.Collection("users").Doc(user.Email).Collection("applications").Add(r.Context(), defaultApplication)
-		// if err != nil {
-		// 	fmt.Printf("Error adding default application to Firestore: %v\n", err)
-		// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-		// 	return
-		// }
-
-		// // Send the default application to RabbitMQ
-		// message := map[string]interface{}{
-		// 	"email":       user.Email,
-		// 	"objectID":    doc.ID,
-		// 	"company":     "Google",
-		// 	"role":        "Software Engineer Intern",
-		// 	"location":    "Mountain View, CA",
-		// 	"appliedDate": "2021-01-01",
-		// 	"status":      "Applied",
-		// 	"link":        "https://www.google.com",
-		// 	"operation":   "add",
-		// }
-
-		// messageBody, err := json.Marshal(message)
-		// if err != nil {
-		// 	fmt.Printf("Error marshalling message: %v\n", err)
-		// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-		// 	return
-		// }
-
-		// // Publish message to RabbitMQ
-		// err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-		// 	ContentType: "text/plain",
-		// 	Body:        messageBody,
-		// })
-		// if err != nil {
-		// 	fmt.Printf("Error publishing message after retries: %v\n", err)
-		// } else {
-		// 	log.Println("Message published")
-		// 	log.Println("-----------------")
-		// }
 	}
 
 	http.Redirect(w, r, "http://localhost:5173/dashboard", http.StatusFound)
-}
-
-func CheckUserExists(userEmail string, firestoreClient *firestore.Client, ctx context.Context) (bool, error) {
-	_, err := firestoreClient.Collection("users").Doc(userEmail).Get(ctx) // queries users collection for document username
-
-	if err != nil {
-		if status.Code(err) == codes.NotFound { // not a real error
-			return false, nil
-		} else { // any other error
-			return false, err
-		}
-	} else { // no error == user found
-		return true, nil
-	}
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -251,4 +189,18 @@ func IsAuthenticated(r *http.Request) (*User, error) {
 	log.Println("-----------------")
 
 	return &User{Email: email}, nil
+}
+
+func checkUserExists(userEmail string, firestoreClient *firestore.Client, ctx context.Context) (bool, error) {
+	_, err := firestoreClient.Collection("users").Doc(userEmail).Get(ctx) // queries users collection for document username
+
+	if err != nil {
+		if status.Code(err) == codes.NotFound { // not a real error
+			return false, nil
+		} else { // any other error
+			return false, err
+		}
+	} else { // no error == user found
+		return true, nil
+	}
 }
