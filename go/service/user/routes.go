@@ -1,11 +1,12 @@
 package user
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"context"
+	"strings"
 
 	"github.com/juhun32/jtracker-backend/service/auth"
 	"github.com/juhun32/jtracker-backend/utils"
@@ -14,6 +15,8 @@ import (
 	"github.com/gorilla/mux"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/api/iterator"
+
+	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
 )
 
 type AddApplicationRequest struct {
@@ -27,6 +30,16 @@ type AddApplicationRequest struct {
 
 type Application struct {
 	ID          string `json:"id"`
+	Role        string `json:"role"`
+	Company     string `json:"company"`
+	Location    string `json:"location"`
+	AppliedDate string `json:"appliedDate"`
+	Status      string `json:"status"`
+	Link        string `json:"link"`
+}
+
+type AlgoliaResponse struct {
+	ID          string `json:"objectID"`
 	Role        string `json:"role"`
 	Company     string `json:"company"`
 	Location    string `json:"location"`
@@ -56,16 +69,20 @@ type EditApplicationRequest struct {
 
 type Handler struct {
 	firestoreClient *firestore.Client
+	algoliaClient   *search.APIClient
 	rabbitCh        *amqp.Channel
 	rabbitQ         amqp.Queue
 }
 
-func NewHandler(firestoreClient *firestore.Client,
+func NewHandler(
+	firestoreClient *firestore.Client,
+	algoliaClient *search.APIClient,
 	rabbitCh *amqp.Channel,
 	rabbitQ amqp.Queue,
 ) *Handler {
 	return &Handler{
 		firestoreClient: firestoreClient,
+		algoliaClient:   algoliaClient,
 		rabbitCh:        rabbitCh,
 		rabbitQ:         rabbitQ,
 	}
@@ -223,9 +240,7 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// current implementation is TEMPORARY!!!!
-// actual implementation doesn't query Firestore, it queries Algolia
-// Firestore is just a backup in case we want to switch to a diff search engine
+// queries algolia for applications based on search query
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] Dashboard [*]")
 	log.Println("-----------------")
@@ -240,38 +255,62 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("User authenticated")
 
-	// the actual implementation of this will use the user object from auth.IsAuthenticated
-	// TEMP: query firestore for user's applications
-	// TODO: query Algolia for user's applications instead
 	email := user.Email
+	fmt.Println(email)
 
-	iter := h.firestoreClient.Collection("users").Doc(email).Collection("applications").Documents(r.Context())
-	var applications []Application
+	// 1. extract search query from request and parse
+	queryText, filtersString := h.parseQuery(r)
 
-	for {
-		doc, err := iter.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			http.Error(w, "Error querying Firestore", http.StatusInternalServerError)
-			return
-		}
+	log.Println("Filters parsed", filtersString)
 
-		application := doc.Data()
-		applications = append(applications, Application{
-			ID:          doc.Ref.ID,
-			Role:        utils.GetString(application, "role"),
-			Company:     utils.GetString(application, "company"),
-			Location:    utils.GetString(application, "location"),
-			AppliedDate: utils.GetString(application, "appliedDate"),
-			Status:      utils.GetString(application, "status"),
-			Link:        utils.GetString(application, "link"), // link might be nil so getString
-		})
+	// 2. build a search params object
+	searchParamsObject := &search.SearchParamsObject{
+		Facets:      []string{"email"},
+		FacetFilters: &search.FacetFilters{String: utils.StringPtr("email:" + email)},
+		HitsPerPage: utils.IntPtr(10),
+		Filters:     utils.StringPtr(filtersString),
 	}
 
-	log.Println("Applications retrieved")
+	// set free text query if present
+	if queryText != "" {
+		searchParamsObject.Query = utils.StringPtr(queryText)
+		log.Println("Free text query text extracted", queryText)
+	}
+
+	searchParams := &search.SearchParams{
+		SearchParamsObject: searchParamsObject,
+	}
+
+	// 3. query Algolia with the search params
+	response, err := h.algoliaClient.SearchSingleIndex(
+		h.algoliaClient.NewApiSearchSingleIndexRequest("users").WithSearchParams(searchParams),
+	)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Error querying Algolia", http.StatusInternalServerError)
+		return
+	}
+
+	// 4. extract hits from response 
+	var applications []AlgoliaResponse
+
+	// 4a. marshal the raw hits into JSON bytes.
+	hitsBytes, err := json.Marshal(response.Hits)
+	if err != nil {
+		fmt.Printf("Error marshaling hits: %v\n", err)
+		http.Error(w, "Error processing hits", http.StatusInternalServerError)
+		return
+	}
+
+	// 4b. unmarshal the JSON bytes into AlgoliaResponse slice.
+	err = json.Unmarshal(hitsBytes, &applications)
+	if err != nil {
+		fmt.Printf("Error unmarshaling hits: %v\n", err)
+		http.Error(w, "Error processing applications", http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("Applications extracted:", applications)
 	log.Println("-----------------")
 
 	w.Header().Set("Content-Type", "application/json")
@@ -589,7 +628,7 @@ func (h *Handler) deleteUserFromFirestore(email string, batchSize int) error {
 	applicationsCollection := h.firestoreClient.Collection("users").Doc(email).Collection("applications")
 	bulkWriter := h.firestoreClient.BulkWriter(ctx)
 
-	// for each batch... 
+	// for each batch...
 	for {
 		iter := applicationsCollection.Limit(batchSize).Documents(ctx)
 		numDeleted := 0
@@ -627,4 +666,53 @@ func (h *Handler) deleteUserFromFirestore(email string, batchSize int) error {
 	fmt.Println("User document deleted for user", email)
 
 	return nil
+}
+
+func (h *Handler) parseQuery(r *http.Request) (string, string) {
+	params := r.URL.Query()
+	page := params.Get("page")
+	queryText := params.Get("q")
+	company := params.Get("company")
+	statusParam := params.Get("status")
+	role := params.Get("role")
+	location := params.Get("location")
+	startDate := params.Get("startDate")
+	endDate := params.Get("endDate")
+
+	// build filters for non free‑text filtering
+	filters := make(map[string]string)
+	if page != "" {
+		filters["page"] = page
+	}
+	if company != "" {
+		filters["company"] = company
+	}
+	if statusParam != "" {
+		filters["status"] = statusParam
+	}
+	if role != "" {
+		filters["role"] = role
+	}
+	if location != "" {
+		filters["location"] = location
+	}
+
+	log.Println("Filters extracted", filters)
+
+	var filterStrs []string
+	for key, value := range filters {
+		filterStrs = append(filterStrs, fmt.Sprintf("%s:%s", key, value))
+	}
+	filtersString := strings.Join(filterStrs, " AND ")
+
+	// add date range filters if provided
+	if startDate != "" && endDate != "" {
+		filtersString = filtersString + fmt.Sprintf(" AND appliedDate>=%s AND appliedDate<=%s", startDate, endDate)
+	} else if startDate != "" {
+		filtersString = filtersString + fmt.Sprintf(" AND appliedDate:>=%s", startDate)
+	} else if endDate != "" {
+		filtersString = filtersString + fmt.Sprintf(" AND appliedDate:<=%s", endDate)
+	}
+
+	return queryText, filtersString
 }

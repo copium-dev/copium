@@ -1,7 +1,7 @@
 export { default as Job } from './Job.svelte';
 
 export interface JobProps {
-    id: string;
+    objectID: string;
     company: string;
     role: string;
     appliedDate: Date;

@@ -13,6 +13,8 @@ import (
 
     firebase "firebase.google.com/go"
     "google.golang.org/api/option"
+
+	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
 )
 
 func main() {
@@ -69,9 +71,15 @@ func main() {
 		log.Fatal("Failed to initialize RabbitMQ: ", err)
 	}
 
+	// initialize algolia client (read-only)
+	algoliaClient, err := initializeAlgoliaClient()
+	if err != nil {
+		log.Fatal("Failed to initialize Algolia client: ", err)
+	}
+
     // temp: firestore emulator is on 8080 so use 8000 for API server
     // in prod, use Google Cloud Run's default PORT env variable
-    server := api.NewAPIServer(":" + port, firestoreClient, authHandler, ch, q)
+    server := api.NewAPIServer(":" + port, firestoreClient, algoliaClient, authHandler, ch, q)
     if err := server.Run(); err != nil {
         log.Fatal(err)
     }
@@ -105,4 +113,16 @@ func initializeRabbit() (*amqp.Channel, amqp.Queue, error) {
     }
 
     return ch, q, nil
+}
+
+func initializeAlgoliaClient() (*search.APIClient, error) {
+	appID := os.Getenv("ALGOLIA_APP_ID")
+	searchApiKey := os.Getenv("ALGOLIA_SEARCH_API_KEY")
+
+	algoliaClient, err := search.NewClient(appID, searchApiKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return algoliaClient, nil
 }

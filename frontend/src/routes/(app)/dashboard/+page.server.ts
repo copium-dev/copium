@@ -4,8 +4,29 @@ import { redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 
 // load function 
-export const load: PageServerLoad = async ({ fetch }) => {
-    const response = await fetch(`${BACKEND_URL}/user/dashboard`, {
+export const load: PageServerLoad = async ({ fetch, url }) => {
+    const page = url.searchParams.get('page');
+    const query = url.searchParams.get('q');
+    const company = url.searchParams.get('company');
+    const status = url.searchParams.get('status');
+    const role = url.searchParams.get('role');
+    const location = url.searchParams.get('location');
+    const startDate = url.searchParams.get('startDate');
+    const endDate = url.searchParams.get('endDate');
+
+    const params = new URLSearchParams();
+    if (page) params.set('page', page);
+    if (query) params.set('q', query);
+    if (company) params.set('company', company);
+    if (status) params.set('status', status);
+    if (role) params.set('role', role);
+    if (location) params.set('location', location);
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+
+    const dashboardURL = `${BACKEND_URL}/user/dashboard?${params.toString()}`;
+
+    const response = await fetch(dashboardURL, {
         credentials: 'include'  // every protected route needs to include credentials
     });
     
@@ -13,10 +34,18 @@ export const load: PageServerLoad = async ({ fetch }) => {
         throw redirect(303, `${BACKEND_URL}/auth/google`);
     }
 
-    const applications = await response.json();
+    const data = await response.json();
+
+    const applications = data;
+    const currentPage = 1;
+    const totalPages = 1;
+    const clientParams = params.toString();
     
     return {
-        applications
+        applications,
+        currentPage,
+        totalPages,
+        clientParams,
     };
 };
 

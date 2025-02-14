@@ -12,11 +12,13 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/gorilla/mux"
     "github.com/rs/cors"
+	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
 )
 
 type APIServer struct {
     addr            string
     firestoreClient *firestore.Client
+	algoliaClient  *search.APIClient
     authHandler     *utils.AuthHandler
 	rabbitCh 		*amqp.Channel
 	rabbitQ 		amqp.Queue
@@ -24,6 +26,7 @@ type APIServer struct {
 
 func NewAPIServer(addr string,
 	firestoreClient *firestore.Client,
+	algoliaClient *search.APIClient,
 	authHandler *utils.AuthHandler,
 	rabbitCh *amqp.Channel,
 	rabbitQ amqp.Queue,
@@ -31,6 +34,7 @@ func NewAPIServer(addr string,
     return &APIServer{
         addr:            addr,
         firestoreClient: firestoreClient,
+		algoliaClient:  	algoliaClient,
         authHandler:     authHandler,
 		rabbitCh: 	  	rabbitCh,
 		rabbitQ: 	  	rabbitQ,
@@ -43,7 +47,7 @@ func (s *APIServer) Run() error {
 
     log.Println("Listening on", s.addr)
 
-    userHandler := user.NewHandler(s.firestoreClient, s.rabbitCh, s.rabbitQ)
+    userHandler := user.NewHandler(s.firestoreClient, s.algoliaClient, s.rabbitCh, s.rabbitQ)
     userHandler.RegisterRoutes(router)
 
     authHandler := auth.NewHandler(s.firestoreClient, s.authHandler, s.rabbitCh, s.rabbitQ)

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { enhance } from "$app/forms";
+    import { goto } from '$app/navigation'
 
     import { Map } from "lucide-svelte";
     import { Calendar } from "lucide-svelte";
@@ -15,7 +16,7 @@
     import placeholder from "$lib/images/placeholder.png";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
 
-    export let id: string; // temporarily not used; will be used for db operations later
+    export let objectID: string; // temporarily not used; will be used for db operations later
     export let company: string;
     export let role: string;
     export let appliedDate: string;
@@ -70,7 +71,7 @@
     async function updateStatus(newStatus: keyof typeof statusValues) {
         value = statusValues[newStatus];
         const formData = new FormData();
-        formData.append("id", id);
+        formData.append("id", objectID);
         formData.append("status", newStatus);
 
         const response = await fetch(`/dashboard?/editstatus`, {
@@ -87,7 +88,7 @@
 
     async function deleteApplication() {
         const formData = new FormData();
-        formData.append("id", id);
+        formData.append("id", objectID);
 
         const response = await fetch(`/dashboard?/delete`, {
             method: "POST",
@@ -98,7 +99,7 @@
             console.error("Failed to delete application");
         } else {
             console.log("Application deleted successfully");
-            window.location.reload();
+            goto("/dashboard");
         }
     }
 
@@ -247,7 +248,7 @@
                             }}
                         >
                             <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
-                            <input type="hidden" name="id" value={id} />
+                            <input type="hidden" name="id" value={objectID} />
                             <!-- hidden id field for db operations -->
                             <div
                                 class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
