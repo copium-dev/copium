@@ -56,10 +56,12 @@ export const actions = {
             role: formData.get('role'),
             company: formData.get('company'),
             location: formData.get('location'),
-            appliedDate: new Date(formData.get('appliedDate') as string),
+            appliedDate: Date.parse(formData.get('appliedDate') as string),
             link: formData.get('link'),
             status: 'Applied'
         }
+
+        {console.log(data)}
 
         const response = await fetch(`${BACKEND_URL}/user/addApplication`, {
             method: 'POST',
@@ -142,7 +144,7 @@ export const actions = {
             role: formData.get('role'),
             company: formData.get('company'),
             location: formData.get('location'),
-            appliedDate: new Date(formData.get('appliedDate') as string),
+            appliedDate: Date.parse(formData.get('appliedDate') as string),
             link: formData.get('link'),
         }
 

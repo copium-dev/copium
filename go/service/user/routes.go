@@ -23,7 +23,7 @@ type AddApplicationRequest struct {
 	Role        string `json:"role"`
 	Company     string `json:"company"`
 	Location    string `json:"location"`
-	AppliedDate string `json:"appliedDate"`
+	AppliedDate int64  `json:"appliedDate"`
 	Status      string `json:"status"`
 	Link        string `json:"link"`
 }
@@ -33,7 +33,7 @@ type Application struct {
 	Role        string `json:"role"`
 	Company     string `json:"company"`
 	Location    string `json:"location"`
-	AppliedDate string `json:"appliedDate"`
+	AppliedDate int64  `json:"appliedDate"`
 	Status      string `json:"status"`
 	Link        string `json:"link"`
 }
@@ -43,7 +43,7 @@ type AlgoliaResponse struct {
 	Role        string `json:"role"`
 	Company     string `json:"company"`
 	Location    string `json:"location"`
-	AppliedDate string `json:"appliedDate"`
+	AppliedDate int64  `json:"appliedDate"`
 	Status      string `json:"status"`
 	Link        string `json:"link"`
 }
@@ -63,7 +63,7 @@ type EditApplicationRequest struct {
 	Role        string `json:"role"`
 	Company     string `json:"company"`
 	Location    string `json:"location"`
-	AppliedDate string `json:"appliedDate"`
+	AppliedDate int64  `json:"appliedDate"`
 	Link        string `json:"link"`
 }
 
@@ -175,7 +175,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 
 	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
-	message := map[string]string{
+	message := map[string]interface{}{
 		"operation":   "add",
 		"email":       email,
 		"appliedDate": addApplicationRequest.AppliedDate,
@@ -265,10 +265,10 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 
 	// 2. build a search params object
 	searchParamsObject := &search.SearchParamsObject{
-		Facets:      []string{"email"},
+		Facets:       []string{"email"},
 		FacetFilters: &search.FacetFilters{String: utils.StringPtr("email:" + email)},
-		HitsPerPage: utils.IntPtr(10),
-		Filters:     utils.StringPtr(filtersString),
+		HitsPerPage:  utils.IntPtr(10),
+		Filters:      utils.StringPtr(filtersString),
 	}
 
 	// set free text query if present
@@ -291,7 +291,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. extract hits from response 
+	// 4. extract hits from response
 	var applications []AlgoliaResponse
 
 	// 4a. marshal the raw hits into JSON bytes.
@@ -538,7 +538,7 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 
-	message := map[string]string{
+	message := map[string]interface{}{
 		"operation":   "edit",
 		"email":       email,
 		"appliedDate": addApplicationRequest.AppliedDate,
