@@ -36,10 +36,15 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
 
     const data = await response.json();
 
-    const applications = data;
-    const currentPage = 1;
-    const totalPages = 1;
+    const applications = data.applications || [];
+    const currentPage = data.currentPage || parseInt(page || '1');
+    const totalPages = data.totalPages || 1;
     const clientParams = params.toString();
+
+    {console.log("applications:" + applications)}
+    {console.log("currentPage:" + currentPage)}
+    {console.log("totalPages:" + totalPages)}
+    {console.log("clientParams:" + clientParams)}
     
     return {
         applications,

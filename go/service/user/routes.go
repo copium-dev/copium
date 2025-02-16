@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/juhun32/jtracker-backend/service/auth"
@@ -263,12 +264,24 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Filters parsed", filtersString)
 
+	// extract page number from query params
+	pageStr := r.URL.Query().Get("page")
+	page := 0
+	if pageStr != "" {
+		page, err = strconv.Atoi(pageStr)
+		if err != nil || page < 0 {
+			page = 0
+		}
+	}
+	log.Println("Page requested:", page)
+
 	// 2. build a search params object
 	searchParamsObject := &search.SearchParamsObject{
 		Facets:       []string{"email"},
 		FacetFilters: &search.FacetFilters{String: utils.StringPtr("email:" + email)},
 		HitsPerPage:  utils.IntPtr(10),
 		Filters:      utils.StringPtr(filtersString),
+		Page:         utils.IntPtr(int32(page)),
 	}
 
 	// set free text query if present
@@ -313,8 +326,26 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	log.Println("Applications extracted:", applications)
 	log.Println("-----------------")
 
+	// create response object pagination info
+	responseObject := struct {
+		Applications []AlgoliaResponse `json:"applications"`
+		TotalPages   int               `json:"totalPages"`
+		CurrentPage  int               `json:"currentPage"`
+	}{
+		Applications: applications,
+		CurrentPage:  page,
+		TotalPages:   calculateTotalPages(int(*response.NbHits), 10), // Using 10 hits per page
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(applications)
+	json.NewEncoder(w).Encode(responseObject)
+}
+
+func calculateTotalPages(totalHits int, hitsPerPage int) int {
+	if hitsPerPage <= 0 {
+		return 0
+	}
+	return (totalHits + hitsPerPage - 1) / hitsPerPage
 }
 
 func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {

@@ -4,7 +4,7 @@ export interface JobProps {
     objectID: string;
     company: string;
     role: string;
-    appliedDate: Date;
+    appliedDate: number;
     location: string;
     status: string;
     link: string | undefined | null;
