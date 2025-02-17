@@ -33,70 +33,37 @@
         Offer: 100,
     };
 
-    // format date for display
-    // function formatDate(dateString: string): string {
-    //     if (!dateString) return "";
-
-    //     const date = new Date(dateString);
-    //     if (isNaN(date.getTime())) return "";
-
-    //     // Adjust for timezone
-    //     const adjustedDate = new Date(
-    //         date.getTime() + date.getTimezoneOffset() * 60 * 1000,
-    //     );
-
-    //     const month = String(adjustedDate.getMonth() + 1).padStart(2, "0");
-    //     const day = String(adjustedDate.getDate()).padStart(2, "0");
-    //     const year = adjustedDate.getFullYear();
-
-    //     return `${month}-${day}-${year}`;
-    // }
     function formatDate(timestamp: number): string {
-    if (!timestamp) return "";
+        if (!timestamp) return "";
 
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return "";
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) return "";
 
-    // Adjust for timezone
-    const adjustedDate = new Date(
-        date.getTime() + date.getTimezoneOffset() * 60 * 1000
-    );
+        // Adjust for timezone
+        const adjustedDate = new Date(
+            date.getTime() + date.getTimezoneOffset() * 60 * 1000
+        );
 
-    const month = String(adjustedDate.getMonth() + 1).padStart(2, "0");
-    const day = String(adjustedDate.getDate()).padStart(2, "0");
-    const year = adjustedDate.getFullYear();
+        const month = String(adjustedDate.getMonth() + 1).padStart(2, "0");
+        const day = String(adjustedDate.getDate()).padStart(2, "0");
+        const year = adjustedDate.getFullYear();
 
-    return `${month}-${day}-${year}`;
-}
+        return `${month}-${day}-${year}`;
+    }
 
-    // format date for edit input
-    // function formatDateForInput(dateString: string): string {
-    //     if (!dateString) return new Date().toISOString().split("T")[0];
-
-    //     const parsedDate = new Date(dateString);
-    //     if (isNaN(parsedDate.getTime()))
-    //         return new Date().toISOString().split("T")[0];
-
-    //     // Adjust for timezone
-    //     const adjustedDate = new Date(
-    //         parsedDate.getTime() + parsedDate.getTimezoneOffset() * 60 * 1000,
-    //     );
-
-    //     return adjustedDate.toISOString().split("T")[0];
-    // }
     function formatDateForInput(timestamp: number): string {
-    if (!timestamp) return new Date().toISOString().split("T")[0];
+        if (!timestamp) return new Date().toISOString().split("T")[0];
 
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return new Date().toISOString().split("T")[0];
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) return new Date().toISOString().split("T")[0];
 
-    // Adjust for timezone
-    const adjustedDate = new Date(
-        date.getTime() + date.getTimezoneOffset() * 60 * 1000
-    );
+        // Adjust for timezone
+        const adjustedDate = new Date(
+            date.getTime() + date.getTimezoneOffset() * 60 * 1000
+        );
 
-    return adjustedDate.toISOString().split("T")[0];
-}
+        return adjustedDate.toISOString().split("T")[0];
+    }
 
     async function updateStatus(newStatus: keyof typeof statusValues) {
         value = statusValues[newStatus];

@@ -23,6 +23,7 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
     if (location) params.set('location', location);
     if (startDate) params.set('startDate', startDate);
     if (endDate) params.set('endDate', endDate);
+    console.log(params.toString());
 
     const dashboardURL = `${BACKEND_URL}/user/dashboard?${params.toString()}`;
 
@@ -37,8 +38,8 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
     const data = await response.json();
 
     const applications = data.applications || [];
-    const currentPage = data.currentPage || parseInt(page || '1');
-    const totalPages = data.totalPages || 1;
+    const currentPage = data.currentPage || parseInt(page || '0');
+    const totalPages = data.totalPages || 0;
     const clientParams = params.toString();
 
     {console.log("applications:" + applications)}

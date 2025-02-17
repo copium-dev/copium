@@ -11,6 +11,7 @@ import (
 
 	"github.com/juhun32/jtracker-backend/service/auth"
 	"github.com/juhun32/jtracker-backend/utils"
+	"github.com/juhun32/jtracker-backend/service/user/userutils"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gorilla/mux"
@@ -37,6 +38,12 @@ type Application struct {
 	AppliedDate int64  `json:"appliedDate"`
 	Status      string `json:"status"`
 	Link        string `json:"link"`
+}
+
+type DashboardResponse struct {
+	Applications []AlgoliaResponse 	`json:"applications"`
+	TotalPages   int           		`json:"totalPages"`
+	CurrentPage  int           		`json:"currentPage"`
 }
 
 type AlgoliaResponse struct {
@@ -69,7 +76,7 @@ type EditApplicationRequest struct {
 }
 
 type Handler struct {
-	firestoreClient *firestore.Client
+	FirestoreClient *firestore.Client
 	algoliaClient   *search.APIClient
 	rabbitCh        *amqp.Channel
 	rabbitQ         amqp.Queue
@@ -82,7 +89,7 @@ func NewHandler(
 	rabbitQ amqp.Queue,
 ) *Handler {
 	return &Handler{
-		firestoreClient: firestoreClient,
+		FirestoreClient: firestoreClient,
 		algoliaClient:   algoliaClient,
 		rabbitCh:        rabbitCh,
 		rabbitQ:         rabbitQ,
@@ -124,7 +131,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// add application to Firestore using users/{email} where jobs is a document within the user's collection
-	doc, _, err := h.firestoreClient.Collection("users").Doc(email).Collection("applications").Add(r.Context(), map[string]interface{}{
+	doc, _, err := h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Add(r.Context(), map[string]interface{}{
 		"role":        addApplicationRequest.Role,
 		"company":     addApplicationRequest.Company,
 		"location":    addApplicationRequest.Location,
@@ -141,7 +148,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("Application added")
 
 	// Read the current applicationsCount from the user's document
-	userDoc, err := h.firestoreClient.Collection("users").Doc(email).Get(r.Context())
+	userDoc, err := h.FirestoreClient.Collection("users").Doc(email).Get(r.Context())
 	if err != nil {
 		fmt.Printf("Error retrieving user data: %v\n", err)
 		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
@@ -159,7 +166,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	applicationsCount++
 
 	// Update the applicationsCount in the user's document
-	_, err = h.firestoreClient.Collection("users").Doc(email).Update(r.Context(), []firestore.Update{
+	_, err = h.FirestoreClient.Collection("users").Doc(email).Update(r.Context(), []firestore.Update{
 		{
 			Path:  "applicationsCount",
 			Value: applicationsCount,
@@ -200,6 +207,23 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		fmt.Printf("Error publishing message after retries: %v\n", err)
+		// try to re-establish connection
+		if strings.Contains(err.Error(), "channel/connection is not open") {
+			if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
+				fmt.Printf("Error re-establishing connection: %v\n", reconErr)
+			} else {
+				// try to publish again
+				if pubErr := utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+					ContentType: "text/plain",
+					Body:        messageBody,
+				}); pubErr != nil {
+					fmt.Printf("Error publishing message after retries: %v\n", pubErr)
+				} else {
+					log.Println("Message published")
+					log.Println("-----------------")
+				}
+			}
+		}
 	} else {
 		log.Println("Message published")
 		log.Println("-----------------")
@@ -224,7 +248,7 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 	email := user.Email
 
 	// get user's applications count
-	doc, err := h.firestoreClient.Collection("users").Doc(email).Get(r.Context())
+	doc, err := h.FirestoreClient.Collection("users").Doc(email).Get(r.Context())
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
@@ -260,7 +284,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(email)
 
 	// 1. extract search query from request and parse
-	queryText, filtersString := h.parseQuery(r)
+	queryText, filtersString := userutils.ParseQuery(r)
 
 	log.Println("Filters parsed", filtersString)
 
@@ -268,9 +292,9 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	pageStr := r.URL.Query().Get("page")
 	page := 0
 	if pageStr != "" {
-		page, err = strconv.Atoi(pageStr)
-		if err != nil || page < 0 {
-			page = 0
+		p, err := strconv.Atoi(pageStr)
+		if err == nil && p > 0 {
+			page = p
 		}
 	}
 	log.Println("Page requested:", page)
@@ -287,7 +311,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	// set free text query if present
 	if queryText != "" {
 		searchParamsObject.Query = utils.StringPtr(queryText)
-		log.Println("Free text query text extracted", queryText)
+		log.Println("Free text query text extracted: ", queryText)
 	}
 
 	searchParams := &search.SearchParams{
@@ -327,25 +351,14 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	log.Println("-----------------")
 
 	// create response object pagination info
-	responseObject := struct {
-		Applications []AlgoliaResponse `json:"applications"`
-		TotalPages   int               `json:"totalPages"`
-		CurrentPage  int               `json:"currentPage"`
-	}{
+	responseObject := DashboardResponse{
 		Applications: applications,
+		TotalPages:   userutils.CalculateTotalPages(int(*response.NbHits), 10),
 		CurrentPage:  page,
-		TotalPages:   calculateTotalPages(int(*response.NbHits), 10), // Using 10 hits per page
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(responseObject)
-}
-
-func calculateTotalPages(totalHits int, hitsPerPage int) int {
-	if hitsPerPage <= 0 {
-		return 0
-	}
-	return (totalHits + hitsPerPage - 1) / hitsPerPage
 }
 
 func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
@@ -374,7 +387,7 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	applicationID := deleteApplicationRequest.ID
 
 	// delete application from Firestore
-	_, err = h.firestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Delete(r.Context())
+	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Delete(r.Context())
 	if err != nil {
 		fmt.Printf("Error deleting application: %v\n", err)
 		http.Error(w, "Error deleting application", http.StatusInternalServerError)
@@ -384,7 +397,7 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("Application deleted")
 
 	// Read the current applicationsCount from the user's document
-	userDoc, err := h.firestoreClient.Collection("users").Doc(email).Get(r.Context())
+	userDoc, err := h.FirestoreClient.Collection("users").Doc(email).Get(r.Context())
 	if err != nil {
 		fmt.Printf("Error retrieving user data: %v\n", err)
 		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
@@ -404,7 +417,7 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update the applicationsCount in the user's document
-	_, err = h.firestoreClient.Collection("users").Doc(email).Update(r.Context(), []firestore.Update{
+	_, err = h.FirestoreClient.Collection("users").Doc(email).Update(r.Context(), []firestore.Update{
 		{
 			Path:  "applicationsCount",
 			Value: applicationsCount,
@@ -438,6 +451,23 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		fmt.Printf("Error publishing message after retries: %v\n", err)
+		// try to re-establish connection
+		if strings.Contains(err.Error(), "channel/connection is not open") {
+			if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
+				fmt.Printf("Error re-establishing connection: %v\n", reconErr)
+			} else {
+				// try to publish again
+				if pubErr := utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+					ContentType: "text/plain",
+					Body:        messageBody,
+				}); pubErr != nil {
+					fmt.Printf("Error publishing message after retries: %v\n", pubErr)
+				} else {
+					log.Println("Message published")
+					log.Println("-----------------")
+				}
+			}
+		}
 	} else {
 		log.Println("Message published")
 		log.Println("-----------------")
@@ -470,7 +500,7 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	applicationID := editStatusApplicationRequest.ID
 
 	// edit application in Firestore
-	_, err = h.firestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
+	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
 		{
 			Path:  "status",
 			Value: editStatusApplicationRequest.Status,
@@ -505,6 +535,23 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		fmt.Printf("Error publishing message after retries: %v\n", err)
+		// try to re-establish connection
+		if strings.Contains(err.Error(), "channel/connection is not open") {
+			if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
+				fmt.Printf("Error re-establishing connection: %v\n", reconErr)
+			} else {
+				// try to publish again
+				if pubErr := utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+					ContentType: "text/plain",
+					Body:        messageBody,
+				}); pubErr != nil {
+					fmt.Printf("Error publishing message after retries: %v\n", pubErr)
+				} else {
+					log.Println("Message published")
+					log.Println("-----------------")
+				}
+			}
+		}
 	} else {
 		log.Println("Message published")
 		log.Println("-----------------")
@@ -537,7 +584,7 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	applicationID := addApplicationRequest.ID
 
 	// frontend will send all fields, so we need to update all fields
-	_, err = h.firestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
+	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
 		{
 			Path:  "role",
 			Value: addApplicationRequest.Role,
@@ -592,6 +639,23 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		fmt.Printf("Error publishing message after retries: %v\n", err)
+		// try to re-establish connection
+		if strings.Contains(err.Error(), "channel/connection is not open") {
+			if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
+				fmt.Printf("Error re-establishing connection: %v\n", reconErr)
+			} else {
+				// try to publish again
+				if pubErr := utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+					ContentType: "text/plain",
+					Body:        messageBody,
+				}); pubErr != nil {
+					fmt.Printf("Error publishing message after retries: %v\n", pubErr)
+				} else {
+					log.Println("Message published")
+					log.Println("-----------------")
+				}
+			}
+		}
 	} else {
 		log.Println("Message published")
 		log.Println("-----------------")
@@ -643,6 +707,23 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		fmt.Printf("Error publishing message after retries: %v\n", err)
+		// try to re-establish connection
+		if strings.Contains(err.Error(), "channel/connection is not open") {
+			if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
+				fmt.Printf("Error re-establishing connection: %v\n", reconErr)
+			} else {
+				// try to publish again
+				if pubErr := utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+					ContentType: "text/plain",
+					Body:        messageBody,
+				}); pubErr != nil {
+					fmt.Printf("Error publishing message after retries: %v\n", pubErr)
+				} else {
+					log.Println("Message published")
+					log.Println("-----------------")
+				}
+			}
+		}
 	} else {
 		log.Println("Message published")
 		log.Println("-----------------")
@@ -656,8 +737,8 @@ func (h *Handler) deleteUserFromFirestore(email string, batchSize int) error {
 	ctx := context.Background()
 
 	// delete subcollection FIRST (just applications)
-	applicationsCollection := h.firestoreClient.Collection("users").Doc(email).Collection("applications")
-	bulkWriter := h.firestoreClient.BulkWriter(ctx)
+	applicationsCollection := h.FirestoreClient.Collection("users").Doc(email).Collection("applications")
+	bulkWriter := h.FirestoreClient.BulkWriter(ctx)
 
 	// for each batch...
 	for {
@@ -689,7 +770,7 @@ func (h *Handler) deleteUserFromFirestore(email string, batchSize int) error {
 	fmt.Println("Applications subcollection deleted for user", email)
 
 	// delete user document
-	_, err := h.firestoreClient.Collection("users").Doc(email).Delete(ctx)
+	_, err := h.FirestoreClient.Collection("users").Doc(email).Delete(ctx)
 	if err != nil {
 		return fmt.Errorf("Failed to delete user document: %v", err)
 	}
@@ -697,53 +778,4 @@ func (h *Handler) deleteUserFromFirestore(email string, batchSize int) error {
 	fmt.Println("User document deleted for user", email)
 
 	return nil
-}
-
-func (h *Handler) parseQuery(r *http.Request) (string, string) {
-	params := r.URL.Query()
-	page := params.Get("page")
-	queryText := params.Get("q")
-	company := params.Get("company")
-	statusParam := params.Get("status")
-	role := params.Get("role")
-	location := params.Get("location")
-	startDate := params.Get("startDate")
-	endDate := params.Get("endDate")
-
-	// build filters for non free‑text filtering
-	filters := make(map[string]string)
-	if page != "" {
-		filters["page"] = page
-	}
-	if company != "" {
-		filters["company"] = company
-	}
-	if statusParam != "" {
-		filters["status"] = statusParam
-	}
-	if role != "" {
-		filters["role"] = role
-	}
-	if location != "" {
-		filters["location"] = location
-	}
-
-	log.Println("Filters extracted", filters)
-
-	var filterStrs []string
-	for key, value := range filters {
-		filterStrs = append(filterStrs, fmt.Sprintf("%s:%s", key, value))
-	}
-	filtersString := strings.Join(filterStrs, " AND ")
-
-	// add date range filters if provided
-	if startDate != "" && endDate != "" {
-		filtersString = filtersString + fmt.Sprintf(" AND appliedDate>=%s AND appliedDate<=%s", startDate, endDate)
-	} else if startDate != "" {
-		filtersString = filtersString + fmt.Sprintf(" AND appliedDate:>=%s", startDate)
-	} else if endDate != "" {
-		filtersString = filtersString + fmt.Sprintf(" AND appliedDate:<=%s", endDate)
-	}
-
-	return queryText, filtersString
 }

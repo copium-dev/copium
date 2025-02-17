@@ -52,12 +52,24 @@
                     </svg>
                 </a>
             </div>
-            <div class="flex items-center gap-4 mx-8">
-                <Button variant="ghost" on:click={() => goto("/postings")}>Postings</Button>
+            <div class="flex items-center gap-2 sm:gap-4 mx-2 sm:mx-8">
+                <Button
+                    variant="ghost" on:click={() => goto("/postings")} class="text-xs sm:text-sm"
+                >
+                    Postings
+                </Button>
                 <Separator orientation="vertical" class="h-6" />
-                <Button variant="ghost" on:click={() => goto("/dashboard")}>Dashboard</Button>
+                <Button
+                    variant="ghost" on:click={() => goto("/dashboard")} class="text-xs sm:text-sm"
+                >
+                    Dashboard
+                </Button>
                 <Separator orientation="vertical" class="h-6" />
-                <Button variant="ghost" on:click={() => goto("/profile")}>Profile</Button>
+                <Button
+                    variant="ghost" on:click={() => goto("/profile")} class="text-xs sm:text-sm"
+                >
+                    Profile
+                </Button>
             </div>
             <div>
                 <DropdownMenu.Root>
