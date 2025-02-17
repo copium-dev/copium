@@ -10,34 +10,32 @@
 
     import { filterStore } from "$lib/components/FilterJobs/filterStore";
 
-    import { goto } from "$app/navigation";
+    import { goto } from "$app/navigation"; 
 
-    // filter state
-    export let company = ""; // Export the filter values
-    export let role = "";
-    export let location = "";
-    export let startDate = "";
-    export let endDate = "";
-    export let status = "Status";
-
-    $: query = $filterStore.query;
+    function updateFilterStore(e: Event) {
+        const { id, value } = e.target as HTMLInputElement;
+        filterStore.update(current => ({ ...current, [id]: value }));
+    }
 
     function changeStatus(newStatus: string) {
-        status = newStatus;
+        filterStore.update(current => ({ ...current, status: newStatus }));
     }
     
     function clearFilters() {
-        filterStore.update(current => ({ ...current, query: "" }));
-        company = "";
-        role = "";
-        location = "";
-        startDate = "";
-        endDate = "";
-        status = "Status";
+        filterStore.set({
+            query: "",
+            company: "",
+            role: "",
+            location: "",
+            startDate: "",
+            endDate: "",
+            status: "Status",
+        })
         goto('/dashboard');
     }
 
     function sendFilters() {
+        const { query, company, role, location, startDate, endDate, status } = $filterStore;
         const params = buildParamsFromFilters({ query, company, role, location, startDate, endDate, status });
         goto(`?${params.toString()}`); 
     }
@@ -60,7 +58,8 @@
                         type="text"
                         class="text-xs h-7"
                         id="company"
-                        bind:value={company}
+                        bind:value={$filterStore.company}
+                        on:input={updateFilterStore}
                     />
                 </div>
                 <div>
@@ -71,7 +70,8 @@
                         type="text"
                         class="text-xs h-7"
                         id="role"
-                        bind:value={role}
+                        bind:value={$filterStore.role}
+                        on:input={updateFilterStore}
                     />
                 </div>
                 <div>
@@ -82,7 +82,8 @@
                         type="text"
                         class="text-xs h-7"
                         id="location"
-                        bind:value={location}
+                        bind:value={$filterStore.location}
+                        on:input={updateFilterStore}
                     />
                 </div>
             </div>
@@ -95,7 +96,8 @@
                         type="date"
                         class="text-xs h-7"
                         id="start-date"
-                        bind:value={startDate}
+                        bind:value={$filterStore.startDate}
+                        on:input={updateFilterStore}
                     />
                 </div>
                 <div>
@@ -106,7 +108,8 @@
                         type="date"
                         class="text-xs h-7"
                         id="end-date"
-                        bind:value={endDate}
+                        bind:value={$filterStore.endDate}
+                        on:input={updateFilterStore}
                     />
                 </div>
             </div>
@@ -115,14 +118,20 @@
                 <Select.Root>
                     <Select.Trigger class="text-xs h-7">
                         <p
-                            class="{status !== 'Status'
+                            class="{$filterStore.status !== 'Status'
                                 ? 'text-violet-500'
                                 : 'text-gray-500'} text-xs font-medium"
                         >
-                            {status}
+                            {$filterStore.status}
                         </p>
                     </Select.Trigger>
                     <Select.Content>
+                        <Select.Item
+                            value="Status"
+                            on:click={() => changeStatus("Status")}
+                        >
+                            Status
+                        </Select.Item>
                         <Select.Item
                             value="Applied"
                             on:click={() =>changeStatus("Applied")}

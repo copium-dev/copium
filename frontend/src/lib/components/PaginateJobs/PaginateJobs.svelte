@@ -6,7 +6,6 @@
     import { changePage } from "$lib/utils/filter";
 
     import { goto } from "$app/navigation";
-    import { onMount } from "svelte";
 
     $: count = $paginationStore.count;
 
@@ -22,10 +21,6 @@
         const params = changePage("prev");
         goto(`?${params.toString()}`);
     }
-
-    onMount(() => {
-        paginationStore.update(current => ({ ...current, count: count }));
-    });
 
 </script>
 

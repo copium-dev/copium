@@ -17,10 +17,6 @@
 
     export let data: PageData;
 
-    // subscribe to filter query store cause this is where
-    // the raw texy query is edited
-    $: query = $filterStore.query;
-
     // when loading a new page, ensure the total pages and count are updated
     onMount(() => {
         paginationStore.update((current) => ({
@@ -33,29 +29,25 @@
     // we need this to extract the filter values from within the component
     let filterJobsComponent: FilterJobs;
 
+    function updateInput(e: Event) {
+        const value = (e.currentTarget as HTMLInputElement).value;
+        filterStore.update((current) => ({ ...current, query: value }));
+    }
+
     function handleKeyDown(e: KeyboardEvent) {
         if (e.key === "Enter") {
             e.preventDefault();
 
-            const value = (e.currentTarget as HTMLInputElement).value;
             // update the store with the new query
-            filterStore.update((current) => ({ ...current, query: value }));
-            updateURL(filterJobsComponent); // updateURL will use query as well as the filter values
+            updateInput(e);
+            updateURL(); // updateURL will use query as well as the filter values
         }
     }
 
-    function updateURL(filterJobsComponent: FilterJobs) {
-        // read the filter values from the store
-        const { query } = $filterStore;
-
-        // Read the filter values from the FilterJobs component
-        const { company, role, location, startDate, endDate, status } = filterJobsComponent;
-
-        // Build the URL parameters
+    function updateURL() {
+        const { query, company, role, location, startDate, endDate, status } = $filterStore;
         const params = buildParamsFromFilters({ query, company, role, location, startDate, endDate, status });
-
-        // Update the URL
-        goto(`?${params.toString()}`);
+        goto(`?${params.toString()}`); 
     }
 </script>
 
@@ -72,9 +64,10 @@
             <Separator orientation="vertical" class="h-6" />
             <Input
                 type="text"
-                placeholder="Search by company, role, or location"
+                placeholder="Press ENTER to search by company, role, or location."
                 id="query"
-                bind:value={query}
+                bind:value={$filterStore.query}
+                on:input={updateInput}
                 on:keydown={handleKeyDown}
             />
             <Separator orientation="vertical" class="h-6" />
