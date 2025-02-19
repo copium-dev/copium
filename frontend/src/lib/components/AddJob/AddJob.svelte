@@ -49,14 +49,14 @@
             >
                 <Input
                     type="text"
-                    name="role"
-                    placeholder="Role"
+                    name="company"
+                    placeholder="Company"
                     required
                 />
                 <Input
                     type="text"
-                    name="company"
-                    placeholder="Company"
+                    name="role"
+                    placeholder="Role"
                     required
                 />
                 <Input

@@ -55,16 +55,20 @@ export function buildParamsFromFilters({
         params.delete("endDate");
     }
 
+    // ALWAYS reset page to 1 when filters change
+    params.set("page", "1");
+
     return params;
 }
 
 export function changePage(direction: "next" | "prev" | number): URLSearchParams {
     const params = new URLSearchParams(window.location.search);
-    const currentPage = parseInt(params.get("page") || "0", 10);
+    const currentPage = parseInt(params.get("page") || "1", 10);
 
     if (typeof direction === "number") {
-        // algolia is 0-indexed but pages are 1-indexed so we need to subtract 1
-        params.set("page", (direction - 1).toString());
+        // never subtract from frontend to account for 0-indexed algolia
+        // this is just for display purposes; backend will handle subtraction
+        params.set("page", (direction).toString());
         return params;
     }
 

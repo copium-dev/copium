@@ -32,7 +32,7 @@
 </script>
 
 <ModeWatcher />
-<div class="min-h-screen grid grid-rows-[auto_1fr] justify-stretch">
+<div class="h-screen grid grid-rows-[auto_1fr] justify-stretch">
     <header class="bg-background z-50 w-full mx-auto">
         <div
             class="mx-auto flex items-center justify-between p-6 sm:px-8"

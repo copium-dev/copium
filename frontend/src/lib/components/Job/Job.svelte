@@ -123,10 +123,10 @@
     let imgSrc: string;
 </script>
 
-<Separator orientation="horizontal" class="my-5 mx-auto w-full" />
+<Separator orientation="horizontal" class="my-2 mx-auto w-full" />
 <div class="flex justify-start items-center">
     <div
-        class="w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center p-3 sm:my-3"
+        class="w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center p-3 sm:my-2"
     >
         <div class="flex flex-row items-center">
             <img
@@ -186,7 +186,7 @@
                 </div>
 
                 <!-- Buttons overlaid on top -->
-                <div class="flex w-full justify-evenly gap-3 p-2 relative z-10">
+                <div class="flex w-full justify-evenly gap-3 p-2 relative">
                     {#each Object.entries(statusValues) as [status, progressValue]}
                         <div
                             class="flex flex-col justify-center items-center text-xs gap-1"
@@ -245,23 +245,8 @@
                             }}
                         >
                             <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
+                            <!-- hidden id field for db operations; this isnt anything sensitive so its fine -->
                             <input type="hidden" name="id" value={objectID} />
-                            <!-- hidden id field for db operations -->
-                            <div
-                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
-                            >
-                                <Label
-                                    for="role"
-                                    class="text-sm text-gray-500 font-light"
-                                    >Role</Label
-                                >
-                                <Input
-                                    type="text"
-                                    name="role"
-                                    placeholder="Role"
-                                    value={role}
-                                />
-                            </div>
                             <div
                                 class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
                             >
@@ -277,6 +262,21 @@
                                     value={company}
                                 />
                             </div>
+                            <div
+                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                            >
+                                <Label
+                                    for="role"
+                                    class="text-sm text-gray-500 font-light"
+                                    >Role</Label
+                                >
+                                <Input
+                                    type="text"
+                                    name="role"
+                                    placeholder="Role"
+                                    value={role}
+                                />
+                        </div>
                             <div
                                 class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
                             >

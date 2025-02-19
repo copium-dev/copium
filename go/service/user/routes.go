@@ -284,7 +284,13 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(email)
 
 	// 1. extract search query from request and parse
-	queryText, filtersString := userutils.ParseQuery(r)
+	queryText, filtersString, err := userutils.ParseQuery(r)
+	// any invalid query params will return a 400 error
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Error parsing query", http.StatusBadRequest)
+		return
+	}
 
 	log.Println("Filters parsed", filtersString)
 
@@ -293,8 +299,9 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	page := 0
 	if pageStr != "" {
 		p, err := strconv.Atoi(pageStr)
+		// since frontend always sends 1-indexed page number, subtract by 1
 		if err == nil && p > 0 {
-			page = p
+			page = p - 1
 		}
 	}
 	log.Println("Page requested:", page)

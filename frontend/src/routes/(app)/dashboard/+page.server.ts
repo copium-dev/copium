@@ -38,14 +38,16 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
     const data = await response.json();
 
     const applications = data.applications || [];
-    const currentPage = data.currentPage || parseInt(page || '0');
-    const totalPages = data.totalPages || 0;
+    // algolia is 0-indexed and backend always sends 0-indexed page
+    // so, if !currentPage or !totalPages (aka 0), then set to 1
+    const currentPage = parseInt(data.currentPage) || 1;
+    const totalPages = parseInt(data.totalPages) || 1;
     const clientParams = params.toString();
 
-    {console.log("applications:" + applications)}
-    {console.log("currentPage:" + currentPage)}
-    {console.log("totalPages:" + totalPages)}
-    {console.log("clientParams:" + clientParams)}
+    console.log("applications extracted")
+    console.log("currentPage:" + currentPage)
+    console.log("totalPages:" + totalPages)
+    console.log("clientParams:" + clientParams)
     
     return {
         applications,

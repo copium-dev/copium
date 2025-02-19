@@ -43,7 +43,7 @@
 
 <Popover.Root>
     <Popover.Trigger asChild let:builder>
-        <Button builders={[builder]} variant="outline"
+        <Button builders={[builder]} variant="outline" id="filter"
             >Filter</Button
         >
     </Popover.Trigger>
