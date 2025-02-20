@@ -18,8 +18,6 @@ instead of sending msg to discord...
 REPO_URL = "https://github.com/cvrve/Summer2025-Internships"
 LOCAL_REPO_PATH = "Summer2025-Internships"
 JSON_FILE_PATH = os.path.join(LOCAL_REPO_PATH, ".github", "scripts", "listings.json")
-MAX_RETRIES = 3  # Maximum number of retries for failed channels
-
 
 def clone_or_update_repo():
     print("Cloning or updating repository...")

@@ -328,6 +328,9 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("Application added")
 
 	w.WriteHeader(http.StatusCreated)
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush() // flushes the headers immediately (below are background operations)
+	}
 
 	message := map[string]interface{}{
 		"operation":   "add",
@@ -406,6 +409,9 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("Application deleted")
 
 	w.WriteHeader(http.StatusOK)
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush() // flushes the headers immediately (below are background operations)
+	}
 
 	message := map[string]interface{}{
 		"operation": "delete",
@@ -485,6 +491,9 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	log.Println("Application status edited")
 
 	w.WriteHeader(http.StatusCreated)
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush() // flushes the headers immediately (below are background operations)
+	}
 
 	message := map[string]interface{}{
 		"operation": "edit",
@@ -552,6 +561,9 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("Application edited")
 
 	w.WriteHeader(http.StatusOK)
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush() // flushes the headers immediately (below are background operations)
+	}
 
 	message := map[string]interface{}{
 		"operation":   "edit",
