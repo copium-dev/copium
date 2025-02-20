@@ -81,19 +81,23 @@ func (p *Pool) Allocate() {
 }
 
 func (w *Worker) Start() {
-	log.Printf("Starting Worker ID [%d]", w.ID)
-	go func() {
-		for {
-			w.JobChannels <- w.JobChannel
-			select {
-			case job := <-w.JobChannel:
-				w.work(job)
-			case <-w.Quit:
-				return
-			}
-
-		}
-	}()
+    go func() {
+        for {
+            // either send w.JobChannel or return if a quit signal is received.
+            select {
+            case w.JobChannels <- w.JobChannel:
+            case <-w.Quit:
+                return
+            }
+            
+            select {
+            case job := <-w.JobChannel:
+                w.work(job)
+            case <-w.Quit:
+                return
+            }
+        }
+    }()
 }
 
 // actually do the job (here is where we want to index algolia)
