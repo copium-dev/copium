@@ -8,7 +8,7 @@
 
     import { buildParamsFromFilters } from "$lib/utils/filter";
 
-    import { filterStore } from "$lib/components/FilterJobs/filterStore";
+    import { filterStore } from "$lib/stores/filterStore";
 
     import { goto } from "$app/navigation"; 
 

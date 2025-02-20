@@ -19,7 +19,7 @@
     export let objectID: string; // temporarily not used; will be used for db operations later
     export let company: string;
     export let role: string;
-    export let appliedDate: number;
+    export let appliedDate: number; // raw unix timestamp 
     export let location: string;
     export let status: string;
     export let link: string | undefined | null;
@@ -33,6 +33,7 @@
         Offer: 100,
     };
 
+    // format to mm-dd-yyyy 
     function formatDate(timestamp: number): string {
         if (!timestamp) return "";
 
@@ -50,26 +51,13 @@
 
         return `${month}-${day}-${year}`;
     }
-
-    function formatDateForInput(timestamp: number): string {
-        if (!timestamp) return new Date().toISOString().split("T")[0];
-
-        const date = new Date(timestamp);
-        if (isNaN(date.getTime())) return new Date().toISOString().split("T")[0];
-
-        // Adjust for timezone
-        const adjustedDate = new Date(
-            date.getTime() + date.getTimezoneOffset() * 60 * 1000
-        );
-
-        return adjustedDate.toISOString().split("T")[0];
-    }
-
+    
     async function updateStatus(newStatus: keyof typeof statusValues) {
         value = statusValues[newStatus];
         const formData = new FormData();
         formData.append("id", objectID);
         formData.append("status", newStatus);
+        formData.append("oldStatus", status);
 
         const response = await fetch(`/dashboard?/editstatus`, {
             method: "POST",
@@ -86,6 +74,12 @@
     async function deleteApplication() {
         const formData = new FormData();
         formData.append("id", objectID);
+        formData.append("company", company);
+        formData.append("role", role);
+        formData.append("appliedDate", String(appliedDate));
+        formData.append("location", location);
+        formData.append("status", status);
+        formData.append("link", link || "");
 
         const response = await fetch(`/dashboard?/delete`, {
             method: "POST",
@@ -245,8 +239,13 @@
                             }}
                         >
                             <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
-                            <!-- hidden id field for db operations; this isnt anything sensitive so its fine -->
+                            <!-- hidden id field and old statuses. old status are sent for rollback purposes -->
                             <input type="hidden" name="id" value={objectID} />
+                            <input type="hidden" name="oldCompany" value={company} />
+                            <input type="hidden" name="oldRole" value={role} />
+                            <input type="hidden" name="oldLocation" value={location} />
+                            <input type="hidden" name="oldAppliedDate" value={appliedDate} />
+                            <input type="hidden" name="oldLink" value={link} />
                             <div
                                 class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
                             >
@@ -319,7 +318,7 @@
                                     type="date"
                                     name="appliedDate"
                                     placeholder="Applied Date"
-                                    value={formatDateForInput(appliedDate)}
+                                    value={appliedDate}
                                 />
                             </div>
                             <AlertDialog.Footer>

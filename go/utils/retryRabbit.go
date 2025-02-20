@@ -9,9 +9,7 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func PublishWithRetry(ch *amqp.Channel, exchange, routingKey string, mandatory, immediate bool, msg amqp.Publishing) error {
-    const maxRetries = 3
-
+func PublishWithRetry(maxRetries int, ch *amqp.Channel, exchange, routingKey string, mandatory, immediate bool, msg amqp.Publishing) error {
     var lastErr error
     for i := 0; i < maxRetries; i++ {
         err := ch.Publish(

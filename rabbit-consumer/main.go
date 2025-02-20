@@ -46,7 +46,9 @@ func main() {
 	// configure worker pool with num workers, queue name, and algolia client
 	cfg := config.NewConfig(10000, "my-rabbit", algoliaClient)
 
-	// connect to rabbit
+	// connect to rabbit; if failed immediately exit
+	// this is okay because if rabbit is down, producer also does not send anything
+	// so instead of retrying just exit; have the consumer restart
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()

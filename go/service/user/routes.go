@@ -1,5 +1,34 @@
 package user
 
+// this file contains the HTTP handlers for the user service
+// it contains the following handlers:
+// (R) - Dashboard: queries Algolia for applications based on search query
+// (R) - Profile: (for now) returns simply email and app count; once we figure out what kind of data analytics we want to show, it will be updated
+// (C) - AddApplication: adds an application to Firestore and publishes a message to RabbitMQ
+// (D) - DeleteApplication: deletes an application from Firestore and publishes a message to RabbitMQ
+// (U) - EditStatus: edits the status of an application in Firestore and publishes a message to RabbitMQ
+// (U) - EditApplication: edits an application in Firestore and publishes a message to RabbitMQ
+// (D) - DeleteUser: deletes a user from Firestore and publishes a message to RabbitMQ to delete all applications from Algolia
+// this file contains the following utility functions:
+// - deleteUserFromFirestore: deletes a user from Firestore, including all applications
+// - publishMessage: publishes a message to RabbitMQ with publish and connection retries
+//     (relies on utils.PublishWithRetry and retryRabbitConnectionAndRetryPublish)
+// - retryRabbitConnectionAndRetryPublish: re-establishes connection to RabbitMQ and retries publishing a message
+//	   (relies on utils.RetryRabbitConnection and utils.PublishWithRetry)
+// NOTE: all CRUD operations (AddApplication, DeleteApplication, EditStatus, EditApplication, DeleteUser) are idempotent
+//       and can be retried without side effects. This is why there is no timestamping or versioning.
+// NOTE: all CRUD operations are NOT commutative. We rely on an optimistic but strong consistency model. So, 
+//	 	 every user request is fulfilled to DB, but in the rare event of publishing failure, we can quickly revert.
+//		 Actually, this does not add any latency because we have frontend send previous state in the delete or edit request
+//       so there's no need to query the DB for the previous state.
+// Q: why not use event sourcing?
+// A: all that matters is latest state; rebuilding history is not necessary. HOWEVER, compliance and auditing
+//    may require event sourcing in the future if this project takes off
+// Q: why is EditStatus and EditApplication separate?
+// A: EditStatus has a different UI flow and separate actions, mainly because a user will very rarely edit
+//    fields such as role, company, applied date, etc. but will frequently edit status. This separation
+//    allows for a more optimized UI flow and better user experience
+
 import (
 	"context"
 	"encoding/json"
@@ -58,11 +87,18 @@ type AlgoliaResponse struct {
 
 type DeleteApplicationRequest struct {
 	ID string `json:"id"`
+	Role string `json:"role"`
+	Company string `json:"company"`
+	Location string `json:"location"`
+	AppliedDate int64 `json:"appliedDate"`
+	Status string `json:"status"`
+	Link string `json:"link"`
 }
 
-type EditStatusApplicationRequest struct {
+type EditApplicationStatusRequest struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
+	OldStatus string `json:"oldStatus"`
 }
 
 // edit application does not include status because status is edited separately
@@ -73,6 +109,11 @@ type EditApplicationRequest struct {
 	Location    string `json:"location"`
 	AppliedDate int64  `json:"appliedDate"`
 	Link        string `json:"link"`
+	OldRole     string `json:"oldRole"`
+	OldCompany  string `json:"oldCompany"`
+	OldLocation string `json:"oldLocation"`
+	OldLink     string `json:"oldLink"`
+	OldAppliedDate int64 `json:"oldAppliedDate"`
 }
 
 type Handler struct {
@@ -104,130 +145,6 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/user/editStatus", h.EditStatus).Methods("POST").Name("editStatus")
 	router.HandleFunc("/user/editApplication", h.EditApplication).Methods("POST").Name("editApplication")
 	router.HandleFunc("/user/deleteUser", h.DeleteUser).Methods("POST").Name("deleteUser")
-}
-
-func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
-	log.Println("[*] AddApplication [*]")
-	log.Println("-----------------")
-
-	user, err := auth.IsAuthenticated(r)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// for user's email (unique ID), add application and assign unique jobID
-	email := user.Email
-
-	log.Println("User authenticated")
-
-	// extract json from request body
-	var addApplicationRequest AddApplicationRequest
-	err = json.NewDecoder(r.Body).Decode(&addApplicationRequest)
-	if err != nil {
-		http.Error(w, "Error decoding request body", http.StatusBadRequest)
-		return
-	}
-
-	// add application to Firestore using users/{email} where jobs is a document within the user's collection
-	doc, _, err := h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Add(r.Context(), map[string]interface{}{
-		"role":        addApplicationRequest.Role,
-		"company":     addApplicationRequest.Company,
-		"location":    addApplicationRequest.Location,
-		"appliedDate": addApplicationRequest.AppliedDate,
-		"status":      addApplicationRequest.Status,
-		"link":        addApplicationRequest.Link,
-	})
-	if err != nil {
-		fmt.Printf("Error adding application: %v\n", err)
-		http.Error(w, "Error adding application", http.StatusInternalServerError)
-		return
-	}
-
-	log.Println("Application added")
-
-	// Read the current applicationsCount from the user's document
-	userDoc, err := h.FirestoreClient.Collection("users").Doc(email).Get(r.Context())
-	if err != nil {
-		fmt.Printf("Error retrieving user data: %v\n", err)
-		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
-		return
-	}
-
-	applicationsCount, ok := userDoc.Data()["applicationsCount"].(int64)
-	if !ok {
-		fmt.Printf("Error: applicationsCount is not an integer")
-		http.Error(w, "Error retrieving applications count", http.StatusInternalServerError)
-		return
-	}
-
-	// Increment the applicationsCount by 1
-	applicationsCount++
-
-	// Update the applicationsCount in the user's document
-	_, err = h.FirestoreClient.Collection("users").Doc(email).Update(r.Context(), []firestore.Update{
-		{
-			Path:  "applicationsCount",
-			Value: applicationsCount,
-		},
-	})
-	if err != nil {
-		fmt.Printf("Error updating applications count: %v\n", err)
-		http.Error(w, "Error updating applications count", http.StatusInternalServerError)
-		return
-	}
-
-	log.Println("Applications count updated, added by 1")
-
-	w.WriteHeader(http.StatusCreated)
-
-	// for now, just send msg to rabbitmq (later, we will ensure that the application is indexed)
-	message := map[string]interface{}{
-		"operation":   "add",
-		"email":       email,
-		"appliedDate": addApplicationRequest.AppliedDate,
-		"company":     addApplicationRequest.Company,
-		"link":        addApplicationRequest.Link,
-		"location":    addApplicationRequest.Location,
-		"role":        addApplicationRequest.Role,
-		"status":      addApplicationRequest.Status,
-		"objectID":    doc.ID,
-	}
-
-	messageBody, err := json.Marshal(message)
-	if err != nil {
-		fmt.Printf("Error marshaling message: %v\n", err)
-		return
-	}
-
-	err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-		ContentType: "text/plain",
-		Body:        messageBody,
-	})
-	if err != nil {
-		fmt.Printf("Error publishing message after retries: %v\n", err)
-		// try to re-establish connection
-		if strings.Contains(err.Error(), "channel/connection is not open") {
-			if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
-				fmt.Printf("Error re-establishing connection: %v\n", reconErr)
-			} else {
-				// try to publish again
-				if pubErr := utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-					ContentType: "text/plain",
-					Body:        messageBody,
-				}); pubErr != nil {
-					fmt.Printf("Error publishing message after retries: %v\n", pubErr)
-				} else {
-					log.Println("Message published")
-					log.Println("-----------------")
-				}
-			}
-		}
-	} else {
-		log.Println("Message published")
-		log.Println("-----------------")
-	}
 }
 
 func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
@@ -368,6 +285,90 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(responseObject)
 }
 
+// consistency: if publish fails, delete the application from Firestore
+func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] AddApplication [*]")
+	log.Println("-----------------")
+
+	user, err := auth.IsAuthenticated(r)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// for user's email (unique ID), add application and assign unique jobID
+	email := user.Email
+
+	log.Println("User authenticated")
+
+	// extract json from request body
+	var addApplicationRequest AddApplicationRequest
+	err = json.NewDecoder(r.Body).Decode(&addApplicationRequest)
+	if err != nil {
+		http.Error(w, "Error decoding request body", http.StatusBadRequest)
+		return
+	}
+
+	// add application to Firestore using users/{email} where jobs is a document within the user's collection
+	doc, _, err := h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Add(r.Context(), map[string]interface{}{
+		"role":        addApplicationRequest.Role,
+		"company":     addApplicationRequest.Company,
+		"location":    addApplicationRequest.Location,
+		"appliedDate": addApplicationRequest.AppliedDate,
+		"status":      addApplicationRequest.Status,
+		"link":        addApplicationRequest.Link,
+	})
+	if err != nil {
+		fmt.Printf("Error adding application: %v\n", err)
+		http.Error(w, "Error adding application", http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("Application added")
+
+	w.WriteHeader(http.StatusCreated)
+
+	message := map[string]interface{}{
+		"operation":   "add",
+		"email":       email,
+		"appliedDate": addApplicationRequest.AppliedDate,
+		"company":     addApplicationRequest.Company,
+		"link":        addApplicationRequest.Link,
+		"location":    addApplicationRequest.Location,
+		"role":        addApplicationRequest.Role,
+		"status":      addApplicationRequest.Status,
+		"objectID":    doc.ID,
+	}
+
+	err = h.publishMessage(message); if err != nil {
+		fmt.Printf("Error publishing message: %v\n", err)
+		// delete added application if publish fails
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(doc.ID).Delete(r.Context())
+		if err != nil {
+			fmt.Printf("Error deleting application: %v\n", err)
+		}
+		log.Println("AddApplication reverted")
+		return
+	}
+
+	// to reduce amount of reads in this single request, increment applicationCount AFTER verifying publish success
+	// this means we don't have to revert applicationCount on top of reverting the add operation. this DOES
+	// introduce small window of inconsistency but this is reducing costs and reducing complexity
+	userDoc := h.FirestoreClient.Collection("users").Doc(email)
+	_, err = userDoc.Update(context.Background(), []firestore.Update{
+		{Path: "applicationsCount", Value: firestore.Increment(1)},
+	})
+	// can't return HTTP error if we already wrote StatusCreated...
+	if err != nil {
+		fmt.Printf("Error updating applications count: %v\n", err)
+		return
+	}
+
+	log.Println("Applications count updated, added by 1")
+}
+
+// consistency: save current application status; if publish fails, revert status
 func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] DeleteApplication [*]")
 	log.Println("-----------------")
@@ -387,6 +388,7 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	var deleteApplicationRequest DeleteApplicationRequest
 	err = json.NewDecoder(r.Body).Decode(&deleteApplicationRequest)
 	if err != nil {
+		fmt.Println(err)	
 		http.Error(w, "Error decoding request body", http.StatusBadRequest)
 		return
 	}
@@ -403,81 +405,43 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Application deleted")
 
-	// Read the current applicationsCount from the user's document
-	userDoc, err := h.FirestoreClient.Collection("users").Doc(email).Get(r.Context())
-	if err != nil {
-		fmt.Printf("Error retrieving user data: %v\n", err)
-		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
-		return
-	}
-
-	applicationsCount, ok := userDoc.Data()["applicationsCount"].(int64)
-	if !ok {
-		fmt.Printf("Error: applicationsCount is not an integer")
-		http.Error(w, "Error retrieving applications count", http.StatusInternalServerError)
-		return
-	}
-
-	// Decrement the applicationsCount by 1 if it's greater than 0
-	if applicationsCount > 0 {
-		applicationsCount--
-	}
-
-	// Update the applicationsCount in the user's document
-	_, err = h.FirestoreClient.Collection("users").Doc(email).Update(r.Context(), []firestore.Update{
-		{
-			Path:  "applicationsCount",
-			Value: applicationsCount,
-		},
-	})
-	if err != nil {
-		fmt.Printf("Error updating applications count: %v\n", err)
-		http.Error(w, "Error updating applications count", http.StatusInternalServerError)
-		return
-	}
-
-	log.Println("Applications count updated, subtracted by 1")
-
 	w.WriteHeader(http.StatusOK)
 
-	message := map[string]string{
+	message := map[string]interface{}{
 		"operation": "delete",
 		"email":     email,
 		"objectID":  applicationID,
 	}
 
-	messageBody, err := json.Marshal(message)
-	if err != nil {
-		fmt.Printf("Error marshaling message: %v\n", err)
+	err = h.publishMessage(message); if err != nil {
+		fmt.Printf("Error publishing message: %v\n", err)
+		// revert status if publish fails
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Set(r.Context(), map[string]interface{}{
+			"role":        deleteApplicationRequest.Role,
+			"company":     deleteApplicationRequest.Company,
+			"location":    deleteApplicationRequest.Location,
+			"appliedDate": deleteApplicationRequest.AppliedDate,
+			"status":      deleteApplicationRequest.Status,
+			"link":        deleteApplicationRequest.Link,
+		})
+		if err != nil {
+			fmt.Printf("Error reverting application: %v\n", err)
+		}
+		log.Println("DeleteApplication reverted")
 		return
 	}
 
-	err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-		ContentType: "text/plain",
-		Body:        messageBody,
+	// to reduce amount of reads in this single request, decrement applicationCount AFTER verifying publish success
+	// this means we don't have to revert applicationCount on top of reverting the delete operation. this DOES
+	// introduce small window of inconsistency but this is reducing costs and reducing complexity
+	userDoc := h.FirestoreClient.Collection("users").Doc(email)
+	_, err = userDoc.Update(context.Background(), []firestore.Update{
+		{Path: "applicationsCount", Value: firestore.Increment(-1)},
 	})
+	// can't return HTTP error if we already wrote StatusOK...
 	if err != nil {
-		fmt.Printf("Error publishing message after retries: %v\n", err)
-		// try to re-establish connection
-		if strings.Contains(err.Error(), "channel/connection is not open") {
-			if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
-				fmt.Printf("Error re-establishing connection: %v\n", reconErr)
-			} else {
-				// try to publish again
-				if pubErr := utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-					ContentType: "text/plain",
-					Body:        messageBody,
-				}); pubErr != nil {
-					fmt.Printf("Error publishing message after retries: %v\n", pubErr)
-				} else {
-					log.Println("Message published")
-					log.Println("-----------------")
-				}
-			}
-		}
-	} else {
-		log.Println("Message published")
-		log.Println("-----------------")
+		fmt.Printf("Error updating applications count: %v\n", err)
+		return
 	}
 }
 
@@ -497,20 +461,19 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	log.Println("User authenticated")
 
 	// extract json from request body
-	var editStatusApplicationRequest EditStatusApplicationRequest
-	err = json.NewDecoder(r.Body).Decode(&editStatusApplicationRequest)
+	var EditApplicationStatusRequest EditApplicationStatusRequest
+	err = json.NewDecoder(r.Body).Decode(&EditApplicationStatusRequest)
 	if err != nil {
 		http.Error(w, "Error decoding request body", http.StatusBadRequest)
 		return
 	}
 
-	applicationID := editStatusApplicationRequest.ID
+	applicationID := EditApplicationStatusRequest.ID
 
-	// edit application in Firestore
 	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
 		{
 			Path:  "status",
-			Value: editStatusApplicationRequest.Status,
+			Value: EditApplicationStatusRequest.Status,
 		},
 	})
 	if err != nil {
@@ -523,45 +486,27 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 
-	message := map[string]string{
+	message := map[string]interface{}{
 		"operation": "edit",
 		"email":     email,
 		"objectID":  applicationID,
-		"status":    editStatusApplicationRequest.Status,
+		"status":    EditApplicationStatusRequest.Status,
 	}
 
-	messageBody, err := json.Marshal(message)
-	if err != nil {
-		fmt.Printf("Error marshaling message: %v\n", err)
-		return
-	}
-
-	err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-		ContentType: "text/plain",
-		Body:        messageBody,
-	})
-	if err != nil {
-		fmt.Printf("Error publishing message after retries: %v\n", err)
-		// try to re-establish connection
-		if strings.Contains(err.Error(), "channel/connection is not open") {
-			if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
-				fmt.Printf("Error re-establishing connection: %v\n", reconErr)
-			} else {
-				// try to publish again
-				if pubErr := utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-					ContentType: "text/plain",
-					Body:        messageBody,
-				}); pubErr != nil {
-					fmt.Printf("Error publishing message after retries: %v\n", pubErr)
-				} else {
-					log.Println("Message published")
-					log.Println("-----------------")
-				}
-			}
+	err = h.publishMessage(message); if err != nil {
+		fmt.Printf("Error publishing message: %v\n", err)
+		// revert status if publish fails 
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
+			{
+				Path: "status",
+				Value: EditApplicationStatusRequest.OldStatus,
+			},
+		})
+		if err != nil {
+			fmt.Printf("Error reverting status: %v\n", err)
 		}
-	} else {
-		log.Println("Message published")
-		log.Println("-----------------")
+		log.Println("EditStatus reverted")
+		return
 	}
 }
 
@@ -592,26 +537,11 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 
 	// frontend will send all fields, so we need to update all fields
 	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
-		{
-			Path:  "role",
-			Value: addApplicationRequest.Role,
-		},
-		{
-			Path:  "company",
-			Value: addApplicationRequest.Company,
-		},
-		{
-			Path:  "location",
-			Value: addApplicationRequest.Location,
-		},
-		{
-			Path:  "link",
-			Value: addApplicationRequest.Link,
-		},
-		{
-			Path:  "appliedDate",
-			Value: addApplicationRequest.AppliedDate,
-		},
+		{Path:  "role", Value: addApplicationRequest.Role},
+		{Path:  "company", Value: addApplicationRequest.Company},
+		{Path:  "location", Value: addApplicationRequest.Location},
+		{Path:  "link", Value: addApplicationRequest.Link},
+		{Path:  "appliedDate", Value: addApplicationRequest.AppliedDate},
 	})
 	if err != nil {
 		fmt.Printf("Error editing application: %v\n", err)
@@ -634,38 +564,21 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		"objectID":    applicationID,
 	}
 
-	messageBody, err := json.Marshal(message)
-	if err != nil {
-		fmt.Printf("Error marshaling message: %v\n", err)
-		return
-	}
-
-	err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-		ContentType: "text/plain",
-		Body:        messageBody,
-	})
-	if err != nil {
-		fmt.Printf("Error publishing message after retries: %v\n", err)
-		// try to re-establish connection
-		if strings.Contains(err.Error(), "channel/connection is not open") {
-			if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
-				fmt.Printf("Error re-establishing connection: %v\n", reconErr)
-			} else {
-				// try to publish again
-				if pubErr := utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-					ContentType: "text/plain",
-					Body:        messageBody,
-				}); pubErr != nil {
-					fmt.Printf("Error publishing message after retries: %v\n", pubErr)
-				} else {
-					log.Println("Message published")
-					log.Println("-----------------")
-				}
-			}
+	err = h.publishMessage(message); if err != nil {
+		fmt.Printf("Error publishing message: %v\n", err)
+		// revert status if publish fails
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
+			{Path: "role", Value: addApplicationRequest.OldRole},
+			{Path: "company", Value: addApplicationRequest.OldCompany},
+			{Path: "location", Value: addApplicationRequest.OldLocation},
+			{Path: "link", Value: addApplicationRequest.OldLink},
+			{Path: "appliedDate", Value: addApplicationRequest.OldAppliedDate},
+		})
+		if err != nil {
+			fmt.Printf("Error reverting application: %v\n", err)
 		}
-	} else {
-		log.Println("Message published")
-		log.Println("-----------------")
+		log.Println("EditApplication reverted")
+		return
 	}
 }
 
@@ -684,7 +597,19 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("User authenticated")
 
-	// delete user in Firestore
+	// send to algolia to delete all applications associated with this user
+	message := map[string]interface{}{
+		"operation": "userDelete",
+		"email":     email,
+	}
+
+	err = h.publishMessage(message); if err != nil {
+		fmt.Printf("Error publishing message: %v\n", err)
+		http.Error(w, "Error deleting user", http.StatusInternalServerError)
+		return
+	}
+
+	// since we can't exactly revert a user deletion, we will delete only if publish is successful
 	err = h.deleteUserFromFirestore(email, 10)
 	if err != nil {
 		fmt.Printf("Error deleting user: %v\n", err)
@@ -695,46 +620,60 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	log.Println("User deleted")
 
 	w.WriteHeader(http.StatusOK)
+}
 
-	// send to algolia to delete all applications associated with this user
-	message := map[string]string{
-		"operation": "userDelete",
-		"email":     email,
-	}
-
+func (h *Handler) publishMessage(message map[string]interface{}) error {
 	messageBody, err := json.Marshal(message)
 	if err != nil {
 		fmt.Printf("Error marshaling message: %v\n", err)
-		return
+		return err
 	}
 
-	err = utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+	// publish; retry 3 times
+	err = utils.PublishWithRetry(3, h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
 		ContentType: "text/plain",
 		Body:        messageBody,
 	})
 	if err != nil {
 		fmt.Printf("Error publishing message after retries: %v\n", err)
-		// try to re-establish connection
+		// if connection error, try to re-establish connection and try publish again
 		if strings.Contains(err.Error(), "channel/connection is not open") {
-			if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
-				fmt.Printf("Error re-establishing connection: %v\n", reconErr)
-			} else {
-				// try to publish again
-				if pubErr := utils.PublishWithRetry(h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-					ContentType: "text/plain",
-					Body:        messageBody,
-				}); pubErr != nil {
-					fmt.Printf("Error publishing message after retries: %v\n", pubErr)
-				} else {
-					log.Println("Message published")
-					log.Println("-----------------")
-				}
+			err = h.retryRabbitConnectionAndRetryPublish(messageBody)
+			if err != nil {
+				fmt.Printf("Error re-establishing connection and retrying publish: %v\n", err)
+				return err
 			}
 		}
 	} else {
 		log.Println("Message published")
 		log.Println("-----------------")
 	}
+
+	return nil
+}
+
+func (h *Handler) retryRabbitConnectionAndRetryPublish(messageBody []byte) error {
+	// try to re-establish connection
+	if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
+		fmt.Printf("Error re-establishing connection: %v\n", reconErr)
+		return reconErr
+	}
+
+	log.Println("Connection re-established")
+
+	// at this point, connection successfully re-established. try again (but just once)
+	if pubErr := utils.PublishWithRetry(1, h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
+		ContentType: "text/plain",
+		Body:        messageBody,
+	}); pubErr != nil {
+		fmt.Printf("Error publishing message after retries: %v\n", pubErr)
+		return pubErr
+	}
+
+	log.Println("Message published")
+	log.Println("-----------------")
+
+	return nil
 }
 
 // Firestore does not delete subcollections automatically

@@ -7,8 +7,8 @@
     import FilterJobs from "$lib/components/FilterJobs/FilterJobs.svelte";
     import PaginateJobs from "$lib/components/PaginateJobs/PaginateJobs.svelte";
 
-    import { filterStore } from "$lib/components/FilterJobs/filterStore";
-    import { paginationStore } from "$lib/components/PaginateJobs/paginationStore";
+    import { filterStore } from "$lib/stores/filterStore";
+    import { paginationStore } from "$lib/stores/paginationStore";
 
     import type { PageData } from "./$types";
     import { onMount, onDestroy } from "svelte";
@@ -30,8 +30,13 @@
         filterStore.update((current) => ({ ...current, query: value }));
     }
 
+    // only if input is focused, handle Enter
     function handleKeyDown(e: KeyboardEvent) {
         if (e.key === "Enter") {
+            const queryElement = document.getElementById(
+                "query",
+            ) as HTMLInputElement | null;
+            if (document.activeElement !== queryElement) return;
             e.preventDefault();
 
             // update the store with the new query
@@ -40,15 +45,8 @@
         }
     }
 
-    // shortcuts for search input
+    // shortcuts for search input; only works when body is focused
     function handleGlobalKeydown(e: KeyboardEvent) {
-        if (e.key === "f") {
-            e.preventDefault();
-            const queryElement = document.getElementById(
-                "query",
-            ) as HTMLInputElement | null;
-            if (queryElement) queryElement.focus();
-        }
         if (e.key == "Escape") {
             const queryElement = document.getElementById(
                 "query",
@@ -100,12 +98,12 @@
                     <AddJob />
                     <Separator orientation="vertical" class="h-6" />
                     <Input
-                        type="text"
-                        placeholder="Press ENTER to search by company, role, or location."
-                        id="query"
-                        bind:value={$filterStore.query}
-                        on:input={updateInput}
-                        on:keydown={handleKeyDown}
+                            type="text"
+                            placeholder="Search by company, role, or location."
+                            id="query"
+                            bind:value={$filterStore.query}
+                            on:input={updateInput}
+                            on:keydown={handleKeyDown}
                     />
                     <Separator orientation="vertical" class="h-6" />
                     <FilterJobs />
@@ -129,3 +127,18 @@
         {/each}
     </div>
 </div>
+
+<!-- <style>
+    @media (min-width: 640px) {
+        .input-wrapper::after {
+            content: "(Shortcut: f)";
+            position: absolute;
+            right: 0.8rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280; /* same color as placeholder */
+            font-size: 0.8rem; /* same size as placeholder */
+            pointer-events: none;
+        }
+    }
+</style> -->

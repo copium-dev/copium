@@ -69,8 +69,6 @@ export const actions = {
             status: 'Applied'
         }
 
-        {console.log(data)}
-
         const response = await fetch(`${BACKEND_URL}/user/addApplication`, {
             method: 'POST',
             headers: {
@@ -94,7 +92,16 @@ export const actions = {
     },
     delete: async ({ request, fetch }) => {
         const formData = await request.formData();
-        const body = formData.get('id');
+        const body = {
+            id: formData.get('id'),
+            company: formData.get('company'),
+            role: formData.get('role'),
+            location: formData.get('location'),
+            status: formData.get('status'),
+            // unlike addApplication, this is already sent as unix timestamp
+            appliedDate: Number(formData.get('appliedDate')),
+            link: formData.get('link')
+        }
 
         const response = await fetch(`${BACKEND_URL}/user/deleteApplication`, {
             method: 'POST',
@@ -102,7 +109,7 @@ export const actions = {
                 'Content-Type': 'application/json'
             },
             credentials: 'include',
-            body: JSON.stringify({ id: body })
+            body: JSON.stringify(body)
         });
 
         if (!response.ok) {
@@ -121,7 +128,8 @@ export const actions = {
         const formData = await request.formData();
         const body = {
             id: formData.get('id'),
-            status: formData.get('status')
+            status: formData.get('status'),
+            oldStatus: formData.get('oldStatus'),
         }
 
         const response = await fetch(`${BACKEND_URL}/user/editStatus`, {
@@ -152,8 +160,15 @@ export const actions = {
             role: formData.get('role'),
             company: formData.get('company'),
             location: formData.get('location'),
+            // this is sent as mm-dd-yyyy so parse into unix timestamp
             appliedDate: Date.parse(formData.get('appliedDate') as string),
             link: formData.get('link'),
+            oldRole: formData.get('oldRole'),
+            oldCompany: formData.get('oldCompany'),
+            oldLocation: formData.get('oldLocation'),
+            // this is already unix timestamp
+            oldAppliedDate: Number(formData.get('oldAppliedDate')),
+            oldLink: formData.get('oldLink'),
         }
 
         const response = await fetch(`${BACKEND_URL}/user/editApplication`, {
