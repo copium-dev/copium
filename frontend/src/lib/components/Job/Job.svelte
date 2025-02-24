@@ -3,6 +3,8 @@
     import { enhance } from "$app/forms";
     import { goto } from '$app/navigation'
 
+    import EditJob from "$lib/components/EditJob/EditJob.svelte";
+
     import { Map } from "lucide-svelte";
     import { Calendar } from "lucide-svelte";
 
@@ -141,6 +143,17 @@
                 orientation="vertical"
                 class="h-12 ml-auto invisible sm:visible"
             />
+            <div class="sm:hidden flex flex-row items-center gap-4">
+                <EditJob
+                objectID={objectID}
+                company={company}
+                role={role}
+                appliedDate={appliedDate}
+                location={location}
+                status={status}
+                link={link}
+                />
+            </div>
         </div>
 
         <div class="flex flex-row items-center">
@@ -209,134 +222,46 @@
         </div>
 
         <div
-            class="mt-4 flex w-full items-stretch justify-between gap-4 sm:gap-2"
+            class="lex w-full items-stretch justify-between gap-4 sm:gap-2 hidden sm:flex"
         >
+            <EditJob
+                objectID={objectID}
+                company={company}
+                role={role}
+                appliedDate={appliedDate}
+                location={location}
+                status={status}
+                link={link}
+            />
+            
             <AlertDialog.Root>
                 <AlertDialog.Trigger asChild let:builder>
                     <Button
                         builders={[builder]}
-                        variant="outline"
-                        class="text-primary focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none sm:hover:bg-transparent sm:hover:bg-accent"
+                        on:click={deleteApplication}
+                        class="text-red-500 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none sm:hover:bg-transparent hover:text-red-500 sm:hover:bg-accent"
                     >
-                        Edit
+                        Delete
                     </Button>
-                </AlertDialog.Trigger>
-                <AlertDialog.Content>
-                    <AlertDialog.Header>
-                        <AlertDialog.Title>Edit Application</AlertDialog.Title>
-                        <AlertDialog.Description>
-                            Update your application. Unmodified fields will
-                            remain unchanged.
-                        </AlertDialog.Description>
-                        <form
-                            action="/dashboard?/editapplication"
-                            method="POST"
-                            class="flex flex-col gap-2 w-full"
-                            use:enhance={() => {
-                                return ({ update }) => {
-                                    update();
-                                };
-                            }}
-                        >
-                            <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
-                            <!-- hidden id field and old statuses. old status are sent for rollback purposes -->
-                            <input type="hidden" name="id" value={objectID} />
-                            <input type="hidden" name="oldCompany" value={company} />
-                            <input type="hidden" name="oldRole" value={role} />
-                            <input type="hidden" name="oldLocation" value={location} />
-                            <input type="hidden" name="oldAppliedDate" value={appliedDate} />
-                            <input type="hidden" name="oldLink" value={link} />
-                            <div
-                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                    </AlertDialog.Trigger>
+                    <AlertDialog.Content>
+                        <AlertDialog.Header>
+                            <AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
+                            <AlertDialog.Description>
+                                This action cannot be undone. This will permanently delete this application
+                                data from our servers.
+                            </AlertDialog.Description>
+                        </AlertDialog.Header>
+                        <AlertDialog.Footer>
+                            <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+                            <AlertDialog.Action
+                                on:click={deleteApplication}
                             >
-                                <Label
-                                    for="company"
-                                    class="text-sm text-gray-500 font-light"
-                                    >Company</Label
-                                >
-                                <Input
-                                    type="text"
-                                    name="company"
-                                    placeholder="Company"
-                                    value={company}
-                                />
-                            </div>
-                            <div
-                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
-                            >
-                                <Label
-                                    for="role"
-                                    class="text-sm text-gray-500 font-light"
-                                    >Role</Label
-                                >
-                                <Input
-                                    type="text"
-                                    name="role"
-                                    placeholder="Role"
-                                    value={role}
-                                />
-                        </div>
-                            <div
-                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
-                            >
-                                <Label
-                                    for="location"
-                                    class="text-sm text-gray-500 font-light"
-                                    >Location</Label
-                                >
-                                <Input
-                                    type="text"
-                                    name="location"
-                                    placeholder="Location"
-                                    value={location}
-                                />
-                            </div>
-                            <div
-                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
-                            >
-                                <Label
-                                    for="link"
-                                    class="text-sm text-gray-500 font-light"
-                                    >Link</Label
-                                >
-                                <Input
-                                    type="text"
-                                    name="link"
-                                    placeholder="Link"
-                                    value={link}
-                                />
-                            </div>
-                            <div
-                                class="grid grid-cols-[1fr_5fr] w-full items-center gap-1.5"
-                            >
-                                <Label
-                                    for="appliedDate"
-                                    class="text-sm text-gray-500 font-light"
-                                    >Applied Date</Label
-                                >
-                                <Input
-                                    type="date"
-                                    name="appliedDate"
-                                    placeholder="Applied Date"
-                                    value={appliedDate}
-                                />
-                            </div>
-                            <AlertDialog.Footer>
-                                <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-                                <AlertDialog.Action type="submit"
-                                    >Save</AlertDialog.Action
-                                >
-                            </AlertDialog.Footer>
-                        </form>
-                    </AlertDialog.Header>
-                </AlertDialog.Content>
+                            Continue
+                            </AlertDialog.Action>
+                        </AlertDialog.Footer>
+                  </AlertDialog.Content>
             </AlertDialog.Root>
-            <Button
-                on:click={deleteApplication}
-                class="text-red-500 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none sm:hover:bg-transparent hover:text-red-500 sm:hover:bg-accent"
-            >
-                Delete
-            </Button>
         </div>
     </div>
 </div>

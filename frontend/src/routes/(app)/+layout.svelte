@@ -17,7 +17,12 @@
     import LogOut from "lucide-svelte/icons/log-out";
     import Settings from "lucide-svelte/icons/settings";
     import User from "lucide-svelte/icons/user";
+    import { Milestone } from 'lucide-svelte';
+    import { LayoutDashboard } from 'lucide-svelte';
+    import { ChevronsDown } from 'lucide-svelte';
+    import { ChevronsUp } from 'lucide-svelte';
     import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
+    import { writable } from 'svelte/store';
 
     import { goto } from "$app/navigation";
 
@@ -25,8 +30,23 @@
         window.location.href = "/auth/google/logout";
     }
 
+    function handlePostingsClick() {
+        goto("/postings");
+    }
+
+    function handleDashboardClick() {
+        goto("/dashboard");
+    }
+
     function handleProfileClick() {
         goto("/profile");
+    }
+
+    // dropdown menu state
+    const isDropdownOpen = writable(false);
+
+    function toggleOpen(open: boolean) {
+        isDropdownOpen.set(open);
     }
 
 </script>
@@ -54,43 +74,59 @@
             </div>
             <div class="flex items-center gap-2 sm:gap-4 mx-2 sm:mx-8">
                 <Button
-                    variant="ghost" on:click={() => goto("/postings")} class="text-xs sm:text-sm"
+                    variant="ghost" on:click={() => goto("/postings")} class="text-xs sm:text-sm hidden lg:block"
                 >
                     Postings
                 </Button>
-                <Separator orientation="vertical" class="h-6" />
+                <Separator orientation="vertical" class="h-6 hidden lg:block" />
                 <Button
-                    variant="ghost" on:click={() => goto("/dashboard")} class="text-xs sm:text-sm"
+                    variant="ghost" on:click={() => goto("/dashboard")} class="text-xs sm:text-sm hidden lg:block"
                 >
                     Dashboard
                 </Button>
-                <Separator orientation="vertical" class="h-6" />
+                <Separator orientation="vertical" class="h-6 hidden lg:block" />
                 <Button
-                    variant="ghost" on:click={() => goto("/profile")} class="text-xs sm:text-sm"
+                    variant="ghost" on:click={() => goto("/profile")} class="text-xs sm:text-sm hidden lg:block"
                 >
                     Profile
                 </Button>
             </div>
             <div>
-                <DropdownMenu.Root>
+                <DropdownMenu.Root onOpenChange={(open) => toggleOpen(open)}>
                     <DropdownMenu.Trigger asChild let:builder>
                         <Button
                             builders={[builder]}
                             variant="outline"
                             class="w-12 sm:w-16"
                         >
-                            <Settings />
+                            {#if $isDropdownOpen}
+                                <ChevronsUp />
+                            {:else}
+                                <ChevronsDown />
+                            {/if}
                         </Button>
                     </DropdownMenu.Trigger>
                     <DropdownMenu.Content class="w-56">
                         <!-- <DropdownMenu.Label>My Account</DropdownMenu.Label> -->
-                        <DropdownMenu.Group>
+                        <DropdownMenu.Group class="lg:hidden">
+                            <DropdownMenu.Item on:click={handlePostingsClick}>
+                                <Milestone class="mr-2 h-4 w-4" />
+                                <span>Postings</span>
+                            </DropdownMenu.Item>
+                        </DropdownMenu.Group>
+                        <DropdownMenu.Group class="lg:hidden">
+                            <DropdownMenu.Item on:click={handleDashboardClick}>
+                                <LayoutDashboard class="mr-2 h-4 w-4" />
+                                <span>Dashboard</span>
+                            </DropdownMenu.Item>
+                        </DropdownMenu.Group>
+                        <DropdownMenu.Group class="lg:hidden">
                             <DropdownMenu.Item on:click={handleProfileClick}>
                                 <User class="mr-2 h-4 w-4" />
                                 <span>Profile</span>
                             </DropdownMenu.Item>
                         </DropdownMenu.Group>
-                        <DropdownMenu.Separator />
+                        <DropdownMenu.Separator class="lg:hidden"/>
                         <DropdownMenu.Item on:click={toggleMode}>
                             <SunMedium class="dark:hidden mr-2 h-4 w-4" />
                             <Moon class="hidden dark:block mr-2 h-4 w-4" />

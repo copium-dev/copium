@@ -23,7 +23,7 @@
         </Button>
     </AlertDialog.Trigger>
     <AlertDialog.Content>
-        <AlertDialog.Header>
+        <AlertDialog.Header class="text-left">
             <AlertDialog.Title
                 >Add Application</AlertDialog.Title
             >
@@ -77,6 +77,9 @@
                     required
                 />
                 <AlertDialog.Footer>
+                    <AlertDialog.Action asChild>
+                        <Button type="submit" class="h-9 px-4 py-2 mt-2 sm:mt-0">Add</Button>
+                    </AlertDialog.Action>
                     <AlertDialog.Cancel
                         on:click={() => {
                             open = false;
@@ -84,9 +87,6 @@
                     >
                         Cancel
                     </AlertDialog.Cancel>
-                    <AlertDialog.Action asChild>
-                        <Button type="submit">Add</Button>
-                    </AlertDialog.Action>
                 </AlertDialog.Footer>
             </form>
         </AlertDialog.Header>

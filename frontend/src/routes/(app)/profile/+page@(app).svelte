@@ -45,7 +45,7 @@
                 - delete account button
                 - sign out button
                 - dark mode toggle -->
-            <Card.Root class="w-1/3">
+            <Card.Root class="w-full sm:w-1/3">
                 <Card.Header>
                     <Card.Title>{data.email}</Card.Title>
                     <Card.Description>Total Applications: {data.applicationsCount}</Card.Description>
