@@ -6,6 +6,7 @@ import (
     
 	"github.com/juhun32/jtracker-backend/service/user"
     "github.com/juhun32/jtracker-backend/service/auth"
+	"github.com/juhun32/jtracker-backend/service/postings"
     "github.com/juhun32/jtracker-backend/utils"
     
 	"cloud.google.com/go/firestore"
@@ -52,6 +53,9 @@ func (s *APIServer) Run() error {
 
     authHandler := auth.NewHandler(s.firestoreClient, s.authHandler, s.rabbitCh, s.rabbitQ)
     authHandler.RegisterRoutes(router)
+
+	postingsHandler := postings.NewHandler(s.algoliaClient)
+	postingsHandler.RegisterRoutes(router)
 
     // create new CORS handler
     c := cors.New(cors.Options{

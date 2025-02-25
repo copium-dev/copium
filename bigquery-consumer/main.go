@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/juhun32/copium/rabbit-consumer/config"
-	"github.com/juhun32/copium/rabbit-consumer/pool"
+	"github.com/juhun32/copium/bigquery-consumer/config"
+	"github.com/juhun32/copium/bigquery-consumer/pool"
 
 	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
 	"github.com/joho/godotenv"

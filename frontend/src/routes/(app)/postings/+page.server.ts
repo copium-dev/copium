@@ -5,7 +5,7 @@ import type { Actions } from './$types';
 
 // load function 
 export const load: PageServerLoad = async ({ fetch }) => {
-    const response = await fetch(`${BACKEND_URL}/user/profile`, {
+    const response = await fetch(`${BACKEND_URL}/user/postings`, {
         credentials: 'include'  // every protected route needs to include credentials
     });
     

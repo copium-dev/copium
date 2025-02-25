@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
 
-export const paginationStore = writable({
+export const postingsPaginationStore = writable({
     count: 0,
 })

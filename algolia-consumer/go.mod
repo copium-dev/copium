@@ -1,4 +1,4 @@
-module github.com/juhun32/copium/rabbit-consumer
+module github.com/juhun32/copium/algolia-consumer
 
 go 1.23.1
 

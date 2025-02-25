@@ -3,13 +3,13 @@
     import ChevronLeft from "svelte-radix/ChevronLeft.svelte";
     import ChevronRight from "svelte-radix/ChevronRight.svelte";
 
-    import { paginationStore } from "$lib/stores/paginationStore";
+    import { dashboardPaginationStore } from "$lib/stores/dashboardPaginationStore";
 
     import { changePage } from "$lib/utils/filter";
 
     import { goto } from "$app/navigation";
 
-    $: count = $paginationStore.count;
+    $: count = $dashboardPaginationStore.count;
 
     const perPage = 10;
     const siblingCount = 1;

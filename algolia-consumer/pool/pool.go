@@ -83,7 +83,7 @@ func (p *Pool) Allocate() {
 func (w *Worker) Start() {
     go func() {
         for {
-            // either send w.JobChannel or return if a quit signal is received.
+            // not either send w.JobChannel or return if a quit signal is received.
             select {
             case w.JobChannels <- w.JobChannel:
             case <-w.Quit:

@@ -58,8 +58,8 @@ subprocess.run("docker run -d --hostname my-rabbit --name rabbit -p 5672:5672 -p
 time.sleep(5)
 
 # Start the rabbit consumer (Go process)
-rabbit_consumer = subprocess.Popen("go run main.go", cwd="rabbit-consumer", shell=True)
-child_procs.append(rabbit_consumer)
+algolia_consumer = subprocess.Popen("go run main.go", cwd="algolia-consumer", shell=True)
+child_procs.append(algolia_consumer)
 
 # Start Firebase emulators in one process
 firebase_proc = subprocess.Popen("firebase emulators:start", cwd="go", shell=True)

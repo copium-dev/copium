@@ -8,7 +8,7 @@
     import PaginateJobs from "$lib/components/PaginateJobs/PaginateJobs.svelte";
 
     import { filterStore } from "$lib/stores/filterStore";
-    import { paginationStore } from "$lib/stores/paginationStore";
+    import { dashboardPaginationStore } from "$lib/stores/dashboardPaginationStore";
 
     import type { PageData } from "./$types";
     import { onMount, onDestroy } from "svelte";
@@ -20,7 +20,7 @@
     // reactive block to update pagination count
     //  - onMount does not work here since page data is updated but
     //    component is not rerendered when goto() is called
-    $: paginationStore.update((current) => ({
+    $: dashboardPaginationStore.update((current) => ({
         ...current,
         count: 10 * data.totalPages,
     }));
@@ -84,10 +84,10 @@
 </script>
 
 <div
-    class="flex flex-col justify-start gap-4 items-stretch w-full sm:w-5/6 mx-auto min-h-full p-3 my-5"
+    class="flex flex-col justify-start gap-4 items-stretch w-full sm:w-5/6 mx-auto p-3 my-5"
 >
     <!-- sticky controls wrapper -->
-    <div class="sticky top-0 bg-background z-10">
+    <div class="sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
         <div
             class="bg-background flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full sm:min-w-[72vw] py-2"
         >
@@ -127,18 +127,3 @@
         {/each}
     </div>
 </div>
-
-<!-- <style>
-    @media (min-width: 640px) {
-        .input-wrapper::after {
-            content: "(Shortcut: f)";
-            position: absolute;
-            right: 0.8rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #6b7280; /* same color as placeholder */
-            font-size: 0.8rem; /* same size as placeholder */
-            pointer-events: none;
-        }
-    }
-</style> -->

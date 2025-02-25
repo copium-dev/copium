@@ -1,6 +1,5 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { enhance } from "$app/forms";
     import { goto } from '$app/navigation'
 
     import EditJob from "$lib/components/EditJob/EditJob.svelte";
@@ -11,8 +10,6 @@
     import { Button } from "$lib/components/ui/button";
     import { Separator } from "$lib/components/ui/separator";
     import { Progress } from "$lib/components/ui/progress/index.js";
-    import { Input } from "$lib/components/ui/input";
-    import { Label } from "$lib/components/ui/label";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
 
     import placeholder from "$lib/images/placeholder.png";
