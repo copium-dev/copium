@@ -66,7 +66,7 @@ func main() {
 
 	// initialize pubsub (two topics: `algolia` and `bigquery`)
 	// typically will be port 8085 
-	pubsubClient, algoliaTopic, bigqueryTopic, err := initializePubSucClient()
+	pubsubClient, applicationsTopic, err := initializePubSubClient()
 	if err != nil {
 		log.Fatal("Failed to initialize Pub/Sub client: ", err)
 	}
@@ -75,8 +75,7 @@ func main() {
 	// if you are confused why, here is a snippet from https://pkg.go.dev/cloud.google.com/go/pubsub#section-readme
 	// >>>> The first time you call Topic.Publish on a Topic, goroutines are started
 	// >>>> in the background. To clean up these goroutines, call Topic.Stop
-	defer algoliaTopic.Stop()
-	defer bigqueryTopic.Stop()
+	defer applicationsTopic.Stop()
 
 	defer pubsubClient.Close()
 
@@ -106,7 +105,7 @@ func initializeAlgoliaClient() (*search.APIClient, error) {
 	return algoliaClient, nil
 }
 
-func initializePubSucClient() (*pubsub.Client, *pubsub.Topic, *pubsub.Topic, error) {
+func initializePubSubClient() (*pubsub.Client, *pubsub.Topic, error) {
     ctx := context.Background()
     projectID := "jtrackerkimpark" // in prod, use env vars
 
@@ -127,29 +126,19 @@ func initializePubSucClient() (*pubsub.Client, *pubsub.Topic, *pubsub.Topic, err
 
     pubsubClient, err := pubsub.NewClient(ctx, projectID, opts...)
     if err != nil {
-        return nil, nil, nil, err
+        return nil, nil, err
     }
 
-    // create algolai and bigquery topics
-    algoliaTopic, err := pubsubClient.CreateTopic(ctx, "algolia")
+    // create topic (algolia and bigquery both subscribe to this topic)
+    applicationsTopic, err := pubsubClient.CreateTopic(ctx, "applications")
     if err != nil {
         if err.Error() == "rpc error: code = AlreadyExists desc = Topic already exists" {
-            algoliaTopic = pubsubClient.Topic("algolia")
-            fmt.Println("algolia topic already exists, connecting to it")
+            applicationsTopic = pubsubClient.Topic("applications")
+            fmt.Println("applications topic already exists, connecting to it")
         } else {
-            return nil, nil, nil, err
+            return nil, nil,  err
         }
     }
 
-    bigqueryTopic, err := pubsubClient.CreateTopic(ctx, "bigquery")
-    if err != nil {
-        if err.Error() == "rpc error: code = AlreadyExists desc = Topic already exists" {
-            bigqueryTopic = pubsubClient.Topic("bigquery")
-            fmt.Println("bigquery topic already exists, connecting to it")
-        } else {
-            return nil, nil, nil, err
-        }
-    }
-
-    return pubsubClient, algoliaTopic, bigqueryTopic, nil
+    return pubsubClient, applicationsTopic, nil
 }

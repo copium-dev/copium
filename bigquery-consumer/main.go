@@ -109,7 +109,7 @@ func initializeConsumerSubscription() (*pubsub.Subscription, *pubsub.Client, err
 
     subName := "bigquery-sub"
     sub, err := client.CreateSubscription(ctx, subName, pubsub.SubscriptionConfig{
-		Topic: client.Topic("bigquery"),
+		Topic: client.Topic("applications"),
 		AckDeadline: 10 * time.Second,
 	})
 	if err != nil {

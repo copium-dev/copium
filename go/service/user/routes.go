@@ -638,12 +638,8 @@ func (h *Handler) publishMessage(message map[string]interface{}) error {
 	// our strong consistency model
 	var result *pubsub.PublishResult
 
-	// attempt to publish algolia message
-	r := h.pubsubClient.Topic("algolia").Publish(context.Background(), &pubsub.Message{
-		Data: messageBody,
-	})
-	// attempt to publish bigquery 
-	r = h.pubsubClient.Topic("bigquery").Publish(context.Background(), &pubsub.Message{
+	// attempt to publish message (algolia and bigquery both subscribe to this topic)
+	r := h.pubsubClient.Topic("applications").Publish(context.Background(), &pubsub.Message{
 		Data: messageBody,
 	})
 

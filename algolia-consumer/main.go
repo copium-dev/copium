@@ -111,7 +111,7 @@ func initializeConsumerSubscription() (*pubsub.Subscription, *pubsub.Client, err
 
     subName := "algolia-sub"
     sub, err := client.CreateSubscription(ctx, subName, pubsub.SubscriptionConfig{
-		Topic: client.Topic("algolia"),
+		Topic: client.Topic("applications"),
 		AckDeadline: 10 * time.Second,
 	})
 	if err != nil {
