@@ -10,35 +10,32 @@ import (
     "github.com/juhun32/jtracker-backend/utils"
     
 	"cloud.google.com/go/firestore"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/gorilla/mux"
     "github.com/rs/cors"
 	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
+	"cloud.google.com/go/pubsub"
 )
 
 type APIServer struct {
-    addr            string
+    addr string
     firestoreClient *firestore.Client
-	algoliaClient  *search.APIClient
-    authHandler     *utils.AuthHandler
-	rabbitCh 		*amqp.Channel
-	rabbitQ 		amqp.Queue
+	algoliaClient *search.APIClient
+    authHandler *utils.AuthHandler
+	pubsubClient *pubsub.Client
 }
 
 func NewAPIServer(addr string,
 	firestoreClient *firestore.Client,
 	algoliaClient *search.APIClient,
 	authHandler *utils.AuthHandler,
-	rabbitCh *amqp.Channel,
-	rabbitQ amqp.Queue,
+	pubsubClient *pubsub.Client,
 ) *APIServer {
     return &APIServer{
-        addr:            addr,
+        addr: addr,
         firestoreClient: firestoreClient,
-		algoliaClient:  	algoliaClient,
-        authHandler:     authHandler,
-		rabbitCh: 	  	rabbitCh,
-		rabbitQ: 	  	rabbitQ,
+		algoliaClient: algoliaClient,
+        authHandler: authHandler,
+		pubsubClient: pubsubClient,
     }
 }
 
@@ -48,10 +45,10 @@ func (s *APIServer) Run() error {
 
     log.Println("Listening on", s.addr)
 
-    userHandler := user.NewHandler(s.firestoreClient, s.algoliaClient, s.rabbitCh, s.rabbitQ)
+    userHandler := user.NewHandler(s.firestoreClient, s.algoliaClient, s.pubsubClient)
     userHandler.RegisterRoutes(router)
 
-    authHandler := auth.NewHandler(s.firestoreClient, s.authHandler, s.rabbitCh, s.rabbitQ)
+    authHandler := auth.NewHandler(s.firestoreClient, s.authHandler)
     authHandler.RegisterRoutes(router)
 
 	postingsHandler := postings.NewHandler(s.algoliaClient)

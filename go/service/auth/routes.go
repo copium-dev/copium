@@ -11,8 +11,7 @@ import (
 	"cloud.google.com/go/firestore"
 	"github.com/gorilla/mux"
 	"github.com/markbates/goth/gothic"
-	amqp "github.com/rabbitmq/amqp091-go"
-
+	
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -20,14 +19,11 @@ import (
 // simple struct for returning user data to frontend or other handlers
 type User struct {
 	Email string `json:"email"`
-	Name  string `json:"name"`
 }
 
 type Handler struct {
 	AuthHandler     *utils.AuthHandler
 	firestoreClient *firestore.Client
-	rabbitCh        *amqp.Channel
-	rabbitQ         amqp.Queue
 }
 
 // initialize a new handler with an AuthHandler (implementation in utils/main.go) and Firestore client
@@ -38,14 +34,10 @@ type Handler struct {
 func NewHandler(
 	firestoreClient *firestore.Client,
 	authHandler *utils.AuthHandler,
-	rabbitCh *amqp.Channel,
-	rabbitQ amqp.Queue,
 ) *Handler {
 	return &Handler{
 		AuthHandler:     authHandler,
 		firestoreClient: firestoreClient,
-		rabbitCh:        rabbitCh,
-		rabbitQ:         rabbitQ,
 	}
 }
 

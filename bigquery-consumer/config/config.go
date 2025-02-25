@@ -2,20 +2,17 @@
 package config
 
 import (
-	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
+	"cloud.google.com/go/bigquery"
 )
 
-// todo: algoliaclient --> bigquery client
 type Config struct {
 	NumWorkers 	int32
-	QueueName 	string
-	AlgoliaClient *search.APIClient
+	BigQueryClient *bigquery.Client
 }
 
-func NewConfig(numWorkers int32, queueName string, algoliaClient *search.APIClient) *Config {
+func NewConfig(numWorkers int32, algoliaClient *bigquery.Client) *Config {
 	return &Config{
 		NumWorkers: numWorkers,
-		QueueName: queueName,
-		AlgoliaClient: algoliaClient,
+		BigQueryClient: algoliaClient,
 	}
 }

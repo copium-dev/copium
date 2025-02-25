@@ -7,14 +7,12 @@ import (
 
 type Config struct {
 	NumWorkers 	int32
-	QueueName 	string
 	AlgoliaClient *search.APIClient
 }
 
-func NewConfig(numWorkers int32, queueName string, algoliaClient *search.APIClient) *Config {
+func NewConfig(numWorkers int32, algoliaClient *search.APIClient) *Config {
 	return &Config{
 		NumWorkers: numWorkers,
-		QueueName: queueName,
 		AlgoliaClient: algoliaClient,
 	}
 }

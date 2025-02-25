@@ -36,7 +36,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/juhun32/jtracker-backend/service/auth"
 	"github.com/juhun32/jtracker-backend/utils"
@@ -44,7 +43,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/gorilla/mux"
-	amqp "github.com/rabbitmq/amqp091-go"
+	"cloud.google.com/go/pubsub"
 	"google.golang.org/api/iterator"
 
 	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
@@ -119,21 +118,18 @@ type EditApplicationRequest struct {
 type Handler struct {
 	FirestoreClient *firestore.Client
 	algoliaClient   *search.APIClient
-	rabbitCh        *amqp.Channel
-	rabbitQ         amqp.Queue
+	pubsubClient   *pubsub.Client
 }
 
 func NewHandler(
 	firestoreClient *firestore.Client,
 	algoliaClient *search.APIClient,
-	rabbitCh *amqp.Channel,
-	rabbitQ amqp.Queue,
+	pubsubClient *pubsub.Client,
 ) *Handler {
 	return &Handler{
 		FirestoreClient: firestoreClient,
 		algoliaClient:   algoliaClient,
-		rabbitCh:        rabbitCh,
-		rabbitQ:         rabbitQ,
+		pubsubClient:   pubsubClient,
 	}
 }
 
@@ -345,13 +341,12 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.publishMessage(message); if err != nil {
-		fmt.Printf("Error publishing message: %v\n", err)
 		// delete added application if publish fails
 		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(doc.ID).Delete(r.Context())
 		if err != nil {
 			fmt.Printf("Error deleting application: %v\n", err)
 		}
-		log.Println("AddApplication reverted")
+		log.Println("AddApplication reverted because of publish failure")
 		return
 	}
 
@@ -399,7 +394,7 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	applicationID := deleteApplicationRequest.ID
 
 	// delete application from Firestore
-	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Delete(r.Context())
+	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Delete(context.Background())
 	if err != nil {
 		fmt.Printf("Error deleting application: %v\n", err)
 		http.Error(w, "Error deleting application", http.StatusInternalServerError)
@@ -420,9 +415,8 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.publishMessage(message); if err != nil {
-		fmt.Printf("Error publishing message: %v\n", err)
 		// revert status if publish fails
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Set(r.Context(), map[string]interface{}{
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Set(context.Background(), map[string]interface{}{
 			"role":        deleteApplicationRequest.Role,
 			"company":     deleteApplicationRequest.Company,
 			"location":    deleteApplicationRequest.Location,
@@ -433,7 +427,7 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			fmt.Printf("Error reverting application: %v\n", err)
 		}
-		log.Println("DeleteApplication reverted")
+		log.Println("DeleteApplication reverted because of publish failure")
 		return
 	}
 
@@ -503,9 +497,8 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.publishMessage(message); if err != nil {
-		fmt.Printf("Error publishing message: %v\n", err)
 		// revert status if publish fails 
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(context.Background(), []firestore.Update{
 			{
 				Path: "status",
 				Value: EditApplicationStatusRequest.OldStatus,
@@ -514,7 +507,7 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			fmt.Printf("Error reverting status: %v\n", err)
 		}
-		log.Println("EditStatus reverted")
+		log.Println("EditStatus reverted because of publish failure")
 		return
 	}
 }
@@ -577,9 +570,8 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.publishMessage(message); if err != nil {
-		fmt.Printf("Error publishing message: %v\n", err)
 		// revert status if publish fails
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(context.Background(), []firestore.Update{
 			{Path: "role", Value: addApplicationRequest.OldRole},
 			{Path: "company", Value: addApplicationRequest.OldCompany},
 			{Path: "location", Value: addApplicationRequest.OldLocation},
@@ -589,7 +581,7 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			fmt.Printf("Error reverting application: %v\n", err)
 		}
-		log.Println("EditApplication reverted")
+		log.Println("EditApplication reverted because of publish failure")
 		return
 	}
 }
@@ -634,6 +626,7 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// publishes to both algolia and bigquery topics
 func (h *Handler) publishMessage(message map[string]interface{}) error {
 	messageBody, err := json.Marshal(message)
 	if err != nil {
@@ -641,49 +634,28 @@ func (h *Handler) publishMessage(message map[string]interface{}) error {
 		return err
 	}
 
-	// publish; retry 3 times
-	err = utils.PublishWithRetry(3, h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-		ContentType: "text/plain",
-		Body:        messageBody,
+	// hold the publish result. this is necessary for 
+	// our strong consistency model
+	var result *pubsub.PublishResult
+
+	// attempt to publish algolia message
+	r := h.pubsubClient.Topic("algolia").Publish(context.Background(), &pubsub.Message{
+		Data: messageBody,
 	})
+	// attempt to publish bigquery 
+	r = h.pubsubClient.Topic("bigquery").Publish(context.Background(), &pubsub.Message{
+		Data: messageBody,
+	})
+
+	// if message publish fails, propagate an error to revert Firestore operation
+	result = r
+	id, err := result.Get(context.Background())
 	if err != nil {
-		fmt.Printf("Error publishing message after retries: %v\n", err)
-		// if connection error, try to re-establish connection and try publish again
-		if strings.Contains(err.Error(), "channel/connection is not open") {
-			err = h.retryRabbitConnectionAndRetryPublish(messageBody)
-			if err != nil {
-				fmt.Printf("Error re-establishing connection and retrying publish: %v\n", err)
-				return err
-			}
-		}
-	} else {
-		log.Println("Message published")
-		log.Println("-----------------")
+		fmt.Printf("Error publishing message: %v\n", err)
+		return err
 	}
 
-	return nil
-}
-
-func (h *Handler) retryRabbitConnectionAndRetryPublish(messageBody []byte) error {
-	// try to re-establish connection
-	if reconErr := utils.RetryRabbitConnection(&h.rabbitCh, &h.rabbitQ); reconErr != nil {
-		fmt.Printf("Error re-establishing connection: %v\n", reconErr)
-		return reconErr
-	}
-
-	log.Println("Connection re-established")
-
-	// at this point, connection successfully re-established. try again (but just once)
-	if pubErr := utils.PublishWithRetry(1, h.rabbitCh, "", h.rabbitQ.Name, false, false, amqp.Publishing{
-		ContentType: "text/plain",
-		Body:        messageBody,
-	}); pubErr != nil {
-		fmt.Printf("Error publishing message after retries: %v\n", pubErr)
-		return pubErr
-	}
-
-	log.Println("Message published")
-	log.Println("-----------------")
+	fmt.Printf("Published message with ID: %s\n", id)
 
 	return nil
 }

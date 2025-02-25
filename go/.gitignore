@@ -1,5 +1,6 @@
 .DS_STORE
 jtracker-backend-credentials.json
+pubsub-credentials.json
 
 # Binaries for programs and plugins
 *.exe

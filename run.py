@@ -4,32 +4,24 @@ import os
 import signal
 import atexit
 
-# List to track all Popen processes that we start.
 child_procs = []
 
-def kill_processes_by_keyword(keyword):
-    """
-    Kill any processes that match the given keyword.
-    Adjust the keyword to match the command string you expect.
-    """
+def kill_processes_by_keyword(keyword, cwd=None):
     try:
-        subprocess.run(f"pkill -f '{keyword}'", shell=True, check=True)
+        subprocess.run(f"pkill -f '{keyword}'", shell=True, check=True, cwd=cwd)
     except subprocess.CalledProcessError:
-        # pkill returns nonzero if no process matched, so ignore that.
         pass
 
 def cleanup():
-    # Terminate all child processes we started.
     print("Cleaning up child processes...")
     for proc in child_procs:
         try:
-            proc.terminate()  # politely ask to terminate
+            proc.terminate()
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
 atexit.register(cleanup)
 
-# Optionally handle SIGINT (Ctrl+C) so cleanup is triggered.
 def signal_handler(sig, frame):
     print("Signal received, cleaning up...")
     cleanup()
@@ -37,42 +29,56 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-# Kill previous instances before starting new ones.
-# Adjust the keywords as needed.
-kill_processes_by_keyword("npm run dev")
-kill_processes_by_keyword("firebase emulators:start")
-kill_processes_by_keyword("go run cmd/main.go")
-kill_processes_by_keyword("go run main.go")
-# Also kill any emulator running on your ports, if needed:
-subprocess.run("lsof -t -i:8080 -i:9000 -i:9099 -i:9199 -i:9090 | xargs kill -9", shell=True)
+# Kill any lingering processes
+kill_processes_by_keyword("npm run dev", cwd="frontend")
+kill_processes_by_keyword("firebase emulators:start", cwd="go")
+kill_processes_by_keyword("go run cmd/main.go", cwd="go")
+kill_processes_by_keyword("go run main.go", cwd="algolia-consumer")
+kill_processes_by_keyword("go run main.go", cwd="bigquery-consumer")
+kill_processes_by_keyword("gcloud beta emulators pubsub start")
+subprocess.run("lsof -t -i:8080 -i:8085 -i:9000 -i:9099 -i:9199 | xargs kill -9", shell=True)
 
-# Start npm dev server (runs in background)
+# 1. Start Firebase emulator in go/ directory.
+firebase_proc = subprocess.Popen("firebase emulators:start", cwd="go", shell=True)
+child_procs.append(firebase_proc)
+time.sleep(3)  # Give Firebase some time to start
+
+# 2. Start Pub/Sub emulator externally.
+#    NOTE: You must have exported:
+#          PUBSUB_EMULATOR_HOST=localhost:8085
+#          PUBSUB_PROJECT_ID=jtrackerkimpark
+#    and run: gcloud beta emulators pubsub env-init before starting.
+env = os.environ.copy()
+env["PUBSUB_EMULATOR_HOST"] = "localhost:8085"
+env["PUBSUB_PROJECT_ID"] = "jtrackerkimpark"
+subprocess.Popen("gcloud beta emulators pubsub env-init", shell=True, env=env)
+pubsub_emulator_proc = subprocess.Popen("gcloud beta emulators pubsub start --project=jtrackerkimpark", shell=True, env=env)
+child_procs.append(pubsub_emulator_proc)
+time.sleep(3)  # Give Pub/Sub emulator time to start
+
+# 3. Start main API server in go/ 
+#    with FIRESTORE_EMULATOR_HOST and PUBSUB_EMULATOR_HOST set.
+env_go = os.environ.copy()
+env_go["FIRESTORE_EMULATOR_HOST"] = "localhost:8080"
+env_go["PUBSUB_EMULATOR_HOST"] = "localhost:8085"
+go_main = subprocess.Popen("go run cmd/main.go", cwd="go", shell=True, env=env_go)
+child_procs.append(go_main)
+time.sleep(3)
+
+# 4. Start algolia-consumer
+algolia_consumer = subprocess.Popen("go run main.go", cwd="algolia-consumer", shell=True, env=env_go)
+child_procs.append(algolia_consumer)
+time.sleep(3)
+
+# 5. Start bigquery-consumer
+bigquery_consumer = subprocess.Popen("go run main.go", cwd="bigquery-consumer", shell=True, env=env_go)
+child_procs.append(bigquery_consumer)
+time.sleep(3)
+
+# 6. Start frontend dev server
 npm_dev = subprocess.Popen("npm run dev -- --open", cwd="frontend", shell=True)
 child_procs.append(npm_dev)
 
-# Restart Docker container for RabbitMQ
-subprocess.run("docker stop rabbit", shell=True)
-time.sleep(2)
-subprocess.run("docker rm rabbit", shell=True)
-subprocess.run("docker run -d --hostname my-rabbit --name rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management", shell=True)
-time.sleep(5)
-
-# Start the rabbit consumer (Go process)
-algolia_consumer = subprocess.Popen("go run main.go", cwd="algolia-consumer", shell=True)
-child_procs.append(algolia_consumer)
-
-# Start Firebase emulators in one process
-firebase_proc = subprocess.Popen("firebase emulators:start", cwd="go", shell=True)
-child_procs.append(firebase_proc)
-
-# Set FIRESTORE_EMULATOR_HOST and run your main Go process
-env = os.environ.copy()
-env["FIRESTORE_EMULATOR_HOST"] = "localhost:8080"
-
-go_main = subprocess.Popen("go run cmd/main.go", cwd="go", shell=True, env=env)
-child_procs.append(go_main)
-
-# Optionally, wait indefinitely (or until a signal interrupts)
 try:
     while True:
         time.sleep(1)

@@ -9,7 +9,7 @@ import (
     "github.com/juhun32/jtracker-backend/cmd/api"
     "github.com/juhun32/jtracker-backend/utils"
 
-	amqp "github.com/rabbitmq/amqp091-go"
+	"cloud.google.com/go/pubsub"
 
     firebase "firebase.google.com/go"
     "google.golang.org/api/option"
@@ -36,9 +36,9 @@ func main() {
     // 5. run `export FIRESTORE_EMULATOR_HOST=localhost:8080`
     //    - if windows, run `$env:FIRESTORE_EMULATOR_HOST="localhost:8080"`
     // 6. run `go run cmd/main.go`
-    if emulatorHost := os.Getenv("FIRESTORE_EMULATOR_HOST"); emulatorHost != "" {
-        log.Printf("Connecting to Firestore emulator at %s", emulatorHost)
-        conf.DatabaseURL = "http://" + emulatorHost
+    if firestoreEmulatorHost := os.Getenv("FIRESTORE_EMULATOR_HOST"); firestoreEmulatorHost != "" {
+        log.Printf("Connecting to Firestore emulator at %s", firestoreEmulatorHost)
+        conf.DatabaseURL = "http://" + firestoreEmulatorHost
     } else {
         log.Println("FIRESTORE_EMULATOR_HOST not set")
     }
@@ -64,12 +64,21 @@ func main() {
 
     authHandler := utils.NewAuthHandler()
 
-	// initialize rabbit (this is the producer)
-	ch, q, err := initializeRabbit()
+	// initialize pubsub (two topics: `algolia` and `bigquery`)
+	// typically will be port 8085 
+	pubsubClient, algoliaTopic, bigqueryTopic, err := initializePubSucClient()
 	if err != nil {
-		// actually we have to log.Fatal here since otherwise it would do nil pointer dereference
-		log.Fatal("Failed to initialize RabbitMQ: ", err)
+		log.Fatal("Failed to initialize Pub/Sub client: ", err)
 	}
+
+	// after server stops, clean up pub/sub topic goroutines
+	// if you are confused why, here is a snippet from https://pkg.go.dev/cloud.google.com/go/pubsub#section-readme
+	// >>>> The first time you call Topic.Publish on a Topic, goroutines are started
+	// >>>> in the background. To clean up these goroutines, call Topic.Stop
+	defer algoliaTopic.Stop()
+	defer bigqueryTopic.Stop()
+
+	defer pubsubClient.Close()
 
 	// initialize algolia client (read-only)
 	algoliaClient, err := initializeAlgoliaClient()
@@ -79,40 +88,10 @@ func main() {
 
     // temp: firestore emulator is on 8080 so use 8000 for API server
     // in prod, use Google Cloud Run's default PORT env variable
-    server := api.NewAPIServer(":" + port, firestoreClient, algoliaClient, authHandler, ch, q)
+    server := api.NewAPIServer(":" + port, firestoreClient, algoliaClient, authHandler, pubsubClient)
     if err := server.Run(); err != nil {
         log.Fatal(err)
     }
-}
-
-func initializeRabbit() (*amqp.Channel, amqp.Queue, error) {
-    conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-    if err != nil {
-        return nil, amqp.Queue{}, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
-    }
-    // Don't defer conn.Close() - connection should stay open
-
-    ch, err := conn.Channel()
-    if err != nil {
-        conn.Close()
-        return nil, amqp.Queue{}, fmt.Errorf("failed to open channel: %w", err)
-    }
-
-    q, err := ch.QueueDeclare(
-        "my-rabbit", // name
-        false,       // durable
-        false,       // delete when unused
-        false,       // exclusive
-        false,       // no-wait
-        nil,        // arguments
-    )
-    if err != nil {
-        ch.Close()
-        conn.Close()
-        return nil, amqp.Queue{}, fmt.Errorf("failed to declare queue: %w", err)
-    }
-
-    return ch, q, nil
 }
 
 func initializeAlgoliaClient() (*search.APIClient, error) {
@@ -125,4 +104,52 @@ func initializeAlgoliaClient() (*search.APIClient, error) {
 	}
 
 	return algoliaClient, nil
+}
+
+func initializePubSucClient() (*pubsub.Client, *pubsub.Topic, *pubsub.Topic, error) {
+    ctx := context.Background()
+    projectID := "jtrackerkimpark" // in prod, use env vars
+
+	// if PUBSUB_EMULATOR_HOST is set, use it; otherwise use credentials file
+	// if credentials file is used WE ARE WORKING IN PROD so be careful
+    var opts []option.ClientOption
+    if pubsubEmulatorHost := os.Getenv("PUBSUB_EMULATOR_HOST"); pubsubEmulatorHost != "" {
+        log.Printf("Connecting to Pub/Sub emulator at %s", pubsubEmulatorHost)
+        // Use both the endpoint option and disable authentication.
+        opts = append(opts, 
+            option.WithEndpoint(pubsubEmulatorHost),
+            option.WithoutAuthentication(),
+        )
+    } else {
+        log.Println("PUBSUB_EMULATOR_HOST not set; using credentials")
+        opts = append(opts, option.WithCredentialsFile("pubsub-credentials.json"))
+    }
+
+    pubsubClient, err := pubsub.NewClient(ctx, projectID, opts...)
+    if err != nil {
+        return nil, nil, nil, err
+    }
+
+    // create algolai and bigquery topics
+    algoliaTopic, err := pubsubClient.CreateTopic(ctx, "algolia")
+    if err != nil {
+        if err.Error() == "rpc error: code = AlreadyExists desc = Topic already exists" {
+            algoliaTopic = pubsubClient.Topic("algolia")
+            fmt.Println("algolia topic already exists, connecting to it")
+        } else {
+            return nil, nil, nil, err
+        }
+    }
+
+    bigqueryTopic, err := pubsubClient.CreateTopic(ctx, "bigquery")
+    if err != nil {
+        if err.Error() == "rpc error: code = AlreadyExists desc = Topic already exists" {
+            bigqueryTopic = pubsubClient.Topic("bigquery")
+            fmt.Println("bigquery topic already exists, connecting to it")
+        } else {
+            return nil, nil, nil, err
+        }
+    }
+
+    return pubsubClient, algoliaTopic, bigqueryTopic, nil
 }

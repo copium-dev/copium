@@ -48,7 +48,7 @@ func NewPool(numWorkers int32, algoliaClient *search.APIClient) Pool {
 
 // spawn the worker goroutines and allocates jobs to them
 func (p *Pool) Run() {
-	log.Println("Spawning the workers")
+	log.Println("Spawning the workers (ALGOLIA)")
 	for i := 0; i < int(p.NumWorkers); i++ {
 		worker := Worker{
 			ID:            (i + 1),
@@ -102,7 +102,8 @@ func (w *Worker) Start() {
 
 // actually do the job (here is where we want to index algolia)
 func (w *Worker) work(job Job) {
-	log.Printf("------")
+	log.Printf("[*] Algolia [*]")
+	log.Printf("-------")
 	log.Printf("Processed by Worker [%d]", w.ID)
 
 	// unmarshal the job data

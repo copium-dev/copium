@@ -4,8 +4,9 @@ package pool
 import (
 	"encoding/json"
 	"log"
+	"fmt"
 
-	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
+	"cloud.google.com/go/bigquery"
 )
 
 // note: id is not strictly necessary but useful for debugging
@@ -17,7 +18,7 @@ type Job struct {
 // a pool of workers with channels for job distribution, job queueing, and stopping
 type Pool struct {
 	NumWorkers    int32
-	AlgoliaClient *search.APIClient
+	BigQueryClient *bigquery.Client
 	JobChannels   chan chan Job
 	JobQueue      chan Job
 	Stopped       chan bool
@@ -28,17 +29,17 @@ type Pool struct {
 // note: worker uses shared algolia client
 type Worker struct {
 	ID            int
-	AlgoliaClient *search.APIClient
+	BigQueryClient *bigquery.Client
 	JobChannel    chan Job
 	JobChannels   chan chan Job
 	Quit          chan bool
 }
 
 // initialize a new worker pool
-func NewPool(numWorkers int32, algoliaClient *search.APIClient) Pool {
+func NewPool(numWorkers int32, bigQueryClient *bigquery.Client) Pool {
 	return Pool{
 		NumWorkers:    numWorkers,
-		AlgoliaClient: algoliaClient,
+		BigQueryClient: bigQueryClient,
 		JobChannels:   make(chan chan Job),
 		JobQueue:      make(chan Job),
 		Stopped:       make(chan bool),
@@ -47,11 +48,11 @@ func NewPool(numWorkers int32, algoliaClient *search.APIClient) Pool {
 
 // spawn the worker goroutines and allocates jobs to them
 func (p *Pool) Run() {
-	log.Println("Spawning the workers")
+	log.Println("Spawning the workers (BIGQUERY)")
 	for i := 0; i < int(p.NumWorkers); i++ {
 		worker := Worker{
 			ID:            (i + 1),
-			AlgoliaClient: p.AlgoliaClient,
+			BigQueryClient: p.BigQueryClient,
 			JobChannel:    make(chan Job),
 			JobChannels:   p.JobChannels,
 			Quit:          make(chan bool),
@@ -99,9 +100,9 @@ func (w *Worker) Start() {
     }()
 }
 
-// actually do the job (here is where we want to index algolia)
 func (w *Worker) work(job Job) {
-	log.Printf("------")
+	log.Printf("[*] BigQuery [*]")
+	log.Printf("-------")
 	log.Printf("Processed by Worker [%d]", w.ID)
 
 	// unmarshal the job data
@@ -123,10 +124,7 @@ func (w *Worker) work(job Job) {
 	}
 	log.Printf("Operation: %s", operation)
 
-	// 2. call the correct function w/ data
-	// - add record to bigquery
-	// - rerun our preset analytics
-	// - insert into firestore according to userid
+	fmt.Println(data)
 
 	// end; log completion
 	log.Printf("Processed Job With ID [%d] & content: [%s]", job.ID, job.Data)
