@@ -21,21 +21,24 @@ type APIServer struct {
     firestoreClient *firestore.Client
 	algoliaClient *search.APIClient
     authHandler *utils.AuthHandler
-	pubsubClient *pubsub.Client
+	pubsubTopic *pubsub.Topic
+	orderingKey string
 }
 
 func NewAPIServer(addr string,
 	firestoreClient *firestore.Client,
 	algoliaClient *search.APIClient,
 	authHandler *utils.AuthHandler,
-	pubsubClient *pubsub.Client,
+	pubsubTopic *pubsub.Topic,
+	orderingKey string,
 ) *APIServer {
     return &APIServer{
         addr: addr,
         firestoreClient: firestoreClient,
 		algoliaClient: algoliaClient,
         authHandler: authHandler,
-		pubsubClient: pubsubClient,
+		pubsubTopic: pubsubTopic,
+		orderingKey: orderingKey,
     }
 }
 
@@ -45,7 +48,7 @@ func (s *APIServer) Run() error {
 
     log.Println("Listening on", s.addr)
 
-    userHandler := user.NewHandler(s.firestoreClient, s.algoliaClient, s.pubsubClient)
+    userHandler := user.NewHandler(s.firestoreClient, s.algoliaClient, s.pubsubTopic, s.orderingKey)
     userHandler.RegisterRoutes(router)
 
     authHandler := auth.NewHandler(s.firestoreClient, s.authHandler)

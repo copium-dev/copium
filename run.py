@@ -41,7 +41,6 @@ subprocess.run("lsof -t -i:8080 -i:8085 -i:9000 -i:9099 -i:9199 | xargs kill -9"
 # 1. Start Firebase emulator in go/ directory.
 firebase_proc = subprocess.Popen("firebase emulators:start", cwd="go", shell=True)
 child_procs.append(firebase_proc)
-time.sleep(3)  # Give Firebase some time to start
 
 # 2. Start Pub/Sub emulator externally.
 #    NOTE: You must have exported:
@@ -54,7 +53,6 @@ env["PUBSUB_PROJECT_ID"] = "jtrackerkimpark"
 subprocess.Popen("gcloud beta emulators pubsub env-init", shell=True, env=env)
 pubsub_emulator_proc = subprocess.Popen("gcloud beta emulators pubsub start --project=jtrackerkimpark", shell=True, env=env)
 child_procs.append(pubsub_emulator_proc)
-time.sleep(3)  # Give Pub/Sub emulator time to start
 
 # 3. Start main API server in go/ 
 #    with FIRESTORE_EMULATOR_HOST and PUBSUB_EMULATOR_HOST set.
@@ -63,17 +61,14 @@ env_go["FIRESTORE_EMULATOR_HOST"] = "localhost:8080"
 env_go["PUBSUB_EMULATOR_HOST"] = "localhost:8085"
 go_main = subprocess.Popen("go run cmd/main.go", cwd="go", shell=True, env=env_go)
 child_procs.append(go_main)
-time.sleep(3)
 
 # 4. Start algolia-consumer
 algolia_consumer = subprocess.Popen("go run main.go", cwd="algolia-consumer", shell=True, env=env_go)
 child_procs.append(algolia_consumer)
-time.sleep(3)
 
 # 5. Start bigquery-consumer
 bigquery_consumer = subprocess.Popen("go run main.go", cwd="bigquery-consumer", shell=True, env=env_go)
 child_procs.append(bigquery_consumer)
-time.sleep(3)
 
 # 6. Start frontend dev server
 npm_dev = subprocess.Popen("npm run dev -- --open", cwd="frontend", shell=True)

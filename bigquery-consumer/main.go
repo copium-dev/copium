@@ -111,6 +111,7 @@ func initializeConsumerSubscription() (*pubsub.Subscription, *pubsub.Client, err
     sub, err := client.CreateSubscription(ctx, subName, pubsub.SubscriptionConfig{
 		Topic: client.Topic("applications"),
 		AckDeadline: 10 * time.Second,
+		EnableMessageOrdering: true,
 	})
 	if err != nil {
 		if err.Error() == "rpc error: code = AlreadyExists desc = Subscription already exists" {

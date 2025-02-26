@@ -85,9 +85,12 @@ func main() {
 		log.Fatal("Failed to initialize Algolia client: ", err)
 	}
 
+	pubSubOrderingKey := "a_random_key_haha"
+
     // temp: firestore emulator is on 8080 so use 8000 for API server
     // in prod, use Google Cloud Run's default PORT env variable
-    server := api.NewAPIServer(":" + port, firestoreClient, algoliaClient, authHandler, pubsubClient)
+    // In main.go, modify your server initialization:
+	server := api.NewAPIServer(":" + port, firestoreClient, algoliaClient, authHandler, applicationsTopic, pubSubOrderingKey)
     if err := server.Run(); err != nil {
         log.Fatal(err)
     }
@@ -139,6 +142,8 @@ func initializePubSubClient() (*pubsub.Client, *pubsub.Topic, error) {
             return nil, nil,  err
         }
     }
+
+	applicationsTopic.EnableMessageOrdering = true
 
     return pubsubClient, applicationsTopic, nil
 }

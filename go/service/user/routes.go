@@ -118,18 +118,21 @@ type EditApplicationRequest struct {
 type Handler struct {
 	FirestoreClient *firestore.Client
 	algoliaClient   *search.APIClient
-	pubsubClient   *pubsub.Client
+	pubsubTopic   *pubsub.Topic
+	orderingKey    string
 }
 
 func NewHandler(
 	firestoreClient *firestore.Client,
 	algoliaClient *search.APIClient,
-	pubsubClient *pubsub.Client,
+	pubsubTopic *pubsub.Topic,
+	orderingKey string,
 ) *Handler {
 	return &Handler{
 		FirestoreClient: firestoreClient,
 		algoliaClient:   algoliaClient,
-		pubsubClient:   pubsubClient,
+		pubsubTopic:   pubsubTopic,
+		orderingKey:    orderingKey,
 	}
 }
 
@@ -639,8 +642,9 @@ func (h *Handler) publishMessage(message map[string]interface{}) error {
 	var result *pubsub.PublishResult
 
 	// attempt to publish message (algolia and bigquery both subscribe to this topic)
-	r := h.pubsubClient.Topic("applications").Publish(context.Background(), &pubsub.Message{
+	r := h.pubsubTopic.Publish(context.Background(), &pubsub.Message{
 		Data: messageBody,
+		OrderingKey: h.orderingKey,
 	})
 
 	// if message publish fails, propagate an error to revert Firestore operation
