@@ -13,6 +13,7 @@ import (
 type Job struct {
 	ID   int32
 	Data json.RawMessage
+	Done chan struct{}
 }
 
 // a pool of workers with channels for job distribution, job queueing, and stopping
@@ -125,8 +126,15 @@ func (w *Worker) work(job Job) {
 	log.Printf("Operation: %s", operation)
 
 	fmt.Println(data)
+	// we wanna do an append-only kind of thing for add/edit BUT for delete let's delete records
+	// 1. if add or edit just append (append-only allows data analysis through historical tracking)
+	// 2. if delete, delete all records matching jobID (and userID implicitly)
+	// 3. if user delete, delete all records matching userID
 
 	// end; log completion
 	log.Printf("Processed Job With ID [%d] & content: [%s]", job.ID, job.Data)
 	log.Printf("-------")
+
+	// signal completion
+	close(job.Done)
 }

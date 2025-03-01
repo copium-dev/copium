@@ -13,7 +13,7 @@ export function buildParamsFromFilters({
     location: string;
     startDate: string;
     endDate: string;
-    status: string;
+    status?: string;
 }): URLSearchParams {
     const params = new URLSearchParams(window.location.search);
 

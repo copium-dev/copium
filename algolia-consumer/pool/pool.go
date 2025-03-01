@@ -13,6 +13,7 @@ import (
 type Job struct {
 	ID   int32
 	Data json.RawMessage
+	Done chan struct{}
 }
 
 // a pool of workers with channels for job distribution, job queueing, and stopping
@@ -144,6 +145,9 @@ func (w *Worker) work(job Job) {
 	// end; log completion
 	log.Printf("Processed Job With ID [%d] & content: [%s]", job.ID, job.Data)
 	log.Printf("-------")
+
+	// signal completion
+	close(job.Done)
 }
 
 func (w *Worker) addApplication(data map[string]interface{}) {

@@ -37,6 +37,7 @@ func initializeBigQueryClient() (*bigquery.Client, error) {
 // >>>> make sure you're logged in to (gcloud auth login)
 // gcloud beta emulators pubsub start --project=jtrackerkimpark
 // >>>> run the same in algolia consumer (just change topic name)
+// or just do run.py lol
 func main() {
     err := godotenv.Load()
     if err != nil {
@@ -69,14 +70,27 @@ func main() {
     err = sub.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
         log.Printf("Received Pub/Sub message: %s", m.Data)
 
+		// we want to ack the message AFTER processing it, not on enqueue
+		// so, we need to create a done channel to signal completion
+		// and ensure that we block until the job is done
+		// since sub.Receive() itself is concurrent and we use a worker pool,
+		// this doesn't block the main thread or other messages
+		// NOTE: chan strut{} takes 0 bytes so its the most efficient way for signaling
+		done := make(chan struct{})
+
         job := pool.Job{
             ID:   atomic.AddInt32(&counter, 1),
             Data: m.Data,
+			Done: done,
         }
 
         workerPool.JobQueue <- job
 
-        m.Ack()
+		// since done is a chan struct{}, we can simply say 'close(done)' 
+		// within the worker goroutine to signal completion and use below to wait
+		<-done
+		fmt.Println("Job done, acking message (BIGQUERY)")
+		m.Ack()
     })
     if err != nil {
         log.Printf("Error receiving messages: %v", err)

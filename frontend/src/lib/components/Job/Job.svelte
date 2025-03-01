@@ -124,7 +124,7 @@
         <div class="flex flex-row items-center">
             <img
                 src={imgSrc}
-                alt={`${company} logo`}
+                alt={company}
                 class="w-10 h-10 rounded-lg object-cover"
             />
             <div class="flex flex-col items-baseline sm:gap-1 px-5 w-full">

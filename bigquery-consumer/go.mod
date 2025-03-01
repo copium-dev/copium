@@ -4,7 +4,6 @@ go 1.23.1
 
 require (
 	cloud.google.com/go/pubsub v1.47.0
-	github.com/algolia/algoliasearch-client-go/v4 v4.12.0
 	github.com/joho/godotenv v1.5.1
 	google.golang.org/api v0.218.0
 )

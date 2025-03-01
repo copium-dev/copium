@@ -7,7 +7,7 @@
     import FilterJobs from "$lib/components/FilterJobs/FilterJobs.svelte";
     import PaginateJobs from "$lib/components/PaginateJobs/PaginateJobs.svelte";
 
-    import { filterStore } from "$lib/stores/filterStore";
+    import { jobsFilterStore } from "$lib/stores/jobsFilterStore";
     import { dashboardPaginationStore } from "$lib/stores/dashboardPaginationStore";
 
     import type { PageData } from "./$types";
@@ -27,7 +27,7 @@
 
     function updateInput(e: Event) {
         const value = (e.currentTarget as HTMLInputElement).value;
-        filterStore.update((current) => ({ ...current, query: value }));
+        jobsFilterStore.update((current) => ({ ...current, query: value }));
     }
 
     // only if input is focused, handle Enter
@@ -69,7 +69,7 @@
 
     function updateURL() {
         const { query, company, role, location, startDate, endDate, status } =
-            $filterStore;
+            $jobsFilterStore;
         const params = buildParamsFromFilters({
             query,
             company,
@@ -101,7 +101,7 @@
                             type="text"
                             placeholder="Search by company, role, or location."
                             id="query"
-                            bind:value={$filterStore.query}
+                            bind:value={$jobsFilterStore.query}
                             on:input={updateInput}
                             on:keydown={handleKeyDown}
                     />

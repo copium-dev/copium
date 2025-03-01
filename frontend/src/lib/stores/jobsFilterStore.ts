@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 
-export const filterStore = writable({
+export const jobsFilterStore = writable({
     query: '',
     company: '',
     role: '',
