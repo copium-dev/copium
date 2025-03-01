@@ -181,7 +181,7 @@
                         <img 
                             src={data.companyLogos[posting.company_name] || placeholder}
                             alt={posting.company_name}
-                            class="w-6 h-6 rounded-full object-cover"
+                            class="w-6 h-6 rounded-lg object-cover"
                         />
                         {posting.company_name}
                     </Table.Cell>
