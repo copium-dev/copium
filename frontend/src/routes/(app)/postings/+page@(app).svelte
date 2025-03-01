@@ -4,8 +4,7 @@
     import * as Table from "$lib/components/ui/table/index.js";
     import { buttonVariants } from "$lib/components/ui/button";
 
-    import { Map } from "lucide-svelte";
-    import { Calendar } from "lucide-svelte";
+    import { Map, Calendar, Building2, Link, BriefcaseBusiness }  from "lucide-svelte";
 
     import placeholder from "$lib/images/placeholder.png";
 
@@ -18,7 +17,6 @@
 
     import type { PageData } from "./$types";
     import { onMount, onDestroy } from "svelte";
-    import { browser } from '$app/environment';
     import { goto } from "$app/navigation";
 
     export let data: PageData;
@@ -138,8 +136,18 @@
     <Table.Root class="mb-4">
         <Table.Header>
             <Table.Row>
-                <Table.Head>Company</Table.Head>
-                <Table.Head>Role</Table.Head>
+                <Table.Head>
+                    <span class="inline-flex items-center gap-2">
+                        Company
+                        <Building2 class="w-[15px] h-[15px] stroke-[1.5]" />
+                    </span>
+                </Table.Head>
+                <Table.Head>
+                    <span class="inline-flex items-center gap-2">
+                        Role
+                        <BriefcaseBusiness class="w-[15px] h-[15px] stroke-[1.5]" />
+                    </span>
+                </Table.Head>
                 <Table.Head>
                     <span class="inline-flex items-center gap-2">
                         Locations
@@ -158,7 +166,12 @@
                         <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                     </span>
                 </Table.Head>
-                <Table.Head>Link</Table.Head>
+                <Table.Head>
+                    <span class="inline-flex items-center gap-2">
+                        Link
+                        <Link class="w-[15px] h-[15px] stroke-[1.5]" />
+                    </span>
+                </Table.Head>
             </Table.Row>
         </Table.Header>
         <Table.Body>

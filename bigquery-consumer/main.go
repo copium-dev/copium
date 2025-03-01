@@ -76,6 +76,8 @@ func main() {
 		// since sub.Receive() itself is concurrent and we use a worker pool,
 		// this doesn't block the main thread or other messages
 		// NOTE: chan strut{} takes 0 bytes so its the most efficient way for signaling
+		// if you're wondering why not ack within the worker, its because documentation
+		// states for control flow, the ack should be done in the callback and not in a goroutine
 		done := make(chan struct{})
 
         job := pool.Job{
