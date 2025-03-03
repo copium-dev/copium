@@ -34,11 +34,11 @@
 
 <ModeWatcher />
 <div
-    class="flex flex-col justify-start gap-4 items-stretch w-full sm:w-5/6 mx-auto h-full"
+    class="flex flex-col justify-start gap-4 items-stretch w-full mx-auto h-full"
 >
-    <div class="p-3 my-10">
+    <div class="my-10">
         <div
-            class="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-start w-full sm:min-w-[72vw]"
+            class="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-start w-full"
         >
             <!-- todo: render ....
                 - total number of applications

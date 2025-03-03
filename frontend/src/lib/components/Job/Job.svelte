@@ -116,10 +116,10 @@
     let imgSrc: string;
 </script>
 
-<Separator orientation="horizontal" class="my-2 mx-auto w-full" />
+<Separator orientation="horizontal" class="my-1 mx-auto w-full border-t border-dashed bg-transparent" />
 <div class="flex justify-start items-center">
     <div
-        class="w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center p-3 sm:my-2"
+        class="w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center p-3 sm:my-1"
     >
         <div class="flex flex-row items-center">
             <img

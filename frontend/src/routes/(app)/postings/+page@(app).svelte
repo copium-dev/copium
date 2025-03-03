@@ -4,7 +4,13 @@
     import * as Table from "$lib/components/ui/table/index.js";
     import { buttonVariants } from "$lib/components/ui/button";
 
-    import { Map, Calendar, Building2, Link, BriefcaseBusiness }  from "lucide-svelte";
+    import {
+        Map,
+        Calendar,
+        Building2,
+        Link,
+        BriefcaseBusiness,
+    } from "lucide-svelte";
 
     import placeholder from "$lib/images/placeholder.png";
 
@@ -38,7 +44,7 @@
     function handleKeyDown(e: KeyboardEvent) {
         if (e.key === "Enter") {
             const queryElement = document.getElementById(
-                "query",
+                "query"
             ) as HTMLInputElement | null;
             if (document.activeElement !== queryElement) return;
             e.preventDefault();
@@ -53,7 +59,7 @@
     function handleGlobalKeydown(e: KeyboardEvent) {
         if (e.key == "Escape") {
             const queryElement = document.getElementById(
-                "query",
+                "query"
             ) as HTMLInputElement | null;
             if (queryElement) queryElement.blur();
         }
@@ -105,16 +111,15 @@
 
         return `${month}-${day}-${year}`;
     }
-
 </script>
 
-<div
-    class="flex flex-col justify-start gap-4 items-stretch w-full my-12"
->
+<div class="flex flex-col justify-start gap-4 items-stretch w-full my-12">
     <!-- sticky controls wrapper -->
-    <div class="sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
+    <div
+        class="sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50"
+    >
         <div
-            class="bg-background flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full sm:min-w-[72vw] py-2"
+            class="bg-background flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full py-2"
         >
             <div class="flex flex-col w-full">
                 <div
@@ -122,16 +127,16 @@
                 >
                     <!-- NOTE: MUST PUT bind:value={$postingsFilterStore.query} -->
                     <Input
-                            type="text"
-                            placeholder="Search by company, role, or location."
-                            id="query"
-                            on:input={updateInput}
-                            on:keydown={handleKeyDown}
+                        type="text"
+                        placeholder="Search by company, role, or location."
+                        id="query"
+                        on:input={updateInput}
+                        on:keydown={handleKeyDown}
                     />
                     <Separator orientation="vertical" class="h-6" />
                     <FilterPostings />
                 </div>
-               <PaginatePostings />
+                <PaginatePostings />
             </div>
         </div>
     </div>
@@ -141,38 +146,40 @@
             <Table.Row>
                 <Table.Head>
                     <span class="inline-flex items-center gap-2">
-                        Company
                         <Building2 class="w-[15px] h-[15px] stroke-[1.5]" />
+                        Company
                     </span>
                 </Table.Head>
                 <Table.Head>
                     <span class="inline-flex items-center gap-2">
+                        <BriefcaseBusiness
+                            class="w-[15px] h-[15px] stroke-[1.5]"
+                        />
                         Role
-                        <BriefcaseBusiness class="w-[15px] h-[15px] stroke-[1.5]" />
                     </span>
                 </Table.Head>
                 <Table.Head>
                     <span class="inline-flex items-center gap-2">
-                        Locations
                         <Map class="w-[15px] h-[15px] stroke-[1.5]" />
+                        Locations
                     </span>
                 </Table.Head>
                 <Table.Head>
                     <span class="inline-flex items-center gap-2">
+                        <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                         Posted
-                        <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                     </span>
                 </Table.Head>
                 <Table.Head>
                     <span class="inline-flex items-center gap-2">
+                        <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                         Updated
-                        <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                     </span>
                 </Table.Head>
                 <Table.Head>
                     <span class="inline-flex items-center gap-2">
-                        Link
                         <Link class="w-[15px] h-[15px] stroke-[1.5]" />
+                        Link
                     </span>
                 </Table.Head>
             </Table.Row>
@@ -181,15 +188,18 @@
             {#each data.postings as posting, i (i)}
                 <Table.Row>
                     <Table.Cell class="inline-flex items-center gap-2 h-12">
-                        <img 
-                            src={data.companyLogos[posting.company_name] || placeholder}
+                        <img
+                            src={data.companyLogos[posting.company_name] ||
+                                placeholder}
                             alt={posting.company_name}
                             class="w-6 h-6 rounded-lg object-cover"
                         />
                         {posting.company_name}
                     </Table.Cell>
                     <Table.Cell>{posting.title}</Table.Cell>
-                    <Table.Cell>{posting.locations?.join(' | ') || ''}</Table.Cell>
+                    <Table.Cell
+                        >{posting.locations?.join(" | ") || ""}</Table.Cell
+                    >
                     <Table.Cell>{formatDate(posting.date_posted)}</Table.Cell>
                     <Table.Cell>{formatDate(posting.date_updated)}</Table.Cell>
                     <Table.Cell>
@@ -197,7 +207,7 @@
                             href={posting.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class={buttonVariants({size: "sm"})}
+                            class={buttonVariants({ size: "sm" })}
                         >
                             Apply
                         </a>

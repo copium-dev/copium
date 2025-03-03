@@ -9,7 +9,7 @@
     }
 </script>
 
-<div class="flex flex-col justify-center gap-4 items-center h-full">
+<div class="container flex flex-col justify-center gap-4 items-center h-full border-x border-dashed">
     <h1 class="text-2xl sm:text-4xl font-bold text-center w-3/4 sm:w-1/2">
         Streamline your <span class="text-violet-500">tech internship</span> hunt.
     </h1>

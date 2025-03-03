@@ -89,7 +89,7 @@
     <!-- sticky controls wrapper -->
     <div class="sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
         <div
-            class="bg-background flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full sm:min-w-[72vw] py-2"
+            class="bg-background flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full py-2"
         >
             <div class="flex flex-col w-full">
                 <div
