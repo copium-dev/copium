@@ -189,7 +189,7 @@
             </div>
         </header>
     </div>
-    <main class="container h-full w-full bg-background overflow-auto border-x border-dashed">
+    <main class="container px-0 h-full w-full bg-background overflow-auto border-x border-dashed">
         {@render children()}
     </main>
     <footer class="border-t border-dashed">

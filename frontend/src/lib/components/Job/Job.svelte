@@ -116,110 +116,104 @@
     let imgSrc: string;
 </script>
 
-<Separator orientation="horizontal" class="my-1 mx-auto w-full border-t border-dashed bg-transparent" />
-<div class="flex justify-start items-center">
+<Separator orientation="horizontal" class="mx-auto w-full border-t border-dashed bg-transparent" />
+<div class="px-8 flex flex-col justify-start items-center py-4 sm:py-0">
     <div
-        class="w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center p-3 sm:my-1"
+        class="gap-4 sm:gap-0 w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center"
     >
-        <div class="flex flex-row items-center">
-            <img
-                src={imgSrc}
-                alt={company}
-                class="w-10 h-10 rounded-lg object-cover"
-            />
-            <div class="flex flex-col items-baseline sm:gap-1 px-5 w-full">
-                <p class="flex flex-row items-end font-bold gap-1 h-full">
-                    {company}
-                </p>
-                <p class="flex flex-row items-end gap-1 text-xs h-full">
-                    <Map class="w-[15px] h-[15px] stroke-[1.5]" />
-                    {location}
-                </p>
-            </div>
-            <Separator
-                orientation="vertical"
-                class="h-12 ml-auto invisible sm:visible"
-            />
-            <div class="sm:hidden flex flex-row items-center gap-4">
-                <EditJob
-                objectID={objectID}
-                company={company}
-                role={role}
-                appliedDate={appliedDate}
-                location={location}
-                status={status}
-                link={link}
+        <div class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row items-center w-full">
+            <div class="flex flex-row items-center">
+                <img
+                    src={imgSrc}
+                    alt={company}
+                    class="w-10 h-10 rounded-lg object-cover"
                 />
-            </div>
-        </div>
-
-        <div class="flex flex-row items-center">
-            <div
-                class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-0 sm:px-5"
-            >
-                <p class="flex items-end">
-                    {#if link}
-                        <a
-                            href={link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="hover:underline">{role}</a
-                        >
-                    {:else}
-                        {role}
-                    {/if}
-                </p>
-                <p class="flex flex-row items-end gap-1 text-xs h-full">
-                    <Calendar
-                        class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0"
+                    <div class="flex flex-col items-baseline sm:gap-1 px-5 w-full">
+                        <p class="flex flex-row items-end font-bold gap-1 h-full">
+                            {company}
+                        </p>
+                        <p class="flex flex-row items-end gap-1 text-xs h-full">
+                            <Map class="w-[15px] h-[15px] stroke-[1.5]" />
+                            {location}
+                        </p>
+                    </div>
+                <div class="sm:hidden flex flex-row items-center gap-4">
+                    <EditJob
+                    objectID={objectID}
+                    company={company}
+                    role={role}
+                    appliedDate={appliedDate}
+                    location={location}
+                    status={status}
+                    link={link}
                     />
-                    {formatDate(appliedDate)}
-                </p>
-            </div>
-            <Separator
-                orientation="vertical"
-                class="h-12 ml-auto invisible sm:visible"
-            />
-        </div>
-
-        <div class="px-0 sm:px-5 h-full flex items-start items-center">
-            <div class="flex w-full relative">
-                <!-- Progress bar in background -->
-                <div class="absolute w-full top-[13px]">
-                    <Progress {value} max={100} class="w-full h-0.5" />
-                </div>
-
-                <!-- Buttons overlaid on top -->
-                <div class="flex w-full justify-evenly gap-3 p-2 relative">
-                    {#each Object.entries(statusValues) as [status, progressValue]}
-                        <div
-                            class="flex flex-col justify-center items-center text-xs gap-1"
-                        >
-                            <Button
-                                size="icon"
-                                class="w-3 h-3 {value === progressValue
-                                    ? 'bg-primary dark:bg-secondary-foreground'
-                                    : 'bg-secondary dark:bg-primary-foreground'}"
-                                on:click={() => {
-                                    updateStatus(
-                                        status as keyof typeof statusValues,
-                                    );
-                                }}
-                                aria-label={`Set status to ${status}`}
-                            ></Button>
-                            <p>{status}</p>
-                        </div>
-                    {/each}
                 </div>
             </div>
-            <Separator
-                orientation="vertical"
-                class="h-12 ml-5 invisible sm:visible"
-            />
         </div>
+
+        <div class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row items-center w-full">
+            <div class="flex flex-row items-center">
+                <div
+                    class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-0 sm:px-5"
+                >
+                    <p class="flex items-end">
+                        {#if link}
+                            <a
+                                href={link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="hover:underline">{role}</a
+                            >
+                        {:else}
+                            {role}
+                        {/if}
+                    </p>
+                    <p class="flex flex-row items-end gap-1 text-xs h-full">
+                        <Calendar
+                            class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0"
+                        />
+                        {formatDate(appliedDate)}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row items-center w-full">
+            <div class="px-0 sm:px-5 h-full flex items-start items-center w-full">
+                <div class="flex w-full relative">
+                    <!-- Progress bar in background -->
+                    <div class="absolute w-full top-[13px]">
+                        <Progress {value} max={100} class="w-full h-0.5" />
+                    </div>
+
+                    <!-- Buttons overlaid on top -->
+                    <div class="flex w-full justify-evenly gap-3 p-2 relative">
+                        {#each Object.entries(statusValues) as [status, progressValue]}
+                            <div
+                                class="flex flex-col justify-center items-center text-xs gap-1"
+                            >
+                                <Button
+                                    size="icon"
+                                    class="w-3 h-3 {value === progressValue
+                                        ? 'bg-primary dark:bg-secondary-foreground'
+                                        : 'bg-secondary dark:bg-primary-foreground'}"
+                                    on:click={() => {
+                                        updateStatus(
+                                            status as keyof typeof statusValues,
+                                        );
+                                    }}
+                                    aria-label={`Set status to ${status}`}
+                                ></Button>
+                                <p>{status}</p>
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            </div>
+        </div> 
 
         <div
-            class="lex w-full items-stretch justify-between gap-4 sm:gap-2 hidden sm:flex"
+            class="ml-4 flex w-full items-stretch justify-between gap-4 sm:gap-2 hidden sm:flex"
         >
             <EditJob
                 objectID={objectID}

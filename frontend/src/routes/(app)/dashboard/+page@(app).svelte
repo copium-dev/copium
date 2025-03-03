@@ -87,7 +87,7 @@
     class="flex flex-col justify-start gap-4 items-stretch w-full my-12"
 >
     <!-- sticky controls wrapper -->
-    <div class="sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
+    <div class="px-8 sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
         <div
             class="bg-background flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full py-2"
         >

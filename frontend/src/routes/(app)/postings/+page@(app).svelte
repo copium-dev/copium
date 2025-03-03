@@ -116,7 +116,7 @@
 <div class="flex flex-col justify-start gap-4 items-stretch w-full my-12">
     <!-- sticky controls wrapper -->
     <div
-        class="sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50"
+        class="px-8 sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50"
     >
         <div
             class="bg-background flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full py-2"
@@ -141,16 +141,16 @@
         </div>
     </div>
 
-    <Table.Root class="mb-4">
+    <Table.Root>
         <Table.Header>
-            <Table.Row>
-                <Table.Head>
+            <Table.Row class="border-b border-dashed">
+                <Table.Head class="border-r border-dashed pl-8">
                     <span class="inline-flex items-center gap-2">
                         <Building2 class="w-[15px] h-[15px] stroke-[1.5]" />
                         Company
                     </span>
                 </Table.Head>
-                <Table.Head>
+                <Table.Head class="border-r border-dashed">
                     <span class="inline-flex items-center gap-2">
                         <BriefcaseBusiness
                             class="w-[15px] h-[15px] stroke-[1.5]"
@@ -158,25 +158,25 @@
                         Role
                     </span>
                 </Table.Head>
-                <Table.Head>
+                <Table.Head class="border-r border-dashed">
                     <span class="inline-flex items-center gap-2">
                         <Map class="w-[15px] h-[15px] stroke-[1.5]" />
                         Locations
                     </span>
                 </Table.Head>
-                <Table.Head>
+                <Table.Head class="border-r border-dashed">
                     <span class="inline-flex items-center gap-2">
                         <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                         Posted
                     </span>
                 </Table.Head>
-                <Table.Head>
+                <Table.Head class="border-r border-dashed">
                     <span class="inline-flex items-center gap-2">
                         <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                         Updated
                     </span>
                 </Table.Head>
-                <Table.Head>
+                <Table.Head class="pr-8 w-fit">
                     <span class="inline-flex items-center gap-2">
                         <Link class="w-[15px] h-[15px] stroke-[1.5]" />
                         Link
@@ -186,8 +186,8 @@
         </Table.Header>
         <Table.Body>
             {#each data.postings as posting, i (i)}
-                <Table.Row>
-                    <Table.Cell class="inline-flex items-center gap-2 h-12">
+                <Table.Row class="border-b border-dashed">
+                    <Table.Cell class="border-r border-dashed w-full inline-flex items-center gap-2 h-12 pl-8">
                         <img
                             src={data.companyLogos[posting.company_name] ||
                                 placeholder}
@@ -196,13 +196,15 @@
                         />
                         {posting.company_name}
                     </Table.Cell>
-                    <Table.Cell>{posting.title}</Table.Cell>
-                    <Table.Cell
-                        >{posting.locations?.join(" | ") || ""}</Table.Cell
-                    >
-                    <Table.Cell>{formatDate(posting.date_posted)}</Table.Cell>
-                    <Table.Cell>{formatDate(posting.date_updated)}</Table.Cell>
-                    <Table.Cell>
+                    <Table.Cell class="border-r border-dashed">
+                        {posting.title}
+                    </Table.Cell>
+                    <Table.Cell class="border-r border-dashed">
+                        {posting.locations?.join(" | ") || ""}
+                        </Table.Cell>
+                    <Table.Cell class="border-r border-dashed">{formatDate(posting.date_posted)}</Table.Cell>
+                    <Table.Cell class="border-r border-dashed">{formatDate(posting.date_updated)}</Table.Cell>
+                    <Table.Cell class="pr-8">
                         <a
                             href={posting.url}
                             target="_blank"

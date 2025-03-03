@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"strconv"
 )
 
 func CalculateTotalPages(totalHits int, hitsPerPage int) int {
@@ -45,12 +46,34 @@ func ParseQuery(r *http.Request) (string, string, error) {
 
 	filtersString := strings.Join(filterStrs, " AND ")
 
+	// NOTE: frontend sends unix time in ms but postings stores in seconds
+	// so, we have to atoi, divide by 1000, then convert back to string
 	// add date range filters if provided
 	if startDate != "" && endDate != "" {
+		startDateInt, err := strconv.Atoi(startDate)
+		if err != nil {
+			return "", "", err
+		}
+		endDateInt, err := strconv.Atoi(endDate)
+		if err != nil {
+			return "", "", err
+		}
+		startDate = fmt.Sprintf("%d", startDateInt / 1000)
+		endDate = fmt.Sprintf("%d", endDateInt / 1000)
 		filtersString = filtersString + fmt.Sprintf(" AND (date_updated >= %s AND date_updated <= %s)", startDate, endDate)
 	} else if startDate != "" {
+		startDateInt, err := strconv.Atoi(startDate)
+		if err != nil {
+			return "", "", err
+		}
+		startDate = fmt.Sprintf("%d", startDateInt / 1000)
 		filtersString = filtersString + fmt.Sprintf(" AND date_updated >= %s", startDate)
 	} else if endDate != "" {
+		endDateInt, err := strconv.Atoi(endDate)
+		if err != nil {
+			return "", "", err
+		}
+		endDate = fmt.Sprintf("%d", endDateInt / 1000)
 		filtersString = filtersString + fmt.Sprintf(" AND date_updated <= %s", endDate)
 	}
 
