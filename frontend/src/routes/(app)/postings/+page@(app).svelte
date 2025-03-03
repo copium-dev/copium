@@ -2,7 +2,7 @@
     import { Input } from "$lib/components/ui/input";
     import { Separator } from "$lib/components/ui/separator";
     import * as Table from "$lib/components/ui/table/index.js";
-    import { buttonVariants } from "$lib/components/ui/button";
+    import { Button } from "$lib/components/ui/button";
 
     import {
         Map,
@@ -204,15 +204,14 @@
                         </Table.Cell>
                     <Table.Cell class="border-r border-dashed">{formatDate(posting.date_posted)}</Table.Cell>
                     <Table.Cell class="border-r border-dashed">{formatDate(posting.date_updated)}</Table.Cell>
-                    <Table.Cell class="pr-8">
-                        <a
+                    <Table.Cell class="pr-8 relative">
+                        <Button
                             href={posting.url}
                             target="_blank"
-                            rel="noopener noreferrer"
-                            class={buttonVariants({ size: "sm" })}
+                            size="sm"
                         >
-                            Apply
-                        </a>
+                        Apply
+                        </Button>
                     </Table.Cell>
                 </Table.Row>
             {/each}

@@ -142,4 +142,5 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
         totalPages,
         companyLogos, // Send logo URLs to the client
     };
+    
 };

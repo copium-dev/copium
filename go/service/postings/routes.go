@@ -26,7 +26,7 @@ type AlgoliaResponse struct {
 	Title       string   `json:"title"`
 	PostedDate  int64    `json:"date_posted"`
 	UpdatedDate int64    `json:"date_updated"`
-	Active      bool     `json:"active"`
+	Url			string   `json:"url"`
 }
 
 type PostingsResponse struct {
