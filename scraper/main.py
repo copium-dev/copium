@@ -16,7 +16,7 @@ instead of sending msg to discord...
 
 # Constants
 REPO_URL = "https://github.com/cvrve/Summer2025-Internships"
-LOCAL_REPO_PATH = "Summer2025-Internships"
+LOCAL_REPO_PATH = "scraper/Summer2025-Internships"
 JSON_FILE_PATH = os.path.join(LOCAL_REPO_PATH, ".github", "scripts", "listings.json")
 
 def clone_or_update_repo():
@@ -69,13 +69,26 @@ async def send_message(message, role):
     await AlgoliaClient(role)
 
 
+async def send_delete(message, role):
+    print(f"Deleting role: {message}")
+    try:
+        if not role.get('id'):
+            print("Role does not exist, skip deletion.")
+            return
+        _client = SearchClientSync(ALGOLIA_APP_ID, ALGOLIA_WRITE_API_KEY)
+        _client.delete_object(index_name=ALGOLIA_INDEX_NAME, object_id=role['id'])
+        print(f"Successfully deleted role: {role['title']} at {role['company_name']}")
+    except Exception as e:
+        print(f"Error deleting role: {e}")
+
+
 def check_for_new_roles():
     print("Checking for new roles...")
     clone_or_update_repo()
     new_data = read_json()
 
-    if os.path.exists("previous_data.json"):
-        with open("previous_data.json", "r") as file:
+    if os.path.exists("scraper/previous_data.json"):
+        with open("scraper/previous_data.json", "r") as file:
             old_data = json.load(file)
         print("Previous data loaded.")
     else:
@@ -107,9 +120,9 @@ def check_for_new_roles():
 
     for role in deactivated_roles:
         message = f"Role {role['title']} at {role['company_name']} is now inactive."
-        asyncio.run(send_message(message, role))
+        asyncio.run(send_delete(message, role))
 
-    with open("previous_data.json", "w") as file:
+    with open("scraper/previous_data.json", "w") as file:
         json.dump(new_data, file)
     print("Updated previous data with new data.")
 
@@ -119,9 +132,11 @@ def check_for_new_roles():
 
 # IMPORTANT: On the VM we should run this on a cron job as to not waste precious memory!!!!!!
 # just for local testing it's running every minute
-schedule.every(1).minutes.do(check_for_new_roles)
+# schedule.every(1).minutes.do(check_for_new_roles)
 
 print("Starting process...")
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+# while True:
+    # schedule.run_pending()
+    # time.sleep(1)
+
+check_for_new_roles()

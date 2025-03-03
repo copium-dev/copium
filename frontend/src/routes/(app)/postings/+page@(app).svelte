@@ -88,7 +88,10 @@
     function formatDate(timestamp: number): string {
         if (!timestamp) return "";
 
-        const date = new Date(timestamp);
+        // convert seconds to milliseconds cause postings are stored in seconds and JS expects milliseconds lol
+        const timestampMs = timestamp * 1000;
+
+        const date = new Date(timestampMs);
         if (isNaN(date.getTime())) return "";
 
         // Adjust for timezone
