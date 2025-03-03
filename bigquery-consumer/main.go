@@ -14,7 +14,6 @@ import (
 	"github.com/juhun32/copium/bigquery-consumer/pool"
 
 	"cloud.google.com/go/bigquery"
-	"github.com/joho/godotenv"
 
 	"cloud.google.com/go/pubsub"
 	"google.golang.org/api/option"
@@ -39,11 +38,6 @@ func initializeBigQueryClient() (*bigquery.Client, error) {
 // >>>> run the same in algolia consumer (just change topic name)
 // or just do run.py lol
 func main() {
-    err := godotenv.Load()
-    if err != nil {
-        log.Fatalf("Error loading .env file")
-    }
-
     // create algolia client (shared across workers)
     bigQueryClient, err := initializeBigQueryClient()
     if err != nil {
