@@ -9,10 +9,10 @@
     }
 </script>
 
-<div class="container-wrapper grid grid-rows-[1fr_1fr_auto] h-full">
+<div class="container-wrapper grid grid-rows-2 h-full overflow-y-hidden">
     <div class="h-full w-full">
         <div
-            class="container h-full w-full flex flex-col justify-end pb-16 items-center border-x border-dashed"
+            class="container h-full w-full flex flex-col justify-end pb-8 items-center border-x border-dashed"
         >
             <h1
                 class="text-2xl sm:text-4xl font-bold text-center w-3/4 sm:w-1/2"
@@ -54,7 +54,7 @@
                 </div>
             </div>
         </div>
-        <!-- <div class="container h-full border-x border-dashed">&nbsp;</div> -->
+        <div class="container h-full border-x border-dashed"></div>
     </div>
     
 </div>
