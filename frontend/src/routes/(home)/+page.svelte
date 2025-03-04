@@ -9,7 +9,7 @@
     }
 </script>
 
-<div class="container-wrapper grid grid-rows-[1fr_1fr] h-full">
+<div class="container-wrapper grid grid-rows-[1fr_1fr_auto] h-full">
     <div class="h-full w-full">
         <div
             class="container h-full w-full flex flex-col justify-end pb-16 items-center border-x border-dashed"
@@ -27,9 +27,9 @@
                 your career.
             </p>
         </div>
-        <div class="border-y border-dashed">
+        <div class="border-y border-dashed z-50">
             <div
-                class="container flex justify-center py-8"
+                class="container flex justify-center py-8 border-x border-dashed"
             >
                 <div class="w-fit">
                     <Card.Root
@@ -54,6 +54,7 @@
                 </div>
             </div>
         </div>
+        <!-- <div class="container h-full border-x border-dashed">&nbsp;</div> -->
     </div>
-    <div class="container h-full border-x border-dashed"></div>
+    
 </div>
