@@ -187,7 +187,9 @@
         <Table.Body>
             {#each data.postings as posting, i (i)}
                 <Table.Row class="border-b border-dashed">
-                    <Table.Cell class="border-r border-dashed w-full inline-flex items-center gap-2 h-12 pl-8">
+                    <Table.Cell
+                        class="border-r border-dashed w-full inline-flex items-center gap-2 h-12 pl-8"
+                    >
                         <img
                             src={data.companyLogos[posting.company_name] ||
                                 placeholder}
@@ -201,20 +203,33 @@
                     </Table.Cell>
                     <Table.Cell class="border-r border-dashed">
                         {posting.locations?.join(" | ") || ""}
-                        </Table.Cell>
-                    <Table.Cell class="border-r border-dashed">{formatDate(posting.date_posted)}</Table.Cell>
-                    <Table.Cell class="border-r border-dashed">{formatDate(posting.date_updated)}</Table.Cell>
+                    </Table.Cell>
+                    <Table.Cell class="border-r border-dashed"
+                        >{formatDate(posting.date_posted)}</Table.Cell
+                    >
+                    <Table.Cell class="border-r border-dashed"
+                        >{formatDate(posting.date_updated)}</Table.Cell
+                    >
                     <Table.Cell class="pr-8 relative">
-                        <Button
-                            href={posting.url}
-                            target="_blank"
-                            size="sm"
-                        >
-                        Apply
+                        <Button href={posting.url} target="_blank" size="sm">
+                            Apply
                         </Button>
                     </Table.Cell>
                 </Table.Row>
             {/each}
         </Table.Body>
     </Table.Root>
+    <div class="container flex justify-end gap-4">
+        <p class="text-muted-foreground text-xs">*Only shows active postings</p>
+        <div class="flex space-x-1">
+            <p class="text-muted-foreground text-xs">
+                *Internship postings from
+            </p>
+            <a
+                href="https://github.com/cvrve/Summer2025-Internships"
+                class="text-muted-foreground text-xs"
+                >[cvrve]</a
+            >
+        </div>
+    </div>
 </div>
