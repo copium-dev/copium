@@ -144,13 +144,13 @@
     <Table.Root>
         <Table.Header>
             <Table.Row class="border-b border-dashed">
-                <Table.Head class="border-r border-dashed pl-8">
+                <Table.Head class="border-r border-dashed pl-8 w-[200px]">
                     <span class="inline-flex items-center gap-2">
                         <Building2 class="w-[15px] h-[15px] stroke-[1.5]" />
                         Company
                     </span>
                 </Table.Head>
-                <Table.Head class="border-r border-dashed">
+                <Table.Head class="border-r border-dashed w-fit">
                     <span class="inline-flex items-center gap-2">
                         <BriefcaseBusiness
                             class="w-[15px] h-[15px] stroke-[1.5]"
@@ -158,25 +158,25 @@
                         Role
                     </span>
                 </Table.Head>
-                <Table.Head class="border-r border-dashed">
+                <Table.Head class="border-r border-dashed w-[200px]">
                     <span class="inline-flex items-center gap-2">
                         <Map class="w-[15px] h-[15px] stroke-[1.5]" />
                         Locations
                     </span>
                 </Table.Head>
-                <Table.Head class="border-r border-dashed">
+                <Table.Head class="border-r border-dashed w-[150px]">
                     <span class="inline-flex items-center gap-2">
                         <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                         Posted
                     </span>
                 </Table.Head>
-                <Table.Head class="border-r border-dashed">
+                <Table.Head class="border-r border-dashed w-[150px]">
                     <span class="inline-flex items-center gap-2">
                         <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                         Updated
                     </span>
                 </Table.Head>
-                <Table.Head class="pr-8 w-fit">
+                <Table.Head class="pr-8 w-fit w-[100px]">
                     <span class="inline-flex items-center gap-2">
                         <Link class="w-[15px] h-[15px] stroke-[1.5]" />
                         Link

@@ -121,7 +121,7 @@
     <div
         class="gap-4 sm:gap-0 w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center"
     >
-        <div class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row items-center w-full">
+        <div class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-full">
             <div class="flex flex-row items-center">
                 <img
                     src={imgSrc}
@@ -151,7 +151,7 @@
             </div>
         </div>
 
-        <div class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row items-center w-full">
+        <div class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-full">
             <div class="flex flex-row items-center">
                 <div
                     class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-0 sm:px-5"

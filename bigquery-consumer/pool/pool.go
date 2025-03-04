@@ -131,10 +131,33 @@ func (w *Worker) work(job Job) {
 	// 2. if delete, delete all records matching jobID (and userID implicitly)
 	// 3. if user delete, delete all records matching userID
 
+	// recalculate every analytic (for this user) and send to firestore (for this user)
+	// 1. apps sent this month vs last month
+	// 2. apps that moved to interview this month vs last month
+	// 3. apps that moved to reject this month vs last month
+	// 4. apps that moved to reject from interview this month vs last month
+	// 5. apps that moved to interview from reject this month vs last month
+	// and so on
+
 	// end; log completion
 	log.Printf("Processed Job With ID [%d] & content: [%s]", job.ID, job.Data)
 	log.Printf("-------")
 
 	// signal completion
 	close(job.Done)
+}
+
+func (w *Worker) appendJob(data map[string]interface{}) {
+	// append data to bigquery
+	// INSERT INTO xxx (jobID, userID, data) VALUES (data["jobID"], data["userID"], data["data"])
+}
+
+func (w *Worker) deleteJob(data map[string]interface{}) {
+	// delete data from bigquery
+	// DELETE FROM xxx WHERE jobID = data["jobID"] AND userID = data["userID"]
+}
+
+func (w *Worker) deleteUser(data map[string]interface{}) {
+	// delete data from bigquery
+	// DELETE FROM xxx WHERE userID = data["userID"]
 }

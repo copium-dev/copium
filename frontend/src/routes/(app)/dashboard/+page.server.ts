@@ -3,6 +3,16 @@ import { BACKEND_URL } from '$env/static/private';
 import { redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 
+interface Job {
+    objectID: string;
+    role: string;
+    company: string;
+    location: string;
+    appliedDate: number;
+    link: string;
+    status: string;
+}
+
 // load function 
 export const load: PageServerLoad = async ({ fetch, url }) => {
     const page = url.searchParams.get('page');
@@ -37,7 +47,7 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
 
     const data = await response.json();
 
-    const applications = data.applications || [];
+    const applications = (data.applications || []) as Job[];
     // algolia is 0-indexed and backend always sends 0-indexed page
     // so, if !currentPage or !totalPages (aka 0), then set to 1
     const currentPage = parseInt(data.currentPage) || 1;

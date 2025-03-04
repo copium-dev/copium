@@ -34,7 +34,7 @@
 
 <ModeWatcher />
 <div
-    class="flex flex-col justify-start gap-4 items-stretch w-full mx-auto h-full"
+    class="px-8 flex flex-col justify-start gap-4 items-stretch w-full mx-auto h-full"
 >
     <div class="my-10">
         <div

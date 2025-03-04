@@ -171,6 +171,10 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	applicationsCount := doc.Data()["applicationsCount"].(int64)
+	if applicationsCount < 0 {
+		applicationsCount = 0
+	}
+	
 	log.Println("Applications count retrieved")
 	log.Println("-----------------")
 
