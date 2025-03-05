@@ -15,3 +15,5 @@
 - **why go?:** front-facing API is a serverless function, so the quick cold starts were useful. also, Algolia and BigQuery consumers do potentially long background processing, so the strong concurrency model was critical for scale
 - **why firestore?:** speed is of upmost importance... it also has a free tier
 - **why traefik?:** automatically handles SSL certification renewal which Nginx doesn't natively handle and does not support hot renewal with new certificates
+
+![image](https://github.com/user-attachments/assets/00d6cae3-ad86-4309-81bb-aed255f56ecb)
