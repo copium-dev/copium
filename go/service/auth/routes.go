@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/juhun32/jtracker-backend/utils"
+	"github.com/copium-dev/copium/go/utils"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gorilla/mux"

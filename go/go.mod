@@ -1,4 +1,4 @@
-module github.com/juhun32/jtracker-backend
+module github.com/copium-dev/copium/go
 
 go 1.23
 

@@ -38,9 +38,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/juhun32/jtracker-backend/service/auth"
-	"github.com/juhun32/jtracker-backend/utils"
-	"github.com/juhun32/jtracker-backend/service/user/userutils"
+	"github.com/copium-dev/copium/go/service/auth"
+	"github.com/copium-dev/copium/go/utils"
+	"github.com/copium-dev/copium/go/service/user/userutils"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gorilla/mux"

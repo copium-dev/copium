@@ -1,4 +1,4 @@
-module github.com/juhun32/copium/bigquery-consumer
+module github.com/copium-dev/copium/bigquery-consumer
 
 go 1.23.1
 

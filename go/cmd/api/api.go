@@ -4,10 +4,10 @@ import (
     "log"
     "net/http"
     
-	"github.com/juhun32/jtracker-backend/service/user"
-    "github.com/juhun32/jtracker-backend/service/auth"
-	"github.com/juhun32/jtracker-backend/service/postings"
-    "github.com/juhun32/jtracker-backend/utils"
+	"github.com/copium-dev/copium/go/service/user"
+    "github.com/copium-dev/copium/go/service/auth"
+	"github.com/copium-dev/copium/go/service/postings"
+    "github.com/copium-dev/copium/go/utils"
     
 	"cloud.google.com/go/firestore"
 	"github.com/gorilla/mux"

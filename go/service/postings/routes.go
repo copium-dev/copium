@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/juhun32/jtracker-backend/service/auth"
-	"github.com/juhun32/jtracker-backend/service/postings/postingsutils"
-	"github.com/juhun32/jtracker-backend/utils"
+	"github.com/copium-dev/copium/go/service/auth"
+	"github.com/copium-dev/copium/go/service/postings/postingsutils"
+	"github.com/copium-dev/copium/go/utils"
 
 	"github.com/gorilla/mux"
 

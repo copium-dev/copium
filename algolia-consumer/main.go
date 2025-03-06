@@ -8,8 +8,8 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/juhun32/copium/algolia-consumer/inits"
-	"github.com/juhun32/copium/algolia-consumer/job"
+	"github.com/copium-dev/copium/algolia-consumer/inits"
+	"github.com/copium-dev/copium/algolia-consumer/job"
 
 	"cloud.google.com/go/pubsub"
 )

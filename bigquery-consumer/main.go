@@ -8,8 +8,8 @@ import (
 	"log"
 	"sync/atomic"
 
-	"github.com/juhun32/copium/bigquery-consumer/inits"
-	"github.com/juhun32/copium/bigquery-consumer/job"
+	"github.com/copium-dev/copium/bigquery-consumer/inits"
+	"github.com/copium-dev/copium/bigquery-consumer/job"
 
 	"cloud.google.com/go/pubsub"
 )

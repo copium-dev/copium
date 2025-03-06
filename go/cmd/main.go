@@ -6,8 +6,8 @@ import (
 	"fmt"
     "os"
 
-    "github.com/juhun32/jtracker-backend/cmd/api"
-    "github.com/juhun32/jtracker-backend/utils"
+    "github.com/copium-dev/copium/go/cmd/api"
+    "github.com/copium-dev/copium/go/utils"
 
 	"cloud.google.com/go/pubsub"
 

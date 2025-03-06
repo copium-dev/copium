@@ -1,4 +1,4 @@
-module github.com/juhun32/copium/algolia-consumer
+module github.com/copium-dev/copium/algolia-consumer
 
 go 1.23.1
 
