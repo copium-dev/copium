@@ -76,7 +76,25 @@ func (j *Job) Process() error {
 		return fmt.Errorf("failed to process job: %w", err)
 	}
 
-	// err = j.recalculateAnalytics()
+	// recalculates user's analytics (with queries) and updates their analytics fields in Firestore
+	// 1. (total volume) trend in applications submitted over the past 30 days vs the previous 30 days
+	// 2. (resume effectiveness)
+	// 		a. trend in applications converting to interview stage over the past 30 days vs the previous 30 days
+	//			- this is ANY application where event_time is in the past (or previous) 30 days and status is interviewing
+	//			- so this isn't just limited to applications that were submitted within the past 30 days
+	//		b. trend in applications converting to rejection stage over the past 30 days vs the previous 30 days
+	//			- same as above, but for rejection stage
+	// 3. (interview effectiveness) trend in applications converting from interview to offer stage over the past 30 days vs the previous 30 days
+	//		- same as above, but for offer stage
+	// 4. (response time) avg time to first response over the past 60 days
+	//		- this one is a different kind of analytic, not a trend but an average
+	// 5. (status progression velocity) avg time spent in one stage before moving to the next over the past 60 days
+	//		- this one is a different kind of analytic, not a trend but an average
+	// 6. (improvement over time) trend in number of rejection vs interview/offer over the past 30 days vs the previous 30 days
+	//		- this is a ratio of rejections to interviews/offers and the trend in that ratio
+	//		- this can be inferred from 2.a and 2.b but it's a useful metric to have
+	// 7. (best month all time) identify month with the most applications converting to interview/offer
+	// err = j.recalculateAnalyticsAndUpdateFirestore()
 	// if err != nil {
 	// 	return fmt.Errorf("failed to recalculate analytics: %w", err)
 	// }
@@ -115,20 +133,69 @@ func (j *Job) appendJob() error {
     
     if err := status.Err(); err != nil {
         return fmt.Errorf("job completed with error: %w", err)
-    }
+	}
 
-	log.Println("Job inserted successfully")
+	log.Printf("Job [%v] inserted successfully with UUID [%v]", j.Data["objectID"], q.Parameters[0].Value)
 
 	return nil
 }
 
+// delete anything matching this user and the job ID (chance that job ID is not unique)
 func (j *Job) deleteJob() error {
-	// delete all records matching the job ID
+	q := j.BigQueryClient.Query(`
+		DELETE FROM applications_data.applications
+		WHERE email = @email
+		AND jobID = @jobID
+	`)
+	q.Parameters = []bigquery.QueryParameter{
+		{Name: "email", Value: j.Data["email"]},
+		{Name: "jobID", Value: j.Data["objectID"]},
+	}
+
+	job, err := q.Run(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to delete record: %w", err)
+	}
+
+	status, err := job.Wait(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to wait for job: %w", err)
+	}
+
+	if err := status.Err(); err != nil {
+		return fmt.Errorf("job completed with error: %w", err)
+	}
+
+	log.Printf("Job [%v] deleted successfully for email [%v]", j.Data["objectID"], j.Data["email"])
+
 	return nil
 }
 
+// delete all records matching the user ID
 func (j *Job) deleteUser() error {
-	// delete all records matching the user ID
-	// ...
+	q := j.BigQueryClient.Query(`
+		DELETE FROM applications_data.applications
+		WHERE email = @email
+	`)
+	q.Parameters = []bigquery.QueryParameter{
+		{Name: "email", Value: j.Data["email"]},
+	}
+
+	job, err := q.Run(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to delete record: %w", err)
+	}
+
+	status, err := job.Wait(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to wait for job: %w", err)
+	}
+
+	if err := status.Err(); err != nil {
+		return fmt.Errorf("job completed with error: %w", err)
+	}
+
+	log.Printf("All jobs deleted successfully for email [%v]", j.Data["email"])
+	
 	return nil
 }

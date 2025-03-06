@@ -99,6 +99,7 @@ type EditApplicationStatusRequest struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
 	OldStatus string `json:"oldStatus"`
+	AppliedDate int64 `json:"appliedDate"`
 }
 
 // edit application does not include status because status is edited separately
@@ -478,11 +479,13 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	applicationID := EditApplicationStatusRequest.ID
+	newStatus := EditApplicationStatusRequest.Status
+	appliedDate := EditApplicationStatusRequest.AppliedDate
 
 	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
 		{
 			Path:  "status",
-			Value: EditApplicationStatusRequest.Status,
+			Value: newStatus,
 		},
 	})
 	if err != nil {
@@ -502,7 +505,8 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		"operation": "edit",
 		"email":     email,
 		"objectID":  applicationID,
-		"status":    EditApplicationStatusRequest.Status,
+		"status":    newStatus,
+		"appliedDate": appliedDate,
 		"timestamp":   time.Now().Unix() * 1000,	// frontend sends ms so we send ms
 	}
 

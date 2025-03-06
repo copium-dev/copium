@@ -55,6 +55,7 @@
         value = statusValues[newStatus];
         const formData = new FormData();
         formData.append("id", objectID);
+        formData.append("appliedDate", String(appliedDate));
         formData.append("status", newStatus);
         formData.append("oldStatus", status);
 

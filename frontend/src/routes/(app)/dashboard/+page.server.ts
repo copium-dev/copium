@@ -140,6 +140,7 @@ export const actions = {
             id: formData.get('id'),
             status: formData.get('status'),
             oldStatus: formData.get('oldStatus'),
+            appliedDate: Number(formData.get('appliedDate')),
         }
 
         const response = await fetch(`${BACKEND_URL}/user/editStatus`, {
