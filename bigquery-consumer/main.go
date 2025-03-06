@@ -3,34 +3,20 @@ package main
 // simple consumer; for now just receive and print
 // later, use worker pools (goroutines) to handle messages to index algolia
 import (
-	"log"
-	"time"
-	"os"
-	"fmt"
 	"context"
+	"fmt"
+	"log"
 	"sync/atomic"
 
-	"github.com/juhun32/copium/bigquery-consumer/config"
-	"github.com/juhun32/copium/bigquery-consumer/pool"
-
-	"cloud.google.com/go/bigquery"
+	"github.com/juhun32/copium/bigquery-consumer/inits"
+	"github.com/juhun32/copium/bigquery-consumer/job"
 
 	"cloud.google.com/go/pubsub"
-	"google.golang.org/api/option"
 )
-
-func initializeBigQueryClient() (*bigquery.Client, error) {
-	ctx := context.Background()
-	projectID := "jtrackerkimpark" // in prod, retrieve from env vars
-	client, err := bigquery.NewClient(ctx, projectID)
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
-}
 
 // export PUBSUB_EMULATOR_HOST=localhost:8085
 // export PUBSUB_PROJECT_ID=jtrackerkimpark
+// export FIRESTORE_EMULATOR_HOST=localhost:8080
 // gcloud beta emulators pubsub env-init
 // >>>> we need to (1) create `bigquery` topic and (2) create a subscription
 // >>>> make sure you're logged in to (gcloud auth login)
@@ -38,53 +24,57 @@ func initializeBigQueryClient() (*bigquery.Client, error) {
 // >>>> run the same in algolia consumer (just change topic name)
 // or just do run.py lol
 func main() {
-    // create algolia client (shared across workers)
-    bigQueryClient, err := initializeBigQueryClient()
+    // create bigquery client (shared across workers)
+    bigQueryClient, err := inits.InitializeBigQueryClient()
     if err != nil {
         log.Fatalf("Error initializing algolia client: %v", err)
     }
 
-	ctx := context.Background()
-	sub, pubsubClient, err := initializeConsumerSubscription()
+	// create pubsub client and subscription
+	sub, pubsubClient, err := inits.InitializeConsumerSubscription()
     if err != nil {
         log.Fatalf("Failed to create Pub/Sub client: %v", err)
     }
     defer pubsubClient.Close()
 
-    // configure worker pool
-    cfg := config.NewConfig(10000, bigQueryClient)
-    workerPool := pool.NewPool(cfg.NumWorkers, cfg.BigQueryClient)
-    workerPool.Run()
+	// create firestore client (shared across workers)
+	firestoreClient, err := inits.InitializeFirestoreClient()
+	if err != nil {
+		log.Fatalf("Error initializing firestore client: %v", err)
+	}
+	defer firestoreClient.Close()
 
-    // we'll use a counter to assign IDs to jobs.
+    // assign IDs to jobs; not exactly necessary but good for tracking and debugging
     var counter int32 = 1
 
-    // use Pub/Sub's Receive method, which calls the provided callback concurrently.
-    // the callback function should acknowledge the message when done.
+	// limit max number of msgs we can receive at once
+	sub.ReceiveSettings.MaxOutstandingMessages = 1000
+	// limit max number of goroutines spawned to process messages
+	sub.ReceiveSettings.NumGoroutines = 100
+
+	ctx := context.Background()
+
+	// NOTE: previously we were using our own worker pool (because of RabbitMQ) but it makes no sense to when
+	// 		 sub.Receive handles concurrent message handling for us 
+    // use Pub/Sub's Receive method, which calls the provided callback asynchronously.
+	// ack is only called when message is successfully processed; otherwise message is redelivered
     err = sub.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
         log.Printf("Received Pub/Sub message: %s", m.Data)
 
-		// we want to ack the message AFTER processing it, not on enqueue
-		// so, we need to create a done channel to signal completion
-		// and ensure that we block until the job is done
-		// since sub.Receive() itself is concurrent and we use a worker pool,
-		// this doesn't block the main thread or other messages
-		// NOTE: chan strut{} takes 0 bytes so its the most efficient way for signaling
-		// if you're wondering why not ack within the worker, its because documentation
-		// states for control flow, the ack should be done in the callback and not in a goroutine
-		done := make(chan struct{})
+		jobID := atomic.AddInt32(&counter, 1)
 
-        job := pool.Job{
-            ID:   atomic.AddInt32(&counter, 1),
-            Data: m.Data,
-			Done: done,
-        }
+		newJob, err := job.NewJob(m.Data, jobID, bigQueryClient, firestoreClient)
+		if err != nil {
+			log.Printf("Failed to create job %d: %s", jobID, err)
+			return
+		}
 
-        workerPool.JobQueue <- job
+		err = newJob.Process()
+		if err != nil {
+			log.Printf("Failed to process job %d: %s", jobID, err)
+			return
+		}
 
-		// since done is a chan struct{}, we can simply say 'close(done)' 
-		// within the worker goroutine to signal completion and use below to wait
-		<-done
 		fmt.Println("Job done, acking message (BIGQUERY)")
 		m.Ack()
     })
@@ -94,56 +84,4 @@ func main() {
 
     // block forever (or until process is terminated)
     select {}
-}
-
-func initializeConsumerSubscription() (*pubsub.Subscription, *pubsub.Client, error) {
-    ctx := context.Background()
-    projectID := "jtrackerkimpark" // in prod, retrieve from env vars
-
-    var opts []option.ClientOption
-    if pubsubEmulatorHost := os.Getenv("PUBSUB_EMULATOR_HOST"); pubsubEmulatorHost != "" {
-        log.Printf("Connecting to Pub/Sub emulator at %s", pubsubEmulatorHost)
-        opts = append(opts, 
-            option.WithEndpoint(pubsubEmulatorHost),
-            option.WithoutAuthentication(),
-        )
-    } else {
-        log.Println("PUBSUB_EMULATOR_HOST not set; using credentials")
-        opts = append(opts, option.WithCredentialsFile("pubsub-credentials.json"))
-    }
-    
-    client, err := pubsub.NewClient(ctx, projectID, opts...)
-    if err != nil {
-        return nil, nil, fmt.Errorf("failed to create Pub/Sub client: %w", err)
-    }
-
-    subName := "bigquery-sub"
-    sub, err := client.CreateSubscription(ctx, subName, pubsub.SubscriptionConfig{
-		Topic: client.Topic("applications"),
-		AckDeadline: 10 * time.Second,
-		EnableMessageOrdering: true,
-	})
-	if err != nil {
-		if err.Error() == "rpc error: code = AlreadyExists desc = Subscription already exists" {
-			log.Printf("Subscription already exists, connecting to it")
-			sub = client.Subscription(subName)
-			return sub, client, nil
-		}
-		// other error; fail
-		client.Close()
-		return nil, nil, fmt.Errorf("failed to create subscription: %w", err)
-	}
-    
-    // double check the sub even exists
-    exists, err := sub.Exists(ctx)
-    if err != nil {
-        client.Close()
-        return nil, nil, fmt.Errorf("failed to verify subscription existence: %w", err)
-    }
-    if !exists {
-        client.Close()
-        return nil, nil, fmt.Errorf("subscription %q does not exist", subName)
-    }
-    
-    return sub, client, nil
 }

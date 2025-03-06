@@ -34,6 +34,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 	"net/http"
 	"strconv"
 
@@ -344,6 +345,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 		"location":    addApplicationRequest.Location,
 		"role":        addApplicationRequest.Role,
 		"status":      addApplicationRequest.Status,
+		"timestamp":   time.Now().Unix() * 1000,	// frontend sends ms so we send ms
 		"objectID":    doc.ID,
 	}
 
@@ -501,6 +503,7 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		"email":     email,
 		"objectID":  applicationID,
 		"status":    EditApplicationStatusRequest.Status,
+		"timestamp":   time.Now().Unix() * 1000,	// frontend sends ms so we send ms
 	}
 
 	err = h.publishMessage(message); if err != nil {
@@ -574,6 +577,7 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		"location":    addApplicationRequest.Location,
 		"role":        addApplicationRequest.Role,
 		"objectID":    applicationID,
+		"timestamp":   time.Now().Unix() * 1000,	// frontend sends ms so we send ms
 	}
 
 	err = h.publishMessage(message); if err != nil {

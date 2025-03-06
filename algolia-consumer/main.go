@@ -4,33 +4,15 @@ package main
 // later, use worker pools (goroutines) to handle messages to index algolia
 import (
 	"log"
-	"time"
-	"os"
 	"fmt"
 	"context"
 	"sync/atomic"
 
-	"github.com/juhun32/copium/algolia-consumer/config"
-	"github.com/juhun32/copium/algolia-consumer/pool"
-
-	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
-	"github.com/joho/godotenv"
+	"github.com/juhun32/copium/algolia-consumer/inits"
+	"github.com/juhun32/copium/algolia-consumer/job"
 
 	"cloud.google.com/go/pubsub"
-	"google.golang.org/api/option"
 )
-
-func initializeAlgoliaClient() (*search.APIClient, error) {
-	appID := os.Getenv("ALGOLIA_APP_ID")
-	writeApiKey := os.Getenv("ALGOLIA_WRITE_API_KEY")
-
-	algoliaClient, err := search.NewClient(appID, writeApiKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return algoliaClient, nil
-}
 
 // export PUBSUB_EMULATOR_HOST=localhost:8085
 // export PUBSUB_PROJECT_ID=jtrackerkimpark
@@ -40,57 +22,52 @@ func initializeAlgoliaClient() (*search.APIClient, error) {
 // gcloud beta emulators pubsub start --project=jtrackerkimpark
 // >>>> run the same in bigquery consumer (just change topic name)
 func main() {
-    err := godotenv.Load()
-    if err != nil {
-        log.Fatalf("Error loading .env file")
-    }
-
     // create algolia client (shared across workers)
-    algoliaClient, err := initializeAlgoliaClient()
+    algoliaClient, err := inits.InitializeAlgoliaClient()
     if err != nil {
         log.Fatalf("Error initializing algolia client: %v", err)
     }
 
-	ctx := context.Background()
-	sub, pubsubClient, err := initializeConsumerSubscription()
+	// create pubsub client and subscription
+	sub, pubsubClient, err := inits.InitializeConsumerSubscription()
     if err != nil {
         log.Fatalf("Failed to create Pub/Sub client: %v", err)
     }
     defer pubsubClient.Close()
 
-    // configure worker pool
-    cfg := config.NewConfig(10000, algoliaClient)
-    workerPool := pool.NewPool(cfg.NumWorkers, cfg.AlgoliaClient)
-    workerPool.Run()
-
-    // we'll use a counter to assign IDs to jobs.
+    // assign IDs to jobs; not exactly necessary but good for tracking and debugging
     var counter int32 = 1
+	
+	// limit max number of msgs we can receive at once
+	sub.ReceiveSettings.MaxOutstandingMessages = 1000
+	// limit max number of goroutines spawned to process messages
+	sub.ReceiveSettings.NumGoroutines = 100
 
-    // use Pub/Sub's Receive method, which calls the provided callback concurrently.
-    // the callback function should acknowledge the message when done.
+	ctx := context.Background()
+
+	// NOTE: previously we were using our own worker pool (because of RabbitMQ) but it makes no sense to when
+	// 		 sub.Receive handles concurrent message handling for us 
+    // use Pub/Sub's Receive method, which calls the provided callback asynchronously.
+	// ack is only called when message is successfully processed; otherwise message is redelivered
     err = sub.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
         log.Printf("Received Pub/Sub message: %s", m.Data)
 
-		// we want to ack the message AFTER processing it, not on enqueue
-		// so, we need to create a done channel to signal completion
-		// and ensure that we block until the job is done
-		// since sub.Receive() itself is concurrent and we use a worker pool,
-		// this doesn't block the main thread or other messages
-		// NOTE: chan strut{} takes 0 bytes so its the most efficient way for signaling
-		done := make(chan struct{})
+		jobID := atomic.AddInt32(&counter, 1)
 
-        job := pool.Job{
-            ID:   atomic.AddInt32(&counter, 1),
-            Data: m.Data,
-			Done: done,
-        }
+		newJob, err := job.NewJob(m.Data, jobID, algoliaClient)
+		if err != nil {
+			log.Printf("Failed to create job %s: %s", jobID, err)
+			return
+		}
 
-        workerPool.JobQueue <- job
+		err = newJob.Process()
+		if err != nil {
+			log.Printf("Failed to process job %s: %s", jobID, err)
+			return
+		}
 
-		// block until the job is done
-		<-done
-		fmt.Println("Job done, acking message (ALGOLIA)")
-        m.Ack()
+		fmt.Println("Job done, acking message (BIGQUERY)")
+		m.Ack()
     })
     if err != nil {
         log.Printf("Error receiving messages: %v", err)
@@ -98,59 +75,4 @@ func main() {
 
     // block forever (or until process is terminated)
     select {}
-}
-
-func initializeConsumerSubscription() (*pubsub.Subscription, *pubsub.Client, error) {
-    ctx := context.Background()
-    projectID := "jtrackerkimpark" // in prod, retrieve from env vars
-
-	// configure whether to be in prod or emulator
-    var opts []option.ClientOption
-    if pubsubEmulatorHost := os.Getenv("PUBSUB_EMULATOR_HOST"); pubsubEmulatorHost != "" {
-        log.Printf("Connecting to Pub/Sub emulator at %s", pubsubEmulatorHost)
-        opts = append(opts, 
-            option.WithEndpoint(pubsubEmulatorHost),
-            option.WithoutAuthentication(),
-        )
-    } else {
-        log.Println("PUBSUB_EMULATOR_HOST not set; using credentials")
-        opts = append(opts, option.WithCredentialsFile("pubsub-credentials.json"))
-    }
-    
-	// establish connection, uses opts above to determine whether to use emulator or credentials (for prod)
-    client, err := pubsub.NewClient(ctx, projectID, opts...)
-    if err != nil {
-        return nil, nil, fmt.Errorf("failed to create Pub/Sub client: %w", err)
-    }
-
-	// create subscription to the `applications` topic (if it doesnt exist)
-    subName := "algolia-sub"
-    sub, err := client.CreateSubscription(ctx, subName, pubsub.SubscriptionConfig{
-		Topic: client.Topic("applications"),
-		AckDeadline: 10 * time.Second,
-		EnableMessageOrdering: true,
-	})
-	if err != nil {
-		if err.Error() == "rpc error: code = AlreadyExists desc = Subscription already exists" {
-			log.Printf("Subscription already exists, connecting to it")
-			sub = client.Subscription(subName)
-			return sub, client, nil
-		}
-		// other error; fail
-		client.Close()
-		return nil, nil, fmt.Errorf("failed to create subscription: %w", err)
-	}
-    
-    // double check the sub even exists
-    exists, err := sub.Exists(ctx)
-    if err != nil {
-        client.Close()
-        return nil, nil, fmt.Errorf("failed to verify subscription existence: %w", err)
-    }
-    if !exists {
-        client.Close()
-        return nil, nil, fmt.Errorf("subscription %q does not exist", subName)
-    }
-    
-    return sub, client, nil
 }
