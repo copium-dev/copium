@@ -63,13 +63,15 @@ func main() {
 
 		jobID := atomic.AddInt32(&counter, 1)
 
+		// create a new job with necessary data received from pubsub
 		newJob, err := job.NewJob(m.Data, jobID, bigQueryClient, firestoreClient)
 		if err != nil {
 			log.Printf("Failed to create job %d: %s", jobID, err)
 			return
 		}
 
-		err = newJob.Process()
+		// process the job, use the same context as the aprent
+		err = newJob.Process(ctx)
 		if err != nil {
 			log.Printf("Failed to process job %d: %s", jobID, err)
 			return

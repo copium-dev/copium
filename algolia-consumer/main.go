@@ -56,13 +56,13 @@ func main() {
 
 		newJob, err := job.NewJob(m.Data, jobID, algoliaClient)
 		if err != nil {
-			log.Printf("Failed to create job %s: %s", jobID, err)
+			log.Printf("Failed to create job %d: %s", jobID, err)
 			return
 		}
 
 		err = newJob.Process()
 		if err != nil {
-			log.Printf("Failed to process job %s: %s", jobID, err)
+			log.Printf("Failed to process job %d: %s", jobID, err)
 			return
 		}
 
