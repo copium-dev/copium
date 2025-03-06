@@ -60,7 +60,7 @@ func main() {
 			return
 		}
 
-		err = newJob.Process()
+		err = newJob.Process(ctx)
 		if err != nil {
 			log.Printf("Failed to process job %d: %s", jobID, err)
 			return

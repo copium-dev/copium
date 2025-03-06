@@ -131,12 +131,9 @@ def check_for_new_roles():
 
 
 # IMPORTANT: On the VM we should run this on a cron job as to not waste precious memory!!!!!!
-# just for local testing it's running every minute
-# schedule.every(1).minutes.do(check_for_new_roles)
+def main():
+    print("Starting process...")
+    check_for_new_roles
 
-print("Starting process...")
-# while True:
-    # schedule.run_pending()
-    # time.sleep(1)
-
-check_for_new_roles()
+if __name__ == "__main__":
+    main()

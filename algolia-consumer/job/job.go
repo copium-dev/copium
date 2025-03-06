@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"context"
 
 	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
 )
@@ -38,26 +39,36 @@ func NewJob(data []byte, id int32, algoliaClient *search.APIClient) (*Job, error
     }, nil
 }
 
-func (j *Job) Process() error {
+func (j *Job) Process(ctx context.Context) error {
+	// context is not required for any operations but this is just a security check
+	// to make sure we dont process jobs after their context has been cancelled
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
     log.Printf("[*] Algolia [*]")
     log.Printf("-------")
     log.Printf("Processing Job With ID [%d] with content: [%s]", j.ID, j.Data)
     
     switch j.Operation {
 	case "add":
-		return j.addApplication()
+		return j.addApplication(ctx)
 	case "edit":
-		return j.editApplication()
+		return j.editApplication(ctx)
 	case "delete":
-		return j.deleteApplication()
+		return j.deleteApplication(ctx)
 	case "userDelete":
-		return j.userDelete()
+		return j.userDelete(ctx)
     default:
         return fmt.Errorf("unknown operation: %s", j.Operation)
     }
 }
 
-func (j *Job) addApplication() error {
+func (j *Job) addApplication(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	data := j.Data
 
 	// add the application to algolia
@@ -80,7 +91,11 @@ func (j *Job) addApplication() error {
 	return nil
 }
 
-func (j *Job) editApplication() error {
+func (j *Job) editApplication(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	data := j.Data
 
 	// edit the application in algolia
@@ -108,7 +123,11 @@ func (j *Job) editApplication() error {
 	return nil
 }
 
-func (j *Job) deleteApplication() error {
+func (j *Job) deleteApplication(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	data := j.Data
 
 	// delete the application from algolia
@@ -137,7 +156,11 @@ func (j *Job) deleteApplication() error {
 }
 
 // note: DeleteBy is resource intensive so we should carefully monitor
-func (j *Job) userDelete() error {
+func (j *Job) userDelete(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	data := j.Data
 
 	// extract and delete every objectID where email == data["email"]
