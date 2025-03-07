@@ -20,7 +20,7 @@ type Job struct {
     FirestoreClient *firestore.Client
 }
 
-// all this really does is unmarshal the raw data and figure out the operation
+// all this really does is unmarshal the raw data and figure out the operation 
 func NewJob(data []byte, id int32, bqClient *bigquery.Client, fsClient *firestore.Client) (*Job, error) {
     var parsedData map[string]interface{}
     err := json.Unmarshal(data, &parsedData)

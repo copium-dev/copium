@@ -74,6 +74,7 @@
                 <input type="hidden" name="oldLocation" value={location} />
                 <input type="hidden" name="oldAppliedDate" value={appliedDate} />
                 <input type="hidden" name="oldLink" value={link} />
+                <input type="hidden" name="status" value={status} />
                 <div
                     class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_5fr] w-full items-center gap-1.5"
                 >

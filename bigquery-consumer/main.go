@@ -30,19 +30,19 @@ func main() {
         log.Fatalf("Error initializing algolia client: %v", err)
     }
 
-	// create pubsub client and subscription
-	sub, pubsubClient, err := inits.InitializeConsumerSubscription()
-    if err != nil {
-        log.Fatalf("Failed to create Pub/Sub client: %v", err)
-    }
-    defer pubsubClient.Close()
-
 	// create firestore client (shared across workers)
 	firestoreClient, err := inits.InitializeFirestoreClient()
 	if err != nil {
 		log.Fatalf("Error initializing firestore client: %v", err)
 	}
 	defer firestoreClient.Close()
+
+	// create pubsub client and subscription
+	sub, pubsubClient, err := inits.InitializeConsumerSubscription()
+    if err != nil {
+        log.Fatalf("Failed to create Pub/Sub client: %v", err)
+    }
+    defer pubsubClient.Close()
 
     // assign IDs to jobs; not exactly necessary but good for tracking and debugging
     var counter int32 = 1

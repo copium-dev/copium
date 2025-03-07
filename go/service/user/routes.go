@@ -115,6 +115,7 @@ type EditApplicationRequest struct {
 	OldLocation string `json:"oldLocation"`
 	OldLink     string `json:"oldLink"`
 	OldAppliedDate int64 `json:"oldAppliedDate"`
+	Status 		string 	`json:status`
 }
 
 type Handler struct {
@@ -542,22 +543,22 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("User authenticated")
 
 	// extract json from request body
-	var addApplicationRequest EditApplicationRequest
-	err = json.NewDecoder(r.Body).Decode(&addApplicationRequest)
+	var editApplicationRequest EditApplicationRequest
+	err = json.NewDecoder(r.Body).Decode(&editApplicationRequest)
 	if err != nil {
 		http.Error(w, "Error decoding request body", http.StatusBadRequest)
 		return
 	}
 
-	applicationID := addApplicationRequest.ID
+	applicationID := editApplicationRequest.ID
 
 	// frontend will send all fields, so we need to update all fields
 	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
-		{Path:  "role", Value: addApplicationRequest.Role},
-		{Path:  "company", Value: addApplicationRequest.Company},
-		{Path:  "location", Value: addApplicationRequest.Location},
-		{Path:  "link", Value: addApplicationRequest.Link},
-		{Path:  "appliedDate", Value: addApplicationRequest.AppliedDate},
+		{Path:  "role", Value: editApplicationRequest.Role},
+		{Path:  "company", Value: editApplicationRequest.Company},
+		{Path:  "location", Value: editApplicationRequest.Location},
+		{Path:  "link", Value: editApplicationRequest.Link},
+		{Path:  "appliedDate", Value: editApplicationRequest.AppliedDate},
 	})
 	if err != nil {
 		fmt.Printf("Error editing application: %v\n", err)
@@ -575,11 +576,12 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	message := map[string]interface{}{
 		"operation":   "edit",
 		"email":       email,
-		"appliedDate": addApplicationRequest.AppliedDate,
-		"company":     addApplicationRequest.Company,
-		"link":        addApplicationRequest.Link,
-		"location":    addApplicationRequest.Location,
-		"role":        addApplicationRequest.Role,
+		"appliedDate": editApplicationRequest.AppliedDate,
+		"company":     editApplicationRequest.Company,
+		"link":        editApplicationRequest.Link,
+		"location":    editApplicationRequest.Location,
+		"role":        editApplicationRequest.Role,
+		"status": 	   editApplicationRequest.Status,	// status is only sent to satisfy bigquery schema
 		"objectID":    applicationID,
 		"timestamp":   time.Now().Unix() * 1000,	// frontend sends ms so we send ms
 	}
@@ -587,11 +589,11 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	err = h.publishMessage(message); if err != nil {
 		// revert status if publish fails
 		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(context.Background(), []firestore.Update{
-			{Path: "role", Value: addApplicationRequest.OldRole},
-			{Path: "company", Value: addApplicationRequest.OldCompany},
-			{Path: "location", Value: addApplicationRequest.OldLocation},
-			{Path: "link", Value: addApplicationRequest.OldLink},
-			{Path: "appliedDate", Value: addApplicationRequest.OldAppliedDate},
+			{Path: "role", Value: editApplicationRequest.OldRole},
+			{Path: "company", Value: editApplicationRequest.OldCompany},
+			{Path: "location", Value: editApplicationRequest.OldLocation},
+			{Path: "link", Value: editApplicationRequest.OldLink},
+			{Path: "appliedDate", Value: editApplicationRequest.OldAppliedDate},
 		})
 		if err != nil {
 			fmt.Printf("Error reverting application: %v\n", err)

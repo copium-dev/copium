@@ -180,6 +180,7 @@ export const actions = {
             // this is already unix timestamp
             oldAppliedDate: Number(formData.get('oldAppliedDate')),
             oldLink: formData.get('oldLink'),
+            status: formData.get('status')
         }
 
         const response = await fetch(`${BACKEND_URL}/user/editApplication`, {
