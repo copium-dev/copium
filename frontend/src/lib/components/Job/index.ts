@@ -8,4 +8,5 @@ export interface JobProps {
     location: string;
     status: string;
     link: string | undefined | null;
+    visible: boolean;
 }

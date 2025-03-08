@@ -114,6 +114,8 @@
     </div>
 
     <div class="mb-4">
+        <!-- by default, visible is true. but for eager loading, if delete application called within Job
+         visible is set to false and there is a if block to only render if the job is visible -->
         {#each data.applications as job (job.objectID)}
             <Job
                 objectID={job.objectID}
@@ -123,6 +125,7 @@
                 location={job.location}
                 status={job.status}
                 link={job.link}
+                visible={true}
             />
         {/each}
     </div>

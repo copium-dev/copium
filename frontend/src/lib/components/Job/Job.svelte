@@ -22,6 +22,7 @@
     export let location: string;
     export let status: string;
     export let link: string | undefined | null;
+    export let visible: boolean;
 
     const statusValues: Record<string, number> = {
         Rejected: 10.75,
@@ -90,7 +91,8 @@
             console.error("Failed to delete application");
         } else {
             console.log("Application deleted successfully");
-            goto("/dashboard");
+            visible = false;
+            console.log("visible", visible);
         }
     }
 
@@ -118,6 +120,7 @@
 </script>
 
 <Separator orientation="horizontal" class="mx-auto w-full border-t border-dashed bg-transparent" />
+{#if visible}
 <div class="px-8 flex flex-col justify-start items-center py-4 sm:py-0">
     <div
         class="gap-4 sm:gap-0 w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center"
@@ -230,7 +233,6 @@
                 <AlertDialog.Trigger asChild let:builder>
                     <Button
                         builders={[builder]}
-                        on:click={deleteApplication}
                         class="text-red-500 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none sm:hover:bg-transparent hover:text-red-500 sm:hover:bg-accent"
                     >
                         Delete
@@ -257,3 +259,4 @@
         </div>
     </div>
 </div>
+{/if}

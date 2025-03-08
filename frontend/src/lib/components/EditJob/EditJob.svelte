@@ -7,7 +7,7 @@
     import { Label } from "$lib/components/ui/label";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
 
-    export let objectID: string; // temporarily not used; will be used for db operations later
+    export let objectID: string;
     export let company: string;
     export let role: string;
     export let appliedDate: number; // raw unix timestamp 
@@ -156,32 +156,7 @@
                     </AlertDialog.Action>
 
                     <div class="flex gap-2">
-                        
-                        <!-- <AlertDialog.Trigger asChild let:builder>
-                            <Button builders={[builder]} variant="outline" class="w-full sm:hidden text-red-500 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 mt-2 sm:mt-0">
-                                Delete
-                            </Button>
-                          </AlertDialog.Trigger>
-                          <AlertDialog.Content>
-                            <AlertDialog.Header>
-                              <AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
-                              <AlertDialog.Description>
-                                This action cannot be undone. This will permanently delete your account
-                                and remove your data from our servers.
-                              </AlertDialog.Description>
-                            </AlertDialog.Header>
-                            <AlertDialog.Footer>
-                              <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-                              <AlertDialog.Action
-                                on:click={deleteApplication}
-                              >
-                                Continue
-                                </AlertDialog.Action>
-                            </AlertDialog.Footer>
-                          </AlertDialog.Content> -->
-
                         <AlertDialog.Cancel class="w-full">Cancel</AlertDialog.Cancel>
-
                         <AlertDialog.Root>
                             <AlertDialog.Trigger asChild let:builder>
                                 <Button builders={[builder]} variant="outline" class="w-full sm:hidden text-red-500 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 mt-2 sm:mt-0">
