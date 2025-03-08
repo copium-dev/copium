@@ -119,8 +119,8 @@
     let imgSrc: string;
 </script>
 
-<Separator orientation="horizontal" class="mx-auto w-full border-t border-dashed bg-transparent" />
 {#if visible}
+<Separator orientation="horizontal" class="mx-auto w-full border-t border-dashed bg-transparent" />
 <div class="px-8 flex flex-col justify-start items-center py-4 sm:py-0">
     <div
         class="gap-4 sm:gap-0 w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center"
@@ -143,13 +143,13 @@
                     </div>
                 <div class="sm:hidden flex flex-row items-center gap-4">
                     <EditJob
-                    objectID={objectID}
-                    company={company}
-                    role={role}
-                    appliedDate={appliedDate}
-                    location={location}
-                    status={status}
-                    link={link}
+                        objectID={objectID}
+                        company={company}
+                        role={role}
+                        appliedDate={appliedDate}
+                        location={location}
+                        status={status}
+                        link={link}
                     />
                 </div>
             </div>
