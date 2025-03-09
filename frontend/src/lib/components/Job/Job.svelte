@@ -36,17 +36,12 @@
     function formatDate(timestamp: number): string {
         if (!timestamp) return "";
 
-        const date = new Date(timestamp);
+        const date = new Date(timestamp * 1000);
         if (isNaN(date.getTime())) return "";
 
-        // Adjust for timezone
-        const adjustedDate = new Date(
-            date.getTime() + date.getTimezoneOffset() * 60 * 1000
-        );
-
-        const month = String(adjustedDate.getMonth() + 1).padStart(2, "0");
-        const day = String(adjustedDate.getDate()).padStart(2, "0");
-        const year = adjustedDate.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        const year = date.getFullYear();
 
         return `${month}-${day}-${year}`;
     }
@@ -91,7 +86,6 @@
         } else {
             console.log("Application deleted successfully");
             visible = false;
-            console.log("visible", visible);
         }
     }
 

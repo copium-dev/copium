@@ -8,11 +8,24 @@
     import { changePage } from "$lib/utils/filter";
 
     import { goto } from "$app/navigation";
+    import { afterNavigate } from "$app/navigation";
+    import { page as pageStore } from "$app/state";
 
     $: count = $dashboardPaginationStore.count;
 
     const perPage = 10;
     const siblingCount = 1;
+
+    let currentPageFromURL = parseInt(pageStore.url.searchParams.get('page') || '1');
+
+    $: dashboardPaginationStore.update(state => ({
+        ...state,
+        currentPage: currentPageFromURL
+    }));
+
+    afterNavigate(() => {
+        currentPageFromURL = parseInt(pageStore.url.searchParams.get('page') || '1');
+    });
 
     function nextPage() {
         const params = changePage("next");
@@ -25,7 +38,7 @@
     }
 </script>
 
-<Pagination.Root {count} {perPage} {siblingCount} let:pages let:currentPage>
+<Pagination.Root {count} {perPage} {siblingCount} let:pages page={currentPageFromURL}>
     <Pagination.Content>
         <Pagination.Item>
             <Pagination.PrevButton on:click={prevPage}>
@@ -42,7 +55,7 @@
                 <Pagination.Item>
                     <Pagination.Link
                         {page}
-                        isActive={currentPage === page.value}
+                        isActive={currentPageFromURL === page.value}
                         on:click={() => {
                             const params = changePage(page.value);
                             goto(`?${params.toString()}`);

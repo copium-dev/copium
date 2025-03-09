@@ -30,7 +30,7 @@
     }
 
     function handlePostingsClick() {
-        goto("/postings?page=1");
+        goto("/postings");
     }
 
     function handleDashboardClick() {
@@ -110,7 +110,7 @@
                     </div>
                     <nav class="flex items-center gap-2 sm:gap-6 sm:mx-8 sm:mt-1.5">
                         <a
-                            href="/postings?page=1"
+                            href="/postings"
                             class={`font-medium transition-colors text-xs sm:text-xs hidden lg:block ${page.url.pathname === "/postings" ? "text-foreground" : "hover:text-foreground/50 text-foreground/50"}`}
                         >
                             Postings
@@ -147,7 +147,6 @@
                             </Button>
                         </DropdownMenu.Trigger>
                         <DropdownMenu.Content class="w-56">
-                            <!-- <DropdownMenu.Label>My Account</DropdownMenu.Label> -->
                             <DropdownMenu.Group class="lg:hidden">
                                 <DropdownMenu.Item
                                     on:click={handlePostingsClick}
@@ -189,7 +188,7 @@
             </div>
         </header>
     </div>
-    <main class="container px-0 h-full w-full bg-background overflow-auto border-x border-dashed">
+    <main class="container px-0 h-full w-full overflow-auto bg-background border-x border-dashed">
         {@render children()}
     </main>
     <footer class="border-t border-dashed">

@@ -86,7 +86,6 @@ func (h *Handler) GetPostings(w http.ResponseWriter, r *http.Request) {
 	log.Println("Page requested:", page)
 
 	// 2. build a search params object (see users/dashboard as a reference)
-	// (IM PRETTY SURE) we don't need Facets and FacetFilters param
 	// 2.a) set free text query if provided
 	// 2.b) finalize search params object
 

@@ -333,11 +333,6 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Application added")
 
-	w.WriteHeader(http.StatusCreated)
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush() // flushes the headers immediately (below are background operations)
-	}
-
 	message := map[string]interface{}{
 		"operation":   "add",
 		"email":       email,
@@ -347,7 +342,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 		"location":    addApplicationRequest.Location,
 		"role":        addApplicationRequest.Role,
 		"status":      addApplicationRequest.Status,
-		"timestamp":   time.Now().Unix() * 1000,	// frontend sends ms so we send ms
+		"timestamp":   time.Now().Unix(),
 		"objectID":    doc.ID,
 	}
 
@@ -356,8 +351,10 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(doc.ID).Delete(r.Context())
 		if err != nil {
 			fmt.Printf("Error deleting application: %v\n", err)
+			http.Error(w, "Error reverting application add", http.StatusInternalServerError)
 		}
 		log.Println("AddApplication reverted because of publish failure")
+		http.Error(w, "Error publishing message", http.StatusInternalServerError)
 		return
 	}
 
@@ -368,13 +365,20 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	_, err = userDoc.Update(context.Background(), []firestore.Update{
 		{Path: "applicationsCount", Value: firestore.Increment(1)},
 	})
-	// can't return HTTP error if we already wrote StatusCreated...
 	if err != nil {
 		fmt.Printf("Error updating applications count: %v\n", err)
+		http.Error(w, "Error updating application count", http.StatusInternalServerError)
 		return
 	}
 
 	log.Println("Applications count updated, added by 1")
+	log.Println("DB and PubSub operations success, returning ID for eager loading")
+
+	// return doc.ID to user for eager loading
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"objectID":    doc.ID,
+	})
 }
 
 // consistency: save current application status; if publish fails, revert status
@@ -414,11 +418,6 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Application deleted")
 
-	w.WriteHeader(http.StatusOK)
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush() // flushes the headers immediately (below are background operations)
-	}
-
 	message := map[string]interface{}{
 		"operation": "delete",
 		"email":     email,
@@ -437,8 +436,11 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			fmt.Printf("Error reverting application: %v\n", err)
+			http.Error(w, "Error reverting application delete", http.StatusInternalServerError)
+			return
 		}
 		log.Println("DeleteApplication reverted because of publish failure")
+		http.Error(w, "Error publishing message", http.StatusInternalServerError)
 		return
 	}
 
@@ -449,13 +451,19 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	_, err = userDoc.Update(context.Background(), []firestore.Update{
 		{Path: "applicationsCount", Value: firestore.Increment(-1)},
 	})
-	// can't return HTTP error if we already wrote StatusOK...
 	if err != nil {
 		fmt.Printf("Error updating applications count: %v\n", err)
-		return
+		http.Error(w, "Error updating application count", http.StatusInternalServerError)
 	}
+
+	log.Println("Applications count updated, decremented by 1")
+	log.Println("DB and PubSub operations success, returning success for eager loading")
+
+	w.WriteHeader(http.StatusOK)
 }
 
+// NOTE: eager loading is not necessary here because frontend already assumes success
+// if any error, a refresh would show the correct (reverted) state
 func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] EditStatus [*]")
 	log.Println("-----------------")
@@ -497,18 +505,13 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Application status edited")
 
-	w.WriteHeader(http.StatusCreated)
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush() // flushes the headers immediately (below are background operations)
-	}
-
 	message := map[string]interface{}{
 		"operation": "edit",
 		"email":     email,
 		"objectID":  applicationID,
 		"status":    newStatus,
 		"appliedDate": appliedDate,
-		"timestamp":   time.Now().Unix() * 1000,	// frontend sends ms so we send ms
+		"timestamp":   time.Now().Unix(),
 	}
 
 	err = h.publishMessage(message); if err != nil {
@@ -521,10 +524,17 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			fmt.Printf("Error reverting status: %v\n", err)
+			http.Error(w, "Error reverting status", http.StatusInternalServerError)
+			return
 		}
 		log.Println("EditStatus reverted because of publish failure")
+		http.Error(w, "Error publishing message", http.StatusInternalServerError)
 		return
 	}
+
+	log.Println("Status edited")
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
@@ -568,11 +578,6 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Application edited")
 
-	w.WriteHeader(http.StatusOK)
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush() // flushes the headers immediately (below are background operations)
-	}
-
 	message := map[string]interface{}{
 		"operation":   "edit",
 		"email":       email,
@@ -583,7 +588,7 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		"role":        editApplicationRequest.Role,
 		"status": 	   editApplicationRequest.Status,	// status is only sent to satisfy bigquery schema
 		"objectID":    applicationID,
-		"timestamp":   time.Now().Unix() * 1000,	// frontend sends ms so we send ms
+		"timestamp":   time.Now().Unix(),
 	}
 
 	err = h.publishMessage(message); if err != nil {
@@ -597,10 +602,18 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			fmt.Printf("Error reverting application: %v\n", err)
+			http.Error(w, "Error reverting application edit", http.StatusInternalServerError)
+			return
 		}
 		log.Println("EditApplication reverted because of publish failure")
+		http.Error(w, "Error publishing message", http.StatusInternalServerError)
 		return
 	}
+
+	log.Println("Application edited")
+	log.Println("DB and PubSub operations success, returning success for eager loading")
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {

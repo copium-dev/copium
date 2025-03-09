@@ -2,6 +2,7 @@ import type { PageServerLoad } from './$types';
 import { BACKEND_URL } from '$env/static/private';
 import { redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
+import { offsetTimezone } from '$lib/utils/date';
 
 interface Job {
     objectID: string;
@@ -74,7 +75,7 @@ export const actions = {
             role: formData.get('role'),
             company: formData.get('company'),
             location: formData.get('location'),
-            appliedDate: Date.parse(formData.get('appliedDate') as string),
+            appliedDate: offsetTimezone(Date.parse(formData.get('appliedDate') as string)),
             link: formData.get('link'),
             status: 'Applied'
         }
@@ -88,16 +89,33 @@ export const actions = {
             body: JSON.stringify(data)
         });
 
+        const json = await response.json();
+
+        const objectID = json.objectID;
+        const appliedDate = offsetTimezone(Date.parse(formData.get('appliedDate') as string))
+        const company = formData.get('company') as string;
+        const link = formData.get('link') as string;
+        const location = formData.get('location') as string;
+        const role = formData.get('role') as string;
+        const status = 'Applied';
+
         if (!response.ok) {
             return {
-                type: 'error',
-                message: 'Failed to add application'
+                addType: 'error',
             };
         }
 
         return {
-            type: 'success',
-            message: 'Application added successfully'
+            addType: 'success',
+            eagerLoadedJob: {
+                objectID,
+                role,
+                company,
+                location,
+                appliedDate,
+                link,
+                status
+            }
         };
     },
     delete: async ({ request, fetch }) => {
@@ -124,13 +142,13 @@ export const actions = {
 
         if (!response.ok) {
             return {
-                type: 'error',
+                deleteType: 'error',
                 message: 'Failed to delete application'
             };
         }
         
         return {
-            type: 'success',
+            deleteType: 'success',
             message: 'Application deleted successfully'
         };
     },
@@ -140,8 +158,11 @@ export const actions = {
             id: formData.get('id'),
             status: formData.get('status'),
             oldStatus: formData.get('oldStatus'),
+            // already unix timestamp so no need to parse
             appliedDate: Number(formData.get('appliedDate')),
         }
+
+        console.log(body.appliedDate)
 
         const response = await fetch(`${BACKEND_URL}/user/editStatus`, {
             method: 'POST',
@@ -154,13 +175,13 @@ export const actions = {
 
         if (!response.ok) {
             return {
-                type: 'error',
+                editStatusType: 'error',
                 message: 'Failed to update application status'
             };
         }
         
         return {
-            type: 'success',
+            editStatusType: 'success',
             message: 'Application status updated successfully'
         };
     },
@@ -172,12 +193,12 @@ export const actions = {
             company: formData.get('company'),
             location: formData.get('location'),
             // this is sent as mm-dd-yyyy so parse into unix timestamp
-            appliedDate: Date.parse(formData.get('appliedDate') as string),
+            appliedDate: offsetTimezone(Date.parse(formData.get('appliedDate') as string)),
             link: formData.get('link'),
             oldRole: formData.get('oldRole'),
             oldCompany: formData.get('oldCompany'),
             oldLocation: formData.get('oldLocation'),
-            // this is already unix timestamp
+            // this is already unix timestamp so no need to parse
             oldAppliedDate: Number(formData.get('oldAppliedDate')),
             oldLink: formData.get('oldLink'),
             status: formData.get('status')
@@ -194,11 +215,12 @@ export const actions = {
 
         if (!response.ok) {
             return {
-                type: 'error',
+                editApplicationType: 'error',
                 message: 'Failed to update application'
             };
         }
 
+        // when eager loading, if response is OK then just send all the new data
         throw redirect(303, '/dashboard');
     }
 } satisfies Actions;

@@ -4,10 +4,11 @@
     import ChevronRight from "svelte-radix/ChevronRight.svelte";
 
     import { postingsPaginationStore } from "$lib/stores/postingsPaginationStore";
-    import { isGridView } from "$lib/stores/postingsViewStore";
 
     import { changePage } from "$lib/utils/filter";
-    import { page } from '$app/stores';
+
+    import { page as pageStore } from "$app/state";
+    import { afterNavigate } from "$app/navigation";
     import { goto } from "$app/navigation";
 
     $: count = $postingsPaginationStore.count;
@@ -17,16 +18,16 @@
     const siblingCount = 1;
 
     // get current page from URL because it needs to follow the URL for correct pagination
-    $: currentPageFromURL = parseInt($page.url.searchParams.get('page') || '1');
+    let currentPageFromURL = parseInt(pageStore.url.searchParams.get('page') || '1');
 
-    // update the store with the current page from URL
-    $: {
-        const pageFromURL = parseInt($page.url.searchParams.get('page') || '1');
-        postingsPaginationStore.update(state => ({
-            ...state,
-            currentPage: pageFromURL
-        }));
-    }
+    $: postingsPaginationStore.update(state => ({
+        ...state,
+        currentPage: currentPageFromURL ? currentPageFromURL : 1
+    }));
+
+    afterNavigate(() => {
+        currentPageFromURL = parseInt(pageStore.url.searchParams.get('page') || '1');
+    });
 
     function nextPage() {
         const params = changePage("next");
@@ -39,7 +40,7 @@
     }
 </script>
 
-<Pagination.Root {count} {perPage} {siblingCount} page={currentPageFromURL} let:pages>
+<Pagination.Root {count} {perPage} {siblingCount} page={currentPageFromURL} let:pages class="w-fit mx-0">
     <Pagination.Content>
         <Pagination.Item>
             <Pagination.PrevButton on:click={prevPage}>

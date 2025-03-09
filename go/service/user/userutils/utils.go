@@ -3,6 +3,7 @@ package userutils
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"slices"
 )
@@ -54,10 +55,30 @@ func ParseQuery(r *http.Request) (string, string, error) {
 
 	// add date range filters if provided
 	if startDate != "" && endDate != "" {
+		startDateInt, err := strconv.Atoi(startDate)
+		if err != nil {
+			return "", "", err
+		}
+		endDateInt, err := strconv.Atoi(endDate)
+		if err != nil {
+			return "", "", err
+		}
+		startDate = fmt.Sprintf("%d", startDateInt / 1000)
+		endDate = fmt.Sprintf("%d", endDateInt / 1000)
 		filtersString = filtersString + fmt.Sprintf(" AND (appliedDate >= %s AND appliedDate <= %s)", startDate, endDate)
 	} else if startDate != "" {
+		startDateInt, err := strconv.Atoi(startDate)
+		if err != nil {
+			return "", "", err
+		}
+		startDate = fmt.Sprintf("%d", startDateInt / 1000)
 		filtersString = filtersString + fmt.Sprintf(" AND appliedDate >= %s", startDate)
 	} else if endDate != "" {
+		endDateInt, err := strconv.Atoi(endDate)
+		if err != nil {
+			return "", "", err
+		}
+		endDate = fmt.Sprintf("%d", endDateInt / 1000)
 		filtersString = filtersString + fmt.Sprintf(" AND appliedDate <= %s", endDate)
 	}
 

@@ -2,6 +2,7 @@
     import { Input } from "$lib/components/ui/input";
     import { Separator } from "$lib/components/ui/separator";
     import * as Table from "$lib/components/ui/table/index.js";
+    import * as HoverCard from "$lib/components/ui/hover-card/index.js";
     import { Button } from "$lib/components/ui/button";
     import Switch from "$lib/components/ui/switch/switch.svelte";
 
@@ -18,7 +19,6 @@
     import { buildParamsFromFilters } from "$lib/utils/filter";
     import FilterPostings from "$lib/components/FilterPostings/FilterPostings.svelte";
     import { postingsFilterStore } from "$lib/stores/postingsFilterStore";
-    // import { isGridView } from "$lib/stores/postingsViewStore";
 
     import PaginatePostings from "$lib/components/PaginatePostings/PaginatePostings.svelte";
     import { postingsPaginationStore } from "$lib/stores/postingsPaginationStore";
@@ -26,6 +26,7 @@
     import type { PageData } from "./$types";
     import { onMount, onDestroy } from "svelte";
     import { goto } from "$app/navigation";
+    import { browser } from '$app/environment';
 
     export let data: PageData;
 
@@ -115,35 +116,26 @@
     }
 
     // list - grid style toggle
-    let isGridView = false;
-
-    // $: if (isGridView) {
-    //     postingsPaginationStore.update((current) => ({
-    //         ...current,
-    //         count: 5 * data.totalPages,
-    //     }));
-    // } else {
-    //     postingsPaginationStore.update((current) => ({
-    //         ...current,
-    //         count: 10 * data.totalPages,
-    //     }));
-    // }
-
-    if (typeof window !== "undefined" && window.localStorage) {
+    let isViewPreferenceLoaded = false;
+    let isGridView: boolean | undefined = undefined;
+    
+    // Use a reactive statement that runs as soon as possible client-side
+    $: if (browser && isGridView === undefined) {
         const savedView = localStorage.getItem("view_preference");
-        if (savedView !== null) {
-            isGridView = savedView === "true";
-        }
+        isGridView = savedView === "true";
+        isViewPreferenceLoaded = true;
     }
 
     onMount(() => {
-        if (typeof window !== "undefined") {
-            window.addEventListener("keydown", handleGlobalKeydown);
-        }
+        window.addEventListener("keydown", handleGlobalKeydown);
+        
+        return () => {
+            window.removeEventListener("keydown", handleGlobalKeydown);
+        };
     });
 
     // save view preference
-    $: if (typeof window !== "undefined" && window.localStorage) {
+    $: if (browser && isViewPreferenceLoaded && isGridView !== undefined) {
         localStorage.setItem("view_preference", isGridView.toString());
     }
 </script>
@@ -160,7 +152,6 @@
                 <div
                     class="flex flex-row gap-4 items-center w-full sm:w-auto mb-4"
                 >
-                    <!-- NOTE: MUST PUT bind:value={$postingsFilterStore.query} -->
                     <Input
                         type="text"
                         placeholder="Search by company, role, or location."
@@ -171,177 +162,217 @@
                     <Separator orientation="vertical" class="h-6" />
                     <FilterPostings />
                 </div>
-                <div class="flex flex-row gap-4 items-center w-full sm:w-auto">
-                    <div class="flex gap-2 items-center justify-center">
-                        <p
-                            class={!isGridView
-                                ? "text-sm font-medium"
-                                : "text-muted-foreground text-sm font-medium"}
-                        >
-                            List
-                        </p>
-                        <Switch bind:checked={isGridView} />
-                        <p
-                            class={isGridView
-                                ? "text-sm font-medium"
-                                : "text-muted-foreground text-sm font-medium"}
-                        >
-                            Grid
-                        </p>
+                {#if isViewPreferenceLoaded}
+                    <div class="flex flex-row gap-4 justify-between items-center w-full sm:w-auto">
+                            <div class="flex gap-2 items-center justify-center">
+                                <p
+                                    class={!isGridView
+                                        ? "text-sm font-medium"
+                                        : "text-muted-foreground text-sm font-medium"}
+                                >
+                                    List
+                                </p>
+                                <Switch bind:checked={isGridView} />
+                                <p
+                                    class={isGridView
+                                        ? "text-sm font-medium"
+                                        : "text-muted-foreground text-sm font-medium"}
+                                >
+                                    Grid
+                                </p>
+                            </div>
+                        <PaginatePostings />
                     </div>
-                    <PaginatePostings />
-                </div>
+                {/if}
             </div>
         </div>
     </div>
-
-    {#if !isGridView}
-        <Table.Root class="w-full table-fixed">
-            <Table.Header>
-                <Table.Row class="border-b border-dashed">
-                    <Table.Head class="border-r border-dashed pl-8 w-2/12">
-                        <span class="inline-flex items-center gap-2">
-                            <Building2 class="w-[15px] h-[15px] stroke-[1.5]" />
-                            Company
-                        </span>
-                    </Table.Head>
-                    <Table.Head class="border-r border-dashed pl-8 w-5/12">
-                        <span class="inline-flex items-center gap-2">
-                            <BriefcaseBusiness
-                                class="w-[15px] h-[15px] stroke-[1.5]"
-                            />
-                            Role
-                        </span>
-                    </Table.Head>
-                    <Table.Head class="border-r border-dashed pl-8 w-2/12">
-                        <span class="inline-flex items-center gap-2">
-                            <Map class="w-[15px] h-[15px] stroke-[1.5]" />
-                            Locations
-                        </span>
-                    </Table.Head>
-                    <Table.Head class="border-r border-dashed pl-8 w-2/12">
-                        <span class="inline-flex items-center gap-2">
-                            <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
-                            Posted
-                        </span>
-                    </Table.Head>
-                    <Table.Head class="border-r border-dashed pl-8 w-2/12">
-                        <span class="inline-flex items-center gap-2">
-                            <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
-                            Updated
-                        </span>
-                    </Table.Head>
-                    <Table.Head class="lg:pl-3 pr-8 w-1/12">
-                        <span class="inline-flex items-center gap-2">
-                            <Link class="w-[15px] h-[15px] stroke-[1.5]" />
-                            Link
-                        </span>
-                    </Table.Head>
-                </Table.Row>
-            </Table.Header>
-            <Table.Body>
+    
+    {#if isViewPreferenceLoaded}
+        {#if !isGridView}
+            <Table.Root class="overflow-hidden table-fixed">
+                <Table.Header>
+                    <Table.Row class="border-b border-dashed">
+                        <Table.Head class="border-r border-dashed pl-8 w-2/12">
+                            <span class="inline-flex items-center gap-2">
+                                <Building2 class="w-[15px] h-[15px] stroke-[1.5]" />
+                                Company
+                            </span>
+                        </Table.Head>
+                        <Table.Head class="border-r border-dashed w-5/12">
+                            <span class="inline-flex items-center gap-2">
+                                <BriefcaseBusiness
+                                    class="w-[15px] h-[15px] stroke-[1.5]"
+                                />
+                                Role
+                            </span>
+                        </Table.Head>
+                        <Table.Head class="border-r border-dashed w-2/12">
+                            <span class="inline-flex items-center gap-2">
+                                <Map class="w-[15px] h-[15px] stroke-[1.5]" />
+                                Locations
+                            </span>
+                        </Table.Head>
+                        <Table.Head class="border-r border-dashed w-2/12">
+                            <span class="inline-flex items-center gap-2">
+                                <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
+                                Posted
+                            </span>
+                        </Table.Head>
+                        <Table.Head class="border-r border-dashed w-2/12">
+                            <span class="inline-flex items-center gap-2">
+                                <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
+                                Updated
+                            </span>
+                        </Table.Head>
+                        <Table.Head class="pr-8 w-1/12">
+                            <span class="inline-flex items-center gap-2">
+                                <Link class="w-[15px] h-[15px] stroke-[1.5]" />
+                                Link
+                            </span>
+                        </Table.Head>
+                    </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                    {#each data.postings as posting, i (i)}
+                        <Table.Row class="border-b border-dashed ">
+                            <Table.Cell
+                                class="border-r border-dashed w-full inline-flex items-center gap-2 h-12 pl-8"
+                            >
+                                <img
+                                    src={data.companyLogos[posting.company_name] ||
+                                        placeholder}
+                                    alt={posting.company_name}
+                                    class="w-6 h-6 rounded-lg object-cover"
+                                />
+                                <p class="truncate">
+                                    {posting.company_name}
+                                </p>
+                            </Table.Cell>
+                            <Table.Cell class="border-r border-dashed">
+                                <p class="truncate">
+                                    {posting.title}
+                                </p>
+                            </Table.Cell>
+                            <Table.Cell class="border-r border-dashed">
+                                <HoverCard.Root>
+                                    <HoverCard.Trigger class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-black">
+                                        <p class="truncate">
+                                            {#if posting.locations.length > 1}
+                                                {posting.locations[0]} <span class="font-semibold">+{posting.locations.length - 1}</span>
+                                            {:else}
+                                                {posting.locations[0]}
+                                            {/if}
+                                        </p>
+                                    </HoverCard.Trigger>
+                                    <HoverCard.Content class="w-fit">
+                                        <div class="flex justify-between space-x-4">
+                                            <div class="space-y-1">
+                                                {#each posting.locations as location}
+                                                    <p class="text-sm">
+                                                        {location}
+                                                    </p>
+                                                {/each}
+                                            </div>
+                                      </div>
+                                    </HoverCard.Content>
+                                </HoverCard.Root>
+                            </Table.Cell>
+                            <Table.Cell class="border-r border-dashed"
+                                ><p class="truncate">
+                                    {formatDate(posting.date_posted)}
+                                </p></Table.Cell
+                            >
+                            <Table.Cell class="border-r border-dashed"
+                                ><p class="truncate">
+                                    {formatDate(posting.date_updated)}
+                                </p></Table.Cell
+                            >
+                            <Table.Cell
+                                class="flex items-center justify-center pr-8"
+                            >
+                                <Button
+                                    href={posting.url}
+                                    target="_blank"
+                                    size="sm"
+                                >
+                                    Apply
+                                </Button>
+                            </Table.Cell>
+                        </Table.Row>
+                    {/each}
+                </Table.Body>
+            </Table.Root>
+        {:else}
+            <!-- Grid View -->
+            <div
+                class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 px-8"
+            >
                 {#each data.postings as posting, i (i)}
-                    <Table.Row class="border-b border-dashed ">
-                        <Table.Cell
-                            class="border-r border-dashed w-full inline-flex items-center gap-2 h-12 pl-8"
-                        >
+                    <div class="border rounded-lg p-4 flex flex-col gap-1 h-full">
+                        <div class="flex items-center gap-2 mb-2">
                             <img
                                 src={data.companyLogos[posting.company_name] ||
                                     placeholder}
                                 alt={posting.company_name}
-                                class="w-6 h-6 rounded-lg object-cover"
+                                class="w-8 h-8 rounded-lg object-cover"
                             />
-                            <p class="truncate">
+                            <h3 class="font-medium truncate flex-1">
                                 {posting.company_name}
-                            </p>
-                        </Table.Cell>
-                        <Table.Cell class="border-r border-dashed pl-8">
-                            <p class="truncate">
-                                {posting.title}
-                            </p>
-                        </Table.Cell>
-                        <Table.Cell class="border-r border-dashed pl-8">
-                            <div>
-                                <p class="truncate">
-                                    {posting.locations?.join(" | ") || ""}
-                                </p>
-                            </div>
-                        </Table.Cell>
-                        <Table.Cell class="border-r border-dashed pl-8"
-                            ><p class="truncate">
-                                {formatDate(posting.date_posted)}
-                            </p></Table.Cell
-                        >
-                        <Table.Cell class="border-r border-dashed pl-8"
-                            ><p class="truncate">
-                                {formatDate(posting.date_updated)}
-                            </p></Table.Cell
-                        >
-                        <Table.Cell
-                            class="flex items-center justify-center pr-8"
-                        >
-                            <Button
-                                href={posting.url}
-                                target="_blank"
-                                size="sm"
-                            >
-                                Apply
-                            </Button>
-                        </Table.Cell>
-                    </Table.Row>
-                {/each}
-            </Table.Body>
-        </Table.Root>
-    {:else}
-        <!-- Grid View -->
-        <div
-            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 px-8"
-        >
-            {#each data.postings as posting, i (i)}
-                <div class="border rounded-lg p-4 flex flex-col gap-1 h-full">
-                    <div class="flex items-center gap-2 mb-2">
-                        <img
-                            src={data.companyLogos[posting.company_name] ||
-                                placeholder}
-                            alt={posting.company_name}
-                            class="w-8 h-8 rounded-lg object-cover"
-                        />
-                        <h3 class="font-medium truncate flex-1">
-                            {posting.company_name}
-                        </h3>
+                            </h3>
 
-                        <div class="mt-auto">
-                            <Button
-                                href={posting.url}
-                                target="_blank"
-                                size="sm"
-                                class="w-full">Apply</Button
-                            >
+                            <div class="mt-auto">
+                                <Button
+                                    href={posting.url}
+                                    target="_blank"
+                                    size="sm"
+                                    class="w-full">Apply</Button
+                                >
+                            </div>
+                        </div>
+
+                        <h4 class="text-sm font-medium truncate">
+                            {posting.title}
+                        </h4>
+
+                        <div
+                            class="text-xs text-muted-foreground flex items-center gap-1 mt-1"
+                        >
+                            <Map class="w-3 h-3 inline" />
+                            <HoverCard.Root>
+                                <HoverCard.Trigger class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-black">
+                                    <p class="truncate">
+                                        {#if posting.locations.length > 1}
+                                            {posting.locations[0]} <span class="font-semibold">+{posting.locations.length - 1}</span>
+                                        {:else}
+                                            {posting.locations[0]}
+                                        {/if}
+                                    </p>
+                                </HoverCard.Trigger>
+                                <HoverCard.Content class="w-fit">
+                                    <div class="flex justify-between space-x-4">
+                                        <div class="space-y-1">
+                                            {#each posting.locations as location}
+                                                <p class="text-sm">
+                                                    {location}
+                                                </p>
+                                            {/each}
+                                        </div>
+                                  </div>
+                                </HoverCard.Content>
+                            </HoverCard.Root>
+                        </div>
+
+                        <div
+                            class="text-xs text-muted-foreground flex items-center gap-1"
+                        >
+                            <Calendar class="w-3 h-3 inline" />
+                            <span>Posted: {formatDate(posting.date_posted)}</span>
                         </div>
                     </div>
-
-                    <h4 class="text-sm font-medium truncate">
-                        {posting.title}
-                    </h4>
-
-                    <div
-                        class="text-xs text-muted-foreground flex items-center gap-1 mt-1"
-                    >
-                        <Map class="w-3 h-3 inline" />
-                        <span class="truncate"
-                            >{posting.locations?.join(" | ") || ""}</span
-                        >
-                    </div>
-
-                    <div
-                        class="text-xs text-muted-foreground flex items-center gap-1"
-                    >
-                        <Calendar class="w-3 h-3 inline" />
-                        <span>Posted: {formatDate(posting.date_posted)}</span>
-                    </div>
-                </div>
-            {/each}
-        </div>
+                {/each}
+            </div>
+        {/if}
     {/if}
 
     <div class="container flex justify-end gap-4">
