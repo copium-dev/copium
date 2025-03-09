@@ -32,10 +32,10 @@
     // reactive block to update pagination count
     //  - onMount does not work here since page data is updated but
     //    component is not rerendered when goto() is called
-    // $: postingsPaginationStore.update((current) => ({
-        // ...current,
-        // count: 10 * data.totalPages,
-    // }));
+    $: postingsPaginationStore.update((current) => ({
+        ...current,
+        count: 10 * data.totalPages,
+    }));
 
     function updateInput(e: Event) {
         const value = (e.currentTarget as HTMLInputElement).value;
