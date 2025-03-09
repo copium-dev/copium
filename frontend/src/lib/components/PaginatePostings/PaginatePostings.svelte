@@ -4,6 +4,7 @@
     import ChevronRight from "svelte-radix/ChevronRight.svelte";
 
     import { postingsPaginationStore } from "$lib/stores/postingsPaginationStore";
+    import { isGridView } from "$lib/stores/postingsViewStore";
 
     import { changePage } from "$lib/utils/filter";
     import { page } from '$app/stores';
@@ -11,7 +12,8 @@
 
     $: count = $postingsPaginationStore.count;
 
-    const perPage = 10;
+    let perPage = 10;
+    
     const siblingCount = 1;
 
     // get current page from URL because it needs to follow the URL for correct pagination
