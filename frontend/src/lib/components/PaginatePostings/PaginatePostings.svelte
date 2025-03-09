@@ -6,13 +6,25 @@
     import { postingsPaginationStore } from "$lib/stores/postingsPaginationStore";
 
     import { changePage } from "$lib/utils/filter";
-
+    import { page } from '$app/stores';
     import { goto } from "$app/navigation";
 
     $: count = $postingsPaginationStore.count;
 
     const perPage = 10;
     const siblingCount = 1;
+
+    // get current page from URL because it needs to follow the URL for correct pagination
+    $: currentPageFromURL = parseInt($page.url.searchParams.get('page') || '1');
+
+    // update the store with the current page from URL
+    $: {
+        const pageFromURL = parseInt($page.url.searchParams.get('page') || '1');
+        postingsPaginationStore.update(state => ({
+            ...state,
+            currentPage: pageFromURL
+        }));
+    }
 
     function nextPage() {
         const params = changePage("next");
@@ -25,7 +37,7 @@
     }
 </script>
 
-<Pagination.Root {count} {perPage} {siblingCount} let:pages let:currentPage>
+<Pagination.Root {count} {perPage} {siblingCount} page={currentPageFromURL} let:pages>
     <Pagination.Content>
         <Pagination.Item>
             <Pagination.PrevButton on:click={prevPage}>
@@ -42,7 +54,7 @@
                 <Pagination.Item>
                     <Pagination.Link
                         {page}
-                        isActive={currentPage === page.value}
+                        isActive={currentPageFromURL === page.value}
                         on:click={() => {
                             const params = changePage(page.value);
                             goto(`?${params.toString()}`);

@@ -141,16 +141,16 @@
         </div>
     </div>
 
-    <Table.Root>
+    <Table.Root class="w-full table-fixed">
         <Table.Header>
             <Table.Row class="border-b border-dashed">
-                <Table.Head class="border-r border-dashed pl-8 w-[200px]">
+                <Table.Head class="border-r border-dashed pl-8 w-2/12">
                     <span class="inline-flex items-center gap-2">
                         <Building2 class="w-[15px] h-[15px] stroke-[1.5]" />
                         Company
                     </span>
                 </Table.Head>
-                <Table.Head class="border-r border-dashed w-fit">
+                <Table.Head class="border-r border-dashed pl-8 w-5/12">
                     <span class="inline-flex items-center gap-2">
                         <BriefcaseBusiness
                             class="w-[15px] h-[15px] stroke-[1.5]"
@@ -158,25 +158,25 @@
                         Role
                     </span>
                 </Table.Head>
-                <Table.Head class="border-r border-dashed w-[200px]">
+                <Table.Head class="border-r border-dashed pl-8 w-2/12">
                     <span class="inline-flex items-center gap-2">
                         <Map class="w-[15px] h-[15px] stroke-[1.5]" />
                         Locations
                     </span>
                 </Table.Head>
-                <Table.Head class="border-r border-dashed w-[150px]">
+                <Table.Head class="border-r border-dashed pl-8 w-2/12">
                     <span class="inline-flex items-center gap-2">
                         <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                         Posted
                     </span>
                 </Table.Head>
-                <Table.Head class="border-r border-dashed w-[150px]">
+                <Table.Head class="border-r border-dashed pl-8 w-2/12">
                     <span class="inline-flex items-center gap-2">
                         <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                         Updated
                     </span>
                 </Table.Head>
-                <Table.Head class="pr-8 w-fit w-[100px]">
+                <Table.Head class="lg:pl-3 pr-8 w-1/12">
                     <span class="inline-flex items-center gap-2">
                         <Link class="w-[15px] h-[15px] stroke-[1.5]" />
                         Link
@@ -186,7 +186,7 @@
         </Table.Header>
         <Table.Body>
             {#each data.postings as posting, i (i)}
-                <Table.Row class="border-b border-dashed">
+                <Table.Row class="border-b border-dashed ">
                     <Table.Cell
                         class="border-r border-dashed w-full inline-flex items-center gap-2 h-12 pl-8"
                     >
@@ -196,21 +196,33 @@
                             alt={posting.company_name}
                             class="w-6 h-6 rounded-lg object-cover"
                         />
-                        {posting.company_name}
+                        <p class="truncate">
+                            {posting.company_name}
+                        </p>
                     </Table.Cell>
-                    <Table.Cell class="border-r border-dashed">
-                        {posting.title}
+                    <Table.Cell class="border-r border-dashed pl-8">
+                        <p class="truncate">
+                            {posting.title}
+                        </p>
                     </Table.Cell>
-                    <Table.Cell class="border-r border-dashed">
-                        {posting.locations?.join(" | ") || ""}
+                    <Table.Cell class="border-r border-dashed pl-8">
+                        <div>
+                            <p class="truncate">
+                                {posting.locations?.join(" | ") || ""}
+                            </p>
+                        </div>
                     </Table.Cell>
-                    <Table.Cell class="border-r border-dashed"
-                        >{formatDate(posting.date_posted)}</Table.Cell
+                    <Table.Cell class="border-r border-dashed pl-8"
+                        ><p class="truncate">
+                            {formatDate(posting.date_posted)}
+                        </p></Table.Cell
                     >
-                    <Table.Cell class="border-r border-dashed"
-                        >{formatDate(posting.date_updated)}</Table.Cell
+                    <Table.Cell class="border-r border-dashed pl-8"
+                        ><p class="truncate">
+                            {formatDate(posting.date_updated)}
+                        </p></Table.Cell
                     >
-                    <Table.Cell class="pr-8 relative">
+                    <Table.Cell class="flex items-center justify-center pr-8">
                         <Button href={posting.url} target="_blank" size="sm">
                             Apply
                         </Button>
@@ -221,14 +233,14 @@
     </Table.Root>
     <div class="container flex justify-end gap-4">
         <p class="text-muted-foreground text-xs">*Only shows active postings</p>
+        <p class="text-muted-foreground text-xs">*Updated every 3 hours</p>
         <div class="flex space-x-1">
             <p class="text-muted-foreground text-xs">
                 *Internship postings from
             </p>
             <a
                 href="https://github.com/cvrve/Summer2025-Internships"
-                class="text-muted-foreground text-xs"
-                >[cvrve]</a
+                class="text-muted-foreground text-xs">[cvrve]</a
             >
         </div>
     </div>

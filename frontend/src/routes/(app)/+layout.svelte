@@ -30,7 +30,7 @@
     }
 
     function handlePostingsClick() {
-        goto("/postings");
+        goto("/postings?page=1");
     }
 
     function handleDashboardClick() {
@@ -110,7 +110,7 @@
                     </div>
                     <nav class="flex items-center gap-2 sm:gap-6 sm:mx-8 sm:mt-1.5">
                         <a
-                            href="/postings"
+                            href="/postings?page=1"
                             class={`font-medium transition-colors text-xs sm:text-xs hidden lg:block ${page.url.pathname === "/postings" ? "text-foreground" : "hover:text-foreground/50 text-foreground/50"}`}
                         >
                             Postings
