@@ -51,7 +51,6 @@ func (h *Handler) GetPostings(w http.ResponseWriter, r *http.Request) {
 
 	// the ONLY point of auth is so that only logged in users can access this endpoint
 	_, err := auth.IsAuthenticated(r)
-
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)

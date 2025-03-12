@@ -153,8 +153,7 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] Profile [*]")
 	log.Println("-----------------")
 
-	user, err := auth.IsAuthenticated(r)
-
+	email, err := auth.IsAuthenticated(r)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -162,9 +161,6 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("User authenticated")
-
-	// get user's email
-	email := user.Email
 
 	// get user's applications count
 	doc, err := h.FirestoreClient.Collection("users").Doc(email).Get(r.Context())
@@ -193,8 +189,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] Dashboard [*]")
 	log.Println("-----------------")
 
-	user, err := auth.IsAuthenticated(r)
-
+	email, err := auth.IsAuthenticated(r)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -202,9 +197,6 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("User authenticated")
-
-	email := user.Email
-	fmt.Println(email)
 
 	// 1. extract search query from request and parse
 	queryText, filtersString, err := userutils.ParseQuery(r)
@@ -296,15 +288,12 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] AddApplication [*]")
 	log.Println("-----------------")
 
-	user, err := auth.IsAuthenticated(r)
+	email, err := auth.IsAuthenticated(r)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
-	// for user's email (unique ID), add application and assign unique jobID
-	email := user.Email
 
 	log.Println("User authenticated")
 
@@ -386,15 +375,13 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] DeleteApplication [*]")
 	log.Println("-----------------")
 
-	user, err := auth.IsAuthenticated(r)
+	email, err := auth.IsAuthenticated(r)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
-	email := user.Email
-
+	
 	log.Println("User authenticated")
 
 	// extract json from request body
@@ -468,14 +455,12 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] EditStatus [*]")
 	log.Println("-----------------")
 
-	user, err := auth.IsAuthenticated(r)
+	email, err := auth.IsAuthenticated(r)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
-	email := user.Email
 
 	log.Println("User authenticated")
 
@@ -541,14 +526,12 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] EditApplication [*]")
 	log.Println("-----------------")
 
-	user, err := auth.IsAuthenticated(r)
+	email, err := auth.IsAuthenticated(r)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
-	email := user.Email
 
 	log.Println("User authenticated")
 
@@ -620,14 +603,12 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] DeleteUser [*]")
 	log.Println("-----------------")
 
-	user, err := auth.IsAuthenticated(r)
+	email, err := auth.IsAuthenticated(r)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
-	email := user.Email
 
 	log.Println("User authenticated")
 

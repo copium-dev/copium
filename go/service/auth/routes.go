@@ -16,11 +16,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// simple struct for returning user data to frontend or other handlers
-type User struct {
-	Email string `json:"email"`
-}
-
 type Handler struct {
 	AuthHandler     *utils.AuthHandler
 	firestoreClient *firestore.Client
@@ -158,29 +153,29 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 // once again, something's wrong with gothic session handling so we have to
 // manually get the session from Store and check if email exists
 // it would be nice to implement this as a middleware but for now just call it directly within each route
-func IsAuthenticated(r *http.Request) (*User, error) {
+func IsAuthenticated(r *http.Request) (string, error) {
 	log.Println("[*] IsAuthenticated [*]")
 	log.Println("-----------------")
 
 	session, err := gothic.Store.Get(r, "session")
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	emailValue, ok := session.Values["email"]
 	if !ok {
-		return nil, fmt.Errorf("email not found in session")
+		return "", fmt.Errorf("email not found in session")
 	}
 
 	email, ok := emailValue.(string)
 	if !ok {
-		return nil, fmt.Errorf("email is not a string")
+		return "", fmt.Errorf("email is not a string")
 	}
 
 	log.Println("Authenticated")
 	log.Println("-----------------")
 
-	return &User{Email: email}, nil
+	return email, nil
 }
 
 func checkUserExists(userEmail string, firestoreClient *firestore.Client, ctx context.Context) (bool, error) {
