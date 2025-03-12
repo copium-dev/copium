@@ -59,7 +59,7 @@ func main() {
     // use Pub/Sub's Receive method, which calls the provided callback asynchronously.
 	// ack is only called when message is successfully processed; otherwise message is redelivered
     err = sub.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
-        log.Printf("Received Pub/Sub message: %s", m.Data)
+        log.Printf("[*] BIGQUERY [*] Received Pub/Sub message: %s", m.Data)
 
 		jobID := atomic.AddInt32(&counter, 1)
 

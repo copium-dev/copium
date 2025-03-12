@@ -113,7 +113,14 @@ func (j *Job) appendJob(ctx context.Context) error {
 		INSERT INTO applications_data.applications 
   			(operationID, email, jobID, event_time, applied_date, status, operation)
 		VALUES 
-  			(@operationID, @email, @jobID, @event_time, @applied_date, @status, @operation)
+  			(@operationID,
+			@email,
+			@jobID,
+			TIMESTAMP_SECONDS(@event_time),
+			TIMESTAMP_SECONDS(@applied_date),
+			@status,
+			@operation
+		)
 	`)
 	q.Parameters = []bigquery.QueryParameter{
 		{Name: "operationID", Value: uuid.New().String()},
