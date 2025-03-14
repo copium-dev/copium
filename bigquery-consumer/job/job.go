@@ -77,7 +77,7 @@ func (j *Job) Process(ctx context.Context) error {
 		return fmt.Errorf("failed to process job: %w", err)
 	}
 
-	analytics, err := j.recalculateAnalytics()
+	analytics, err := j.recalculateAnalytics(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to recalculate analytics: %w", err)
 	}
@@ -196,7 +196,7 @@ func (j *Job) deleteUser(ctx context.Context) error {
 // this is so that we can easily add more analytics in the future if we want
 // let's batch run all queries instead of running them one by one
 // by batch run I mean a huge query that does every calculation lol
-func (j *Job) recalculateAnalytics() (map[string]interface{}, error) {
+func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{}, error) {
 	analytics := make(map[string]interface{})
 
     q := j.BigQueryClient.Query(`
@@ -278,7 +278,21 @@ func (j *Job) recalculateAnalytics() (map[string]interface{}, error) {
 		{Name: "email", Value: j.Data["email"]},
 	}
 
-	it, err := q.Read(context.Background())
+	job, err := q.Run(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run analytics query: %w", err)
+	}
+
+	status, err := job.Wait(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait for job: %w", err)
+	}
+
+	if err := status.Err(); err != nil {
+		return nil, fmt.Errorf("job completed with error: %w", err)
+	}
+
+	it, err := job.Read(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read analytics data: %w", err)
 	}
