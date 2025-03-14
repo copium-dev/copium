@@ -70,7 +70,7 @@ func main() {
 			return
 		}
 
-		// process the job, use the same context as the aprent
+		// process the job, use the same context as the parent
 		err = newJob.Process(ctx)
 		if err != nil {
 			log.Printf("Failed to process job %d: %s", jobID, err)

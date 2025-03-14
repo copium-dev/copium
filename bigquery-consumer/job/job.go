@@ -8,6 +8,7 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/firestore"
+	"google.golang.org/api/iterator"
 	"github.com/google/uuid"
 )
 
@@ -76,33 +77,12 @@ func (j *Job) Process(ctx context.Context) error {
 		return fmt.Errorf("failed to process job: %w", err)
 	}
 
-	// recalculates user's analytics (with queries) and updates their analytics fields in Firestore
-	// 1. (total volume) trend in applications submitted over the past 30 days vs the previous 30 days
-	// 2. (resume effectiveness)
-	// 		a. trend in applications converting to interview stage over the past 30 days vs the previous 30 days
-	//			- this is ANY application where event_time is in the past (or previous) 30 days and status is interviewing
-	//			- so this isn't just limited to applications that were submitted within the past 30 days
-	//		b. trend in applications converting to rejection stage over the past 30 days vs the previous 30 days
-	//			- same as above, but for rejection stage
-	// 3. (interview effectiveness) trend in applications converting from interview to offer stage over the past 30 days vs the previous 30 days
-	//		- same as above, but for offer stage
-	// 4. (response time) avg time to first response over the past 60 days
-	//		- this one is a different kind of analytic, not a trend but an average. basically looks at all applications
-	//	      sent in the past 60 days and calculates time between application date and first status change
-	// 5. (status progression velocity) avg time spent in one stage before moving to the next over the past 60 days
-	//		- this one is a different kind of analytic, not a trend but an average
-	// 6. (improvement over time) trend in number of rejection vs interview/offer over the past 30 days vs the previous 30 days
-	//		- this is a ratio of rejections to interviews/offers and the trend in that ratio
-	//		- this can be inferred from 2.a and 2.b but it's a useful metric to have
-	// 7. (best month all time) identify month with the most applications converting to interview/offer
-	// NOTE: for efficiency, we should batch these queries!!! and also we ``might`` be able to statically analyze
-	//		 which queries don't need to be re-ran based on data 
-	//		 - e.g. if event timestamp is beyond 60 days old, no need to re-run 1-6
-	//		 - if event contains status 'interviewing' then 2.b doesn't need to be re-ran and so on
-	// err = j.recalculateAnalyticsAndUpdateFirestore()
-	// if err != nil {
-	// 	return fmt.Errorf("failed to recalculate analytics: %w", err)
-	// }
+	analytics, err := j.recalculateAnalytics()
+	if err != nil {
+		return fmt.Errorf("failed to recalculate analytics: %w", err)
+	}
+
+	log.Printf("Analytics recalculated: %v", analytics)
 
 	return nil
 }
@@ -152,7 +132,7 @@ func (j *Job) appendJob(ctx context.Context) error {
 	return nil
 }
 
-// delete anything matching this user and the job ID (chance that job ID is not unique)
+// delete anything matching this user and the job ID (chance that job ID is not unique so we also need email)
 func (j *Job) deleteJob(ctx context.Context) error {
 	q := j.BigQueryClient.Query(`
 		DELETE FROM applications_data.applications
@@ -210,4 +190,119 @@ func (j *Job) deleteUser(ctx context.Context) error {
 	log.Printf("All jobs deleted successfully for email [%v]", j.Data["email"])
 	
 	return nil
+}
+
+// each key in the map is the name of the analytic (identical to Firestore field name)
+// this is so that we can easily add more analytics in the future if we want
+// let's batch run all queries instead of running them one by one
+// by batch run I mean a huge query that does every calculation lol
+func (j *Job) recalculateAnalytics() (map[string]interface{}, error) {
+	analytics := make(map[string]interface{})
+
+    q := j.BigQueryClient.Query(`
+        WITH LatestAppliedDate AS (
+            SELECT
+                jobID,
+                MAX(applied_date) AS latest_applied_date
+            FROM applications_data.applications
+            WHERE email = @email
+            GROUP BY jobID
+        ),
+
+		-- we can't reference the aliases in the outer query so we need to do this
+        RawMetrics AS (
+            SELECT
+				-- ANALYTIC 1 (application velocity): # apps sent in the current 30 vs previous 30 days
+                SUM(
+                    CASE
+                        WHEN operation = 'add'
+                        AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) 
+                        THEN 1
+                        ELSE 0 
+                    END
+                ) AS current_30day_count,
+                SUM(
+                    CASE
+                        WHEN operation = 'add'
+                        AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+                        AND applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS previous_30day_count,
+
+				-- ANALYTIC 2 (resume effectiveness): # interviews in the current 30 vs previous 30 days
+				-- agnostic of applied date, because (1) interview is not always immediate and (2) interview usually comes within 30-60 days anyway
+                COUNT(DISTINCT 
+                    CASE WHEN a.operation = 'edit'
+                        AND (a.status = 'Interviewing' OR a.status = 'Screen')
+                        AND a.event_time > l.latest_applied_date
+                        AND a.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+                        THEN a.jobID
+                        ELSE NULL
+                    END
+                ) AS current_30day_interviews,
+                COUNT(DISTINCT
+                    CASE WHEN a.operation = 'edit'
+                        AND (a.status = 'Interviewing' OR a.status = 'Screen')
+                        AND a.event_time > l.latest_applied_date
+                        AND a.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+                        AND a.event_time < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+                        THEN a.jobID
+                        ELSE NULL
+                    END
+                ) AS previous_30day_interviews
+            FROM applications_data.applications a
+            JOIN LatestAppliedDate l ON a.jobID = l.jobID
+            WHERE email = @email
+            AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+        )
+        
+        -- now we reference the aliases in an outer query
+		-- COALESCE() is used to handle NULL values
+        SELECT
+			COALESCE(current_30day_count, 0) AS current_30day_count,
+			COALESCE(previous_30day_count, 0) AS previous_30day_count,
+			COALESCE(current_30day_count, 0) - COALESCE(previous_30day_count, 0) AS application_velocity,
+			COALESCE(current_30day_interviews, 0) AS current_30day_interviews,
+			COALESCE(previous_30day_interviews, 0) AS previous_30day_interviews,
+			COALESCE(current_30day_interviews, 0) - COALESCE(previous_30day_interviews, 0) AS resume_effectiveness
+        FROM RawMetrics
+    `)
+
+	// TODO: any all time analytics should be done in a separate query because....
+	// 		the AND applied_Date >= ... is used in prev query because
+	//		the WHERE statement is executed before the SELECT clause which is a little optimization to never
+	// 		look at records that are older than 60 days
+	q.Parameters = []bigquery.QueryParameter{
+		{Name: "email", Value: j.Data["email"]},
+	}
+
+	it, err := q.Read(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to read analytics data: %w", err)
+	}
+
+	// rows may be null so we use an int pointer
+	var row struct {
+		Current30DayCount int `bigquery:"current_30day_count"`
+		Previous30DayCount int `bigquery:"previous_30day_count"`
+		ApplicationVelocity int `bigquery:"application_velocity"`
+		Current30DayInterviews int `bigquery:"current_30day_interviews"`
+		Previous30DayInterviews int `bigquery:"previous_30day_interviews"`
+		ResumeEffectiveness int `bigquery:"resume_effectiveness"`
+	}
+
+	if err := it.Next(&row); err != nil {
+		if err == iterator.Done {
+			// no analyitcs found
+			return analytics, nil
+		}
+		return nil, fmt.Errorf("failed to read row: %w", err)
+	}
+
+	analytics["application_velocity"] = row.ApplicationVelocity
+	analytics["resume_effectiveness"] = row.ResumeEffectiveness
+
+	return analytics, nil
 }
