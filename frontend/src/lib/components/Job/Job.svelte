@@ -89,12 +89,10 @@
         }
     }
 
-    onMount(() => {
-        value = statusValues[status];
-
-        const fetchLogo = async () => {
+    async function fetchLogo(companyName: string = company) {
+        try {
             const res = await fetch(
-                `https://api.brandfetch.io/v2/search/${company}?c=${PUBLIC_LOGO_KEY}`
+                `https://api.brandfetch.io/v2/search/${companyName}?c=${PUBLIC_LOGO_KEY}`
             );
 
             if (res.ok) {
@@ -103,8 +101,46 @@
             } else {
                 imgSrc = placeholder;
             }
-        };
+        } catch (error) {
+            console.error("Error fetching logo:", error);
+            imgSrc = placeholder;
+        }
+    }
 
+    // Update the handleJobUpdate function to fetch the logo when company changes
+    function handleJobUpdate(updatedJob: {
+        company: string;
+        role: string;
+        location: string;
+        link: string | undefined | null;
+        appliedDate: number;
+        status: string;
+    }) {
+        console.log("Job update received:", updatedJob);
+
+        // Check if company changed
+        const companyChanged = company !== updatedJob.company;
+        
+        // Update local state with new values
+        company = updatedJob.company;
+        role = updatedJob.role;
+        location = updatedJob.location;
+        link = updatedJob.link;
+        appliedDate = updatedJob.appliedDate;
+        status = updatedJob.status;
+        value = statusValues[status];
+
+        // Re-fetch logo if company name changed
+        if (companyChanged) {
+            console.log("Company changed, fetching new logo");
+            fetchLogo(updatedJob.company);
+        }
+    }
+
+    onMount(() => {
+        value = statusValues[status];
+        
+        // Initial logo fetch
         fetchLogo();
     });
 
@@ -152,6 +188,7 @@
                             {location}
                             {status}
                             {link}
+                            onUpdateSuccess={handleJobUpdate}
                         />
                     </div>
                 </div>
@@ -237,6 +274,7 @@
                     {location}
                     {status}
                     {link}
+                    onUpdateSuccess={handleJobUpdate}
                 />
 
                 <AlertDialog.Root>

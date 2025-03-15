@@ -15,6 +15,8 @@
     export let status: string;
     export let link: string | undefined | null;
 
+    export let onUpdateSuccess: (updatedJob: any) => void = () => {};
+
     async function deleteApplication() {
         const formData = new FormData();
         formData.append("id", objectID);
@@ -37,6 +39,64 @@
             goto("/dashboard");
         }
     }
+
+    async function handleEditSubmit(e: Event) {
+        e.preventDefault(); // Prevent form from submitting normally
+        const form = e.target as HTMLFormElement;
+        const formData = new FormData(form);
+        
+        // Add required fields
+        formData.append("id", objectID);
+        
+        console.log("Submitting edit form...");
+        
+        const response = await fetch("/dashboard?/editapplication", {
+            method: "POST",
+            body: formData
+        });
+        
+        if (response.ok) {
+            console.log("Edit successful");
+            
+            // Get form data and create updated job object
+            const updatedJob = {
+                company: (formData.get('company') as string) || company,
+                role: (formData.get('role') as string) || role,
+                location: (formData.get('location') as string) || location,
+                link: (formData.get('link') as string) || link,
+                appliedDate: formData.get('appliedDate')
+                    ? convertLocalDateToTimestamp(formData.get('appliedDate') as string)
+                    : appliedDate,
+                status: (formData.get('status') as string) || status,
+            };
+            
+            // Call the callback with updated data
+            console.log("Calling onUpdateSuccess with:", updatedJob);
+            onUpdateSuccess(updatedJob);
+            
+            // Close the dialog
+            const dialogElement = document.querySelector('[data-state="open"]');
+            if (dialogElement) {
+                const cancelButton = dialogElement.querySelector('[data-dialog-close]');
+                if (cancelButton instanceof HTMLElement) {
+                    cancelButton.click();
+                }
+            }
+        } else {
+            console.error("Failed to update application");
+        }
+    }
+
+    function convertLocalDateToTimestamp(dateString: string): number {
+    // Parse the input date string (YYYY-MM-DD)
+    const [year, month, day] = dateString.split('-').map(Number);
+    
+    // Create a date using local timezone (months are 0-indexed in JS Date)
+    const date = new Date(year, month - 1, day, 12, 0, 0);
+    
+    // Get the timestamp in seconds (not milliseconds)
+    return Math.floor(date.getTime() / 1000);
+}
 
     // format to mm-dd-yyyy
     function formatDate(timestamp: number): string {
@@ -71,24 +131,9 @@
                 remain unchanged.
             </AlertDialog.Description>
             <form
-                action="/dashboard?/editapplication"
-                method="POST"
+                on:submit={handleEditSubmit}
                 class="flex flex-col gap-2 w-full"
-                use:enhance={() => {
-                    return ({ update }) => {
-                        update();
-                    };
-                }}
             >
-                <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
-                <!-- hidden id field and old statuses. old status are sent for rollback purposes -->
-                <input type="hidden" name="id" value={objectID} />
-                <input type="hidden" name="oldCompany" value={company} />
-                <input type="hidden" name="oldRole" value={role} />
-                <input type="hidden" name="oldLocation" value={location} />
-                <input type="hidden" name="oldAppliedDate" value={appliedDate} />
-                <input type="hidden" name="oldLink" value={link} />
-                <input type="hidden" name="status" value={status} />
                 <div
                     class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_5fr] w-full items-center gap-1.5"
                 >
@@ -164,6 +209,9 @@
                         value={formatDate(appliedDate)}
                     />
                 </div>
+
+                <input type="hidden" name="id" value={objectID} />
+
                 <AlertDialog.Footer>
                     <AlertDialog.Action type="submit" class="w-full sm:w-auto h-9 px-4 py-2 mt-2 sm:mt-0">
                         Save
