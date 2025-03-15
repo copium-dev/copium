@@ -230,51 +230,25 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
             GROUP BY jobID
         ),
 
-		FirstStatusChange AS (
-			SELECT
-				a.jobID,
-				a.event_time,
-				ROW_NUMBER() OVER (PARTITION BY a.jobID ORDER BY a.event_time ASC) as row_num
-			FROM applications_data.applications a
-			JOIN LatestAppliedDate l ON a.jobID = l.jobID
-			WHERE a.email = @email
-				AND a.operation = 'edit'
-				AND a.status IN ('Interviewing', 'Screen', 'Offer', 'Rejected', 'Ghosted')
-				AND a.event_time > l.latest_applied_date
-		),
-
-		FirstResponse AS (
-			SELECT
-				jobID,
-				event_time AS first_response_time
-			FROM FirstStatusChange
-			WHERE row_num = 1  -- Only take the very first status change
-		),
-
-		-- calculate first response time after application
-		ResponseTimes AS (
+		-- for each jobID, find (1) the first response aka min(event_time) after latest_applied_date
+		-- and (2) the days between the two
+		ResponseMetrics AS (
 			SELECT
 				l.jobID,
 				l.latest_applied_date,
+				-- use NULL to handle cases where no response yet; this ensures they are not included in the AVG
+				-- and don't skew the results
 				MIN(CASE 
 					WHEN a.operation = 'edit' 
 					AND a.status IN ('Interviewing', 'Screen', 'Offer', 'Rejected', 'Ghosted')
 					AND a.event_time > l.latest_applied_date
-					THEN a.event_time
+					THEN TIMESTAMP_DIFF(a.event_time, l.latest_applied_date, DAY)
 					ELSE NULL
-				END) AS first_response_time
+				END) AS days_to_response
 			FROM LatestAppliedDate l
-			JOIN applications_data.applications a ON l.jobID = a.jobID
-			WHERE a.email = @email
+			JOIN applications_data.applications a 
+			ON l.jobID = a.jobID AND a.email = @email
 			GROUP BY l.jobID, l.latest_applied_date
-		),
-
-		ResponseMetrics AS (
-			SELECT
-				jobID,
-				TIMESTAMP_DIFF(first_response_time, latest_applied_date, DAY) AS days_to_response
-			FROM ResponseTimes
-			WHERE first_response_time IS NOT NULL
 		),
 
 		-- ANALYTIC 1 (monthly trends): # applications and interviews and offers by month
@@ -365,6 +339,7 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 				) AS previous_30day_offers,
 
 				-- ANALYTIC 5 (average response time): average time for ANY response (applied -> interivew, interview -> offer, applied -> rejected, etc)
+				-- only tracks applications from current 30 or prev 30 day period
 				AVG(CASE 
 					WHEN l.latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
 					THEN rm.days_to_response
