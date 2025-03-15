@@ -1,77 +1,78 @@
-package job 
+package job
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"context"
 	"log"
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/firestore"
-	"google.golang.org/api/iterator"
 	"github.com/google/uuid"
+	"google.golang.org/api/iterator"
 )
 
 type Job struct {
-    ID              int32
-    Data            map[string]interface{}
-    RawData         []byte
-    Operation       string
-    BigQueryClient  *bigquery.Client
-    FirestoreClient *firestore.Client
+	ID              int32
+	Data            map[string]interface{}
+	RawData         []byte
+	Operation       string
+	BigQueryClient  *bigquery.Client
+	FirestoreClient *firestore.Client
 }
 
-// all this really does is unmarshal the raw data and figure out the operation 
+// all this really does is unmarshal the raw data and figure out the operation
 func NewJob(data []byte, id int32, bqClient *bigquery.Client, fsClient *firestore.Client) (*Job, error) {
-    var parsedData map[string]interface{}
-    err := json.Unmarshal(data, &parsedData)
-    if err != nil {
-        return nil, fmt.Errorf("failed to parse job data: %w", err)
-    }
-    
-    operation, ok := parsedData["operation"].(string)
-    if !ok {
-        return nil, fmt.Errorf("missing or invalid operation field")
-    }
-    
-    return &Job{
-        ID:              id,
-        RawData:         data,
-        Data:            parsedData,
-        Operation:       operation,
-        BigQueryClient:  bqClient,
-        FirestoreClient: fsClient,
-    }, nil
+	var parsedData map[string]interface{}
+	err := json.Unmarshal(data, &parsedData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse job data: %w", err)
+	}
+
+	operation, ok := parsedData["operation"].(string)
+	if !ok {
+		return nil, fmt.Errorf("missing or invalid operation field")
+	}
+
+	return &Job{
+		ID:              id,
+		RawData:         data,
+		Data:            parsedData,
+		Operation:       operation,
+		BigQueryClient:  bqClient,
+		FirestoreClient: fsClient,
+	}, nil
 }
 
 // Process handles the job based on its operation type
 // dataset: applications_data
 // table: applications
 // schema:
-// 	operationID (primary key)
-//  email (identifier for analytics and deletes)
-//  jobID (identifier to do job-specific analytics)
-//	event_time (time of event in unix ms, required to knwow which state came first)
-//	applied_date (time of application in unix ms, required to know where to place in timeline)
-//	status (current state of the application)
-//	operation (add/edit, not strictly necessary but might be useful later)
+//
+// operationID (primary key)
+// email (identifier for analytics and deletes)
+// jobID (identifier to do job-specific analytics)
+// event_time (time of event in unix seconds, required to knwow which state came first)
+// applied_date (time of application in unix seconds, required to know where to place in timeline)
+// status (current state of the application)
+// operation (add/edit, not strictly necessary but might be useful later)
 func (j *Job) Process(ctx context.Context) error {
-    log.Printf("[*] BigQuery [*]")
-    log.Printf("-------")
-    log.Printf("Processing Job With ID [%d] with content: [%s]", j.ID, j.Data)
+	log.Printf("[*] BigQuery [*]")
+	log.Printf("-------")
+	log.Printf("Processing Job With ID [%d] with content: [%s]", j.ID, j.Data)
 
 	var err error
-    
-    switch j.Operation {
-    case "add", "edit":
-        err = j.appendJob(ctx)
-    case "delete":
-        err = j.deleteJob(ctx)
-    case "userDelete":
-        err = j.deleteUser(ctx)
-    default:
-        err = fmt.Errorf("unknown operation: %s", j.Operation)
-    }
+
+	switch j.Operation {
+	case "add", "edit":
+		err = j.appendJob(ctx)
+	case "delete":
+		err = j.deleteJob(ctx)
+	case "userDelete":
+		err = j.deleteUser(ctx)
+	default:
+		err = fmt.Errorf("unknown operation: %s", j.Operation)
+	}
 
 	if err != nil {
 		return fmt.Errorf("failed to process job: %w", err)
@@ -119,12 +120,12 @@ func (j *Job) appendJob(ctx context.Context) error {
 	}
 
 	status, err := job.Wait(ctx)
-    if err != nil {
-        return fmt.Errorf("failed to wait for job: %w", err)
-    }
-    
-    if err := status.Err(); err != nil {
-        return fmt.Errorf("job completed with error: %w", err)
+	if err != nil {
+		return fmt.Errorf("failed to wait for job: %w", err)
+	}
+
+	if err := status.Err(); err != nil {
+		return fmt.Errorf("job completed with error: %w", err)
 	}
 
 	log.Printf("Job [%v] inserted successfully with UUID [%v]", j.Data["objectID"], q.Parameters[0].Value)
@@ -188,7 +189,7 @@ func (j *Job) deleteUser(ctx context.Context) error {
 	}
 
 	log.Printf("All jobs deleted successfully for email [%v]", j.Data["email"])
-	
+
 	return nil
 }
 
@@ -199,7 +200,7 @@ func (j *Job) deleteUser(ctx context.Context) error {
 func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{}, error) {
 	analytics := make(map[string]interface{})
 
-    q := j.BigQueryClient.Query(`
+	q := j.BigQueryClient.Query(`
         WITH LatestAppliedDate AS (
             SELECT
                 jobID,
@@ -299,12 +300,12 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 
 	// rows may be null so we use an int pointer
 	var row struct {
-		Current30DayCount int `bigquery:"current_30day_count"`
-		Previous30DayCount int `bigquery:"previous_30day_count"`
-		ApplicationVelocity int `bigquery:"application_velocity"`
-		Current30DayInterviews int `bigquery:"current_30day_interviews"`
+		Current30DayCount       int `bigquery:"current_30day_count"`
+		Previous30DayCount      int `bigquery:"previous_30day_count"`
+		ApplicationVelocity     int `bigquery:"application_velocity"`
+		Current30DayInterviews  int `bigquery:"current_30day_interviews"`
 		Previous30DayInterviews int `bigquery:"previous_30day_interviews"`
-		ResumeEffectiveness int `bigquery:"resume_effectiveness"`
+		ResumeEffectiveness     int `bigquery:"resume_effectiveness"`
 	}
 
 	if err := it.Next(&row); err != nil {
