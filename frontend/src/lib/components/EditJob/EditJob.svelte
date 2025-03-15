@@ -134,6 +134,16 @@
                 on:submit={handleEditSubmit}
                 class="flex flex-col gap-2 w-full"
             >
+                <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
+                <!-- hidden id field and old statuses. old status are sent for rollback purposes -->
+                <input type="hidden" name="id" value={objectID} />
+                <input type="hidden" name="oldCompany" value={company} />
+                <input type="hidden" name="oldRole" value={role} />
+                <input type="hidden" name="oldLocation" value={location} />
+                <input type="hidden" name="oldAppliedDate" value={appliedDate} />
+                <input type="hidden" name="oldLink" value={link} />
+                <input type="hidden" name="status" value={status} />
+
                 <div
                     class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_5fr] w-full items-center gap-1.5"
                 >
@@ -209,8 +219,6 @@
                         value={formatDate(appliedDate)}
                     />
                 </div>
-
-                <input type="hidden" name="id" value={objectID} />
 
                 <AlertDialog.Footer>
                     <AlertDialog.Action type="submit" class="w-full sm:w-auto h-9 px-4 py-2 mt-2 sm:mt-0">
