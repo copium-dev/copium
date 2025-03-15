@@ -1,6 +1,5 @@
 <script lang="ts">
     import { enhance } from "$app/forms";
-    import { goto } from '$app/navigation'
 
     import { Button } from "$lib/components/ui/button";
     import { Input } from "$lib/components/ui/input";
@@ -14,7 +13,11 @@
     export let location: string;
     export let status: string;
     export let link: string | undefined | null;
+    
+    // same delete function as parent Job component
+    export let onDeleteSuccess: () => void = () => {};
 
+    // to propagate the updated job data to the parent component for optimistic updates
     export let onUpdateSuccess: (updatedJob: any) => void = () => {};
 
     async function deleteApplication() {
@@ -32,70 +35,25 @@
             body: formData,
         });
 
-        if (!response.ok) {
+        const res = await response.json();
+
+        if (res.type === 'failure') {
             console.error("Failed to delete application");
         } else {
             console.log("Application deleted successfully");
-            goto("/dashboard");
-        }
-    }
-
-    async function handleEditSubmit(e: Event) {
-        e.preventDefault(); // Prevent form from submitting normally
-        const form = e.target as HTMLFormElement;
-        const formData = new FormData(form);
-        
-        // Add required fields
-        formData.append("id", objectID);
-        
-        console.log("Submitting edit form...");
-        
-        const response = await fetch("/dashboard?/editapplication", {
-            method: "POST",
-            body: formData
-        });
-        
-        if (response.ok) {
-            console.log("Edit successful");
-            
-            // Get form data and create updated job object
-            const updatedJob = {
-                company: (formData.get('company') as string) || company,
-                role: (formData.get('role') as string) || role,
-                location: (formData.get('location') as string) || location,
-                link: (formData.get('link') as string) || link,
-                appliedDate: formData.get('appliedDate')
-                    ? convertLocalDateToTimestamp(formData.get('appliedDate') as string)
-                    : appliedDate,
-                status: (formData.get('status') as string) || status,
-            };
-            
-            // Call the callback with updated data
-            console.log("Calling onUpdateSuccess with:", updatedJob);
-            onUpdateSuccess(updatedJob);
-            
-            // Close the dialog
-            const dialogElement = document.querySelector('[data-state="open"]');
-            if (dialogElement) {
-                const cancelButton = dialogElement.querySelector('[data-dialog-close]');
-                if (cancelButton instanceof HTMLElement) {
-                    cancelButton.click();
-                }
-            }
-        } else {
-            console.error("Failed to update application");
+            onDeleteSuccess();
         }
     }
 
     function convertLocalDateToTimestamp(dateString: string): number {
-    // Parse the input date string (YYYY-MM-DD)
-    const [year, month, day] = dateString.split('-').map(Number);
-    
-    // Create a date using local timezone (months are 0-indexed in JS Date)
-    const date = new Date(year, month - 1, day, 12, 0, 0);
-    
-    // Get the timestamp in seconds (not milliseconds)
-    return Math.floor(date.getTime() / 1000);
+        // dateString comes as yyyy-mm-dd
+        const [year, month, day] = dateString.split('-').map(Number);
+        
+        // month is 0-indexed in Date constructor
+        const date = new Date(year, month - 1, day, 12, 0, 0);
+        
+        // return unix timestamp in seconds
+        return Math.floor(date.getTime() / 1000);
 }
 
     // format to mm-dd-yyyy
@@ -131,11 +89,49 @@
                 remain unchanged.
             </AlertDialog.Description>
             <form
-                on:submit={handleEditSubmit}
+                action="/dashboard?/editapplication"
+                method="POST"
                 class="flex flex-col gap-2 w-full"
+                use:enhance={({ formData }) => {
+                    // extra handling for optimistic updates
+                    return async ({ result, update }) => {
+                        // await the result of the form submission; is stored in result
+                        await update();
+
+                        if (result.type === "failure") {
+                            console.error("Failed to edit application");
+                        } else {
+                            console.log("Application edited successfully");
+
+                            const updatedJob = {
+                                company: formData.get("company") || company,
+                                role: formData.get("role") || role,
+                                location: formData.get("location") || location,
+                                link: formData.get("link") || link,
+                                appliedDate: formData.get("appliedDate")
+                                    ? convertLocalDateToTimestamp(
+                                          formData.get("appliedDate") as string
+                                      )
+                                    : appliedDate,
+                                status: formData.get("status") || status,
+                            }
+
+                            onUpdateSuccess(updatedJob);
+
+                            // close dialog
+                            const dialogElement = document.querySelector('[data-state="open"]');
+                            if (dialogElement) {
+                                const cancelButton = dialogElement.querySelector('[data-dialog-close]');
+                                if (cancelButton instanceof HTMLElement) {
+                                    cancelButton.click();
+                                }
+                            }
+                        }
+                    }
+                }}
             >
                 <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
-                <!-- hidden id field and old statuses. old status are sent for rollback purposes -->
+                <!-- hidden fields are for rollback purposes -->
                 <input type="hidden" name="id" value={objectID} />
                 <input type="hidden" name="oldCompany" value={company} />
                 <input type="hidden" name="oldRole" value={role} />

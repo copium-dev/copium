@@ -18,20 +18,20 @@
     export let data: PageData;
     export let form;    // for eager loading
 
-    $: if (form?.addType === 'success' && form?.eagerLoadedJob) {
+    $: if (form?.type === 'success' && form?.data) {
         // in svelte, reactive updates triggered by assignments not mutations
         // so we gotta do all this below instead of an unshift
         data = {
             ...data,
             applications: [
                 {
-                    objectID: form.eagerLoadedJob.objectID,
-                    company: form.eagerLoadedJob.company,
-                    role: form.eagerLoadedJob.role,
-                    appliedDate: form.eagerLoadedJob.appliedDate,
-                    location: form.eagerLoadedJob.location,
-                    status: form.eagerLoadedJob.status,
-                    link: form.eagerLoadedJob.link,
+                    objectID: form.data.objectID,
+                    company: form.data.company,
+                    role: form.data.role,
+                    appliedDate: form.data.appliedDate,
+                    location: form.data.location,
+                    status: form.data.status,
+                    link: form.data.link,
                 },
                 ...data.applications
             ]

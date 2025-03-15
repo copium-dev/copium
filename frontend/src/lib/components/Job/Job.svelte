@@ -59,7 +59,9 @@
             body: formData,
         });
 
-        if (!response.ok) {
+        const res = await response.json();
+
+        if (res.type === "failure") {
             console.error("Failed to update application");
         } else {
             console.log("Application updated successfully");
@@ -81,7 +83,9 @@
             body: formData,
         });
 
-        if (!response.ok) {
+        const res = await response.json();
+
+        if (res.type === "failure") {
             console.error("Failed to delete application");
         } else {
             console.log("Application deleted successfully");
@@ -107,7 +111,6 @@
         }
     }
 
-    // Update the handleJobUpdate function to fetch the logo when company changes
     function handleJobUpdate(updatedJob: {
         company: string;
         role: string;
@@ -118,10 +121,9 @@
     }) {
         console.log("Job update received:", updatedJob);
 
-        // Check if company changed
+        // if company changed then we refetch logo
         const companyChanged = company !== updatedJob.company;
         
-        // Update local state with new values
         company = updatedJob.company;
         role = updatedJob.role;
         location = updatedJob.location;
@@ -130,7 +132,6 @@
         status = updatedJob.status;
         value = statusValues[status];
 
-        // Re-fetch logo if company name changed
         if (companyChanged) {
             console.log("Company changed, fetching new logo");
             fetchLogo(updatedJob.company);
@@ -138,9 +139,8 @@
     }
 
     onMount(() => {
+        // inital value setting and logo fetch
         value = statusValues[status];
-        
-        // Initial logo fetch
         fetchLogo();
     });
 
@@ -189,6 +189,7 @@
                             {status}
                             {link}
                             onUpdateSuccess={handleJobUpdate}
+                            onDeleteSuccess={() => visible = false}
                         />
                     </div>
                 </div>
@@ -275,6 +276,7 @@
                     {status}
                     {link}
                     onUpdateSuccess={handleJobUpdate}
+                    onDeleteSuccess={() => visible = false}
                 />
 
                 <AlertDialog.Root>

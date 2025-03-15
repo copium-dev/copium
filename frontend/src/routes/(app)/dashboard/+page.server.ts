@@ -101,13 +101,13 @@ export const actions = {
 
         if (!response.ok) {
             return {
-                addType: 'error',
+                type: 'failure',
             };
         }
 
         return {
-            addType: 'success',
-            eagerLoadedJob: {
+            type: 'success',
+            data: {
                 objectID,
                 role,
                 company,
@@ -142,14 +142,12 @@ export const actions = {
 
         if (!response.ok) {
             return {
-                deleteType: 'error',
-                message: 'Failed to delete application'
+                type: 'failure',
             };
         }
         
         return {
-            deleteType: 'success',
-            message: 'Application deleted successfully'
+            type: 'success',
         };
     },
     editstatus: async ({ request, fetch }) => {
@@ -175,14 +173,12 @@ export const actions = {
 
         if (!response.ok) {
             return {
-                editStatusType: 'error',
-                message: 'Failed to update application status'
+                type: 'failure',
             };
         }
         
         return {
-            editStatusType: 'success',
-            message: 'Application status updated successfully'
+            type: 'success',
         };
     },
     editapplication: async({ request, fetch }) => {
@@ -215,12 +211,12 @@ export const actions = {
 
         if (!response.ok) {
             return {
-                editApplicationType: 'error',
-                message: 'Failed to update application'
+                type: 'failure',
             };
         }
 
-        // when eager loading, if response is OK then just send all the new data
-        throw redirect(303, '/dashboard');
+        return {
+            type: 'success',
+        }
     }
 } satisfies Actions;
