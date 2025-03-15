@@ -36,6 +36,7 @@ import (
 	"log"
 	"time"
 	"net/http"
+	"strings"
 	"strconv"
 
 	"github.com/copium-dev/copium/go/service/auth"
@@ -169,19 +170,41 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
 		return
 	}
-	applicationsCount := doc.Data()["applicationsCount"].(int64)
-	if applicationsCount < 0 {
-		applicationsCount = 0
-	}
+
+	userData := doc.Data()
+
+    applicationsCount := int64(0)
+    if countVal, exists := userData["applicationsCount"]; exists && countVal != nil {
+        if count, ok := countVal.(int64); ok {
+            applicationsCount = count
+        }
+    }
+
+	response := map[string]interface{}{
+        "email":             email,
+        "applicationsCount": applicationsCount,
+    }
+
+    analyticsFields := []string{
+        "application_velocity_trend", "application_velocity",
+		"resume_effectiveness_trend", "resume_effectiveness",
+		"interview_effectiveness_trend", "interview_effectiveness",
+        "avg_response_time_trend", "avg_response_time",
+        "monthly_trends", "rejected_count", "ghosted_count", "applied_count", 
+        "screen_count", "interviewing_count", "offer_count",
+    }
+    
+    for _, field := range analyticsFields {
+        if val, exists := doc.Data()[field]; exists {
+            response[field] = val
+        }
+    }
 	
-	log.Println("Applications count retrieved")
+	log.Println("Profile data extracted")
 	log.Println("-----------------")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"email":             email,
-		"applicationsCount": applicationsCount,
-	})
+	json.NewEncoder(w).Encode(response)
 }
 
 // queries algolia for applications based on search query
@@ -353,6 +376,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	userDoc := h.FirestoreClient.Collection("users").Doc(email)
 	_, err = userDoc.Update(context.Background(), []firestore.Update{
 		{Path: "applicationsCount", Value: firestore.Increment(1)},
+		{Path: "applied_count", Value: firestore.Increment(1)},
 	})
 	if err != nil {
 		fmt.Printf("Error updating applications count: %v\n", err)
@@ -437,6 +461,7 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	userDoc := h.FirestoreClient.Collection("users").Doc(email)
 	_, err = userDoc.Update(context.Background(), []firestore.Update{
 		{Path: "applicationsCount", Value: firestore.Increment(-1)},
+		{Path: fmt.Sprintf("%s_count", strings.ToLower(deleteApplicationRequest.Status)), Value: firestore.Increment(-1)},
 	})
 	if err != nil {
 		fmt.Printf("Error updating applications count: %v\n", err)
@@ -518,6 +543,20 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("Status edited")
+
+	// to reduce amount of reads in this single request, update status count AFTER verifying publish success
+	// this means we don't have to revert status count on top of reverting the edit operation. this DOES
+	// introduce small window of inconsistency but this is reducing costs and reducing complexity
+	userDoc := h.FirestoreClient.Collection("users").Doc(email)
+	_, err = userDoc.Update(context.Background(), []firestore.Update{
+		{Path: fmt.Sprintf("%s_count", strings.ToLower(newStatus)), Value: firestore.Increment(1)},
+		{Path: fmt.Sprintf("%s_count", strings.ToLower(EditApplicationStatusRequest.OldStatus)), Value: firestore.Increment(-1)},
+	})
+	if err != nil {
+		fmt.Printf("Error updating status count: %v\n", err)
+		http.Error(w, "Error updating status count", http.StatusInternalServerError)
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
 }

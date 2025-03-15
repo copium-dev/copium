@@ -28,6 +28,7 @@
 	},
 	"dependencies": {
 		"@fortawesome/free-brands-svg-icons": "^6.7.2",
+		"chart.js": "^4.4.8",
 		"lucide-svelte": "^0.473.0",
 		"mode-watcher": "^0.5.0",
 		"svelte-fa": "^4.0.3",

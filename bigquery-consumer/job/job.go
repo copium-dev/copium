@@ -12,6 +12,13 @@ import (
 	"google.golang.org/api/iterator"
 )
 
+type MonthlyTrend struct {
+    Month        string `bigquery:"month"`
+    Applications int64  `bigquery:"applications"`
+    Interviews   int64  `bigquery:"interviews"`
+    Offers       int64  `bigquery:"offers"`
+}
+
 type Job struct {
 	ID              int32
 	Data            map[string]interface{}
@@ -78,12 +85,24 @@ func (j *Job) Process(ctx context.Context) error {
 		return fmt.Errorf("failed to process job: %w", err)
 	}
 
+	// don't recalculate on userDelete
+	if j.Operation == "userDelete" {
+		return nil
+	}
+
 	analytics, err := j.recalculateAnalytics(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to recalculate analytics: %w", err)
 	}
 
 	log.Printf("Analytics recalculated: %v", analytics)
+
+	err = j.updateFirestore(ctx, analytics)
+	if err != nil {
+		return fmt.Errorf("failed to update Firestore: %w", err)
+	}
+
+	log.Printf("Firestore updated successfully")
 
 	return nil
 }
@@ -201,6 +220,7 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 	analytics := make(map[string]interface{})
 
 	q := j.BigQueryClient.Query(`
+		-- all analytics start from latest applied date
         WITH LatestAppliedDate AS (
             SELECT
                 jobID,
@@ -210,29 +230,95 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
             GROUP BY jobID
         ),
 
+		FirstStatusChange AS (
+			SELECT
+				a.jobID,
+				a.event_time,
+				ROW_NUMBER() OVER (PARTITION BY a.jobID ORDER BY a.event_time ASC) as row_num
+			FROM applications_data.applications a
+			JOIN LatestAppliedDate l ON a.jobID = l.jobID
+			WHERE a.email = @email
+				AND a.operation = 'edit'
+				AND a.status IN ('Interviewing', 'Screen', 'Offer', 'Rejected', 'Ghosted')
+				AND a.event_time > l.latest_applied_date
+		),
+
+		FirstResponse AS (
+			SELECT
+				jobID,
+				event_time AS first_response_time
+			FROM FirstStatusChange
+			WHERE row_num = 1  -- Only take the very first status change
+		),
+
+		-- calculate first response time after application
+		ResponseTimes AS (
+			SELECT
+				l.jobID,
+				l.latest_applied_date,
+				MIN(CASE 
+					WHEN a.operation = 'edit' 
+					AND a.status IN ('Interviewing', 'Screen', 'Offer', 'Rejected', 'Ghosted')
+					AND a.event_time > l.latest_applied_date
+					THEN a.event_time
+					ELSE NULL
+				END) AS first_response_time
+			FROM LatestAppliedDate l
+			JOIN applications_data.applications a ON l.jobID = a.jobID
+			WHERE a.email = @email
+			GROUP BY l.jobID, l.latest_applied_date
+		),
+
+		ResponseMetrics AS (
+			SELECT
+				jobID,
+				TIMESTAMP_DIFF(first_response_time, latest_applied_date, DAY) AS days_to_response
+			FROM ResponseTimes
+			WHERE first_response_time IS NOT NULL
+		),
+
+		-- ANALYTIC 1 (monthly trends): # applications and interviews and offers by month
+		MonthlyTrends AS (
+			SELECT
+				FORMAT_TIMESTAMP('%Y-%m', applied_date) AS month,
+				COUNT(DISTINCT CASE WHEN OPERATION = 'add' THEN jobID ELSE NULL END) AS applications,
+				COUNT(DISTINCT CASE WHEN OPERATION = 'edit' AND status = 'Interviewing' THEN jobID ELSE NULL END) AS interviews,
+				COUNT(DISTINCT CASE WHEN OPERATION = 'edit' AND status = 'Offer' THEN jobID ELSE NULL END) AS offers
+			FROM applications_data.applications
+			WHERE email = @email
+			AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 365 DAY)
+			GROUP BY FORMAT_TIMESTAMP('%Y-%m', applied_date)
+			ORDER BY month ASC
+		),
+
 		-- we can't reference the aliases in the outer query so we need to do this
         RawMetrics AS (
             SELECT
-				-- ANALYTIC 1 (application velocity): # apps sent in the current 30 vs previous 30 days
-                SUM(
-                    CASE
-                        WHEN operation = 'add'
-                        AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) 
-                        THEN 1
-                        ELSE 0 
-                    END
+				-- ANALYTIC 2 (application velocity): # apps sent in the current 30 vs previous 30 days
+				-- no need for DISTINCT because every application has at max one 'add' event
+                COALESCE(
+                    SUM(
+						CASE
+							WHEN operation = 'add'
+							AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) 
+							THEN 1
+							ELSE NULL
+                    	END
+					), 0 
                 ) AS current_30day_count,
-                SUM(
-                    CASE
-                        WHEN operation = 'add'
-                        AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
-                        AND applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-                        THEN 1
-                        ELSE 0
-                    END
-                ) AS previous_30day_count,
+				COALESCE(
+					SUM(
+						CASE
+							WHEN operation = 'add'
+							AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+							AND applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+							THEN 1
+							ELSE NULL
+						END
+					), 0
+				) AS previous_30day_count,
 
-				-- ANALYTIC 2 (resume effectiveness): # interviews in the current 30 vs previous 30 days
+				-- ANALYTIC 3 (resume effectiveness): # interviews in the current 30 vs previous 30 days
 				-- agnostic of applied date, because (1) interview is not always immediate and (2) interview usually comes within 30-60 days anyway
                 COUNT(DISTINCT 
                     CASE WHEN a.operation = 'edit'
@@ -252,11 +338,48 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
                         THEN a.jobID
                         ELSE NULL
                     END
-                ) AS previous_30day_interviews
-            FROM applications_data.applications a
-            JOIN LatestAppliedDate l ON a.jobID = l.jobID
-            WHERE email = @email
-            AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+                ) AS previous_30day_interviews,
+
+				-- ANALYTIC 4 (interview effectiveness): # interviews that led to offers in the current 30 vs previous 30 days
+				-- agnostic of applied date, because (1) interview is not always immediate and (2) interview usually comes within 30-60 days anyway
+				-- there's actually no need to actually check if previous status was 'Interviewing'
+				-- because we already assume that the previous status was 'Interviewing' in the previous 30 days. plus sometimes direct offer
+				COUNT(DISTINCT
+					CASE WHEN a.operation = 'edit'
+						AND a.status = 'Offer'
+						AND a.event_time > l.latest_applied_date
+						AND a.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+						THEN a.jobID
+						ELSE NULL
+					END
+				) AS current_30day_offers,
+				COUNT(DISTINCT
+					CASE WHEN a.operation = 'edit'
+						AND a.status = 'Offer'
+						AND a.event_time > l.latest_applied_date
+						AND a.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+						AND a.event_time < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+						THEN a.jobID
+						ELSE NULL
+					END
+				) AS previous_30day_offers,
+
+				-- ANALYTIC 5 (average response time): average time for ANY response (applied -> interivew, interview -> offer, applied -> rejected, etc)
+				AVG(CASE 
+					WHEN l.latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+					THEN rm.days_to_response
+					ELSE NULL
+				END) AS current_30day_avg_response_time,
+				AVG(CASE
+					WHEN l.latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+						AND l.latest_applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+					THEN rm.days_to_response
+					ELSE NULL
+				END) AS previous_30day_avg_response_time
+			FROM applications_data.applications a
+			JOIN LatestAppliedDate l ON a.jobID = l.jobID
+			LEFT JOIN ResponseMetrics rm ON a.jobID = rm.jobID
+			WHERE email = @email
         )
         
         -- now we reference the aliases in an outer query
@@ -264,10 +387,17 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
         SELECT
 			COALESCE(current_30day_count, 0) AS current_30day_count,
 			COALESCE(previous_30day_count, 0) AS previous_30day_count,
-			COALESCE(current_30day_count, 0) - COALESCE(previous_30day_count, 0) AS application_velocity,
+			COALESCE(current_30day_count, 0) - COALESCE(previous_30day_count, 0) AS application_velocity_trend,
 			COALESCE(current_30day_interviews, 0) AS current_30day_interviews,
 			COALESCE(previous_30day_interviews, 0) AS previous_30day_interviews,
-			COALESCE(current_30day_interviews, 0) - COALESCE(previous_30day_interviews, 0) AS resume_effectiveness
+			COALESCE(current_30day_interviews, 0) - COALESCE(previous_30day_interviews, 0) AS resume_effectiveness_trend,
+			COALESCE(current_30day_offers, 0) AS current_30day_offers,
+			COALESCE(previous_30day_offers, 0) AS previous_30day_offers,
+			COALESCE(current_30day_offers, 0) - COALESCE(previous_30day_offers, 0) AS interview_effectiveness_trend, 
+			(SELECT ARRAY_AGG(STRUCT(month, applications, interviews, offers)) FROM MonthlyTrends) AS monthly_trends,
+			COALESCE(current_30day_avg_response_time, 0) AS current_30day_avg_response_time,
+			COALESCE(previous_30day_avg_response_time, 0) AS previous_30day_avg_response_time,
+			COALESCE(current_30day_avg_response_time, 0) - COALESCE(previous_30day_avg_response_time, 0) AS response_time_trend
         FROM RawMetrics
     `)
 
@@ -302,10 +432,17 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 	var row struct {
 		Current30DayCount       int `bigquery:"current_30day_count"`
 		Previous30DayCount      int `bigquery:"previous_30day_count"`
-		ApplicationVelocity     int `bigquery:"application_velocity"`
+		ApplicationVelocityTrend int `bigquery:"application_velocity_trend"`
 		Current30DayInterviews  int `bigquery:"current_30day_interviews"`
 		Previous30DayInterviews int `bigquery:"previous_30day_interviews"`
-		ResumeEffectiveness     int `bigquery:"resume_effectiveness"`
+		Current30DayOffers 	int `bigquery:"current_30day_offers"`
+		Previous30DayOffers 	int `bigquery:"previous_30day_offers"`
+		InterviewEffectivenessTrend int `bigquery:"interview_effectiveness_trend"`
+		ResumeEffectivenessTrend int `bigquery:"resume_effectiveness_trend"`
+		Current30DayAvgResponseTime float64 `bigquery:"current_30day_avg_response_time"`
+		Previous30DayAvgResponseTime float64 `bigquery:"previous_30day_avg_response_time"`
+		ResponseTimeTrend float64 `bigquery:"response_time_trend"`
+		MonthlyTrends           []MonthlyTrend `bigquery:"monthly_trends"`
 	}
 
 	if err := it.Next(&row); err != nil {
@@ -316,8 +453,27 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 		return nil, fmt.Errorf("failed to read row: %w", err)
 	}
 
-	analytics["application_velocity"] = row.ApplicationVelocity
-	analytics["resume_effectiveness"] = row.ResumeEffectiveness
+	analytics["application_velocity"] = row.Current30DayCount
+	analytics["application_velocity_trend"] = row.ApplicationVelocityTrend
+	analytics["resume_effectiveness"] = row.Current30DayInterviews
+	analytics["resume_effectiveness_trend"] = row.ResumeEffectivenessTrend
+	analytics["monthly_trends"] = row.MonthlyTrends
+	analytics["avg_response_time"] = row.Current30DayAvgResponseTime
+	analytics["avg_response_time_trend"] = row.ResponseTimeTrend
+	analytics["interview_effectiveness"] = row.Current30DayOffers
+	analytics["interview_effectiveness_trend"] = row.InterviewEffectivenessTrend
 
 	return analytics, nil
+}
+
+// update the Firestore document with the new analytics
+func (j *Job) updateFirestore(ctx context.Context, analytics map[string]interface{}) error {
+	doc := j.FirestoreClient.Collection("users").Doc(j.Data["email"].(string))
+
+	_, err := doc.Set(ctx, analytics, firestore.MergeAll)
+	if err != nil {
+		return fmt.Errorf("failed to update Firestore document: %w", err)
+	}
+
+	return nil
 }

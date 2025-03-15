@@ -18,6 +18,23 @@ export const load: PageServerLoad = async ({ fetch }) => {
     return {
         email: data.email,
         applicationsCount: data.applicationsCount,
+        analytics: {
+            application_velocity: data.application_velocity,
+            application_velocity_trend: data.application_velocity_trend,
+            resume_effectiveness: data.resume_effectiveness,
+            resume_effectiveness_trend: data.resume_effectiveness_trend,
+            monthly_trends: data.monthly_trends,
+            interview_effectiveness: data.interview_effectiveness,
+            interview_effectiveness_trend: data.interview_effectiveness_trend,
+            avg_response_time: data.avg_response_time,
+            avg_response_time_trend: data.avg_response_time_trend,
+            rejected_count: data.rejected_count,
+            ghosted_count: data.ghosted_count,
+            applied_count: data.applied_count,
+            screen_count: data.screen_count,
+            interviewing_count: data.interviewing_count,
+            offer_count: data.offer_count,
+        }
     };
 };
 
