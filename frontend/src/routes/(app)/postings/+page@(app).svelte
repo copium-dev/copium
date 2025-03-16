@@ -12,6 +12,8 @@
         Building2,
         Link,
         BriefcaseBusiness,
+        List,
+        LayoutGrid
     } from "lucide-svelte";
 
     import placeholder from "$lib/images/placeholder.png";
@@ -165,21 +167,23 @@
                 {#if isViewPreferenceLoaded}
                     <div class="flex flex-row gap-4 justify-between items-center w-full sm:w-auto">
                             <div class="flex gap-2 items-center justify-center">
-                                <p
+                                <div
                                     class={!isGridView
-                                        ? "text-sm font-medium"
-                                        : "text-muted-foreground text-sm font-medium"}
+                                        ? "flex items-stretch gap-1 text-sm font-medium"
+                                        : "flex items-stretch gap-1 text-muted-foreground text-sm font-medium"}
                                 >
+                                    <List class="w-[15px] h-[17px] stroke-[1.5]"/>
                                     List
-                                </p>
+                                </div>
                                 <Switch bind:checked={isGridView} />
-                                <p
+                                <div
                                     class={isGridView
-                                        ? "text-sm font-medium"
-                                        : "text-muted-foreground text-sm font-medium"}
+                                        ? "flex items-stretch gap-1 text-sm font-medium"
+                                        : "flex items-stretch gap-1 text-muted-foreground text-sm font-medium"}
                                 >
+                                    <LayoutGrid class="w-[15px] h-[17px] stroke-[1.5]"/>
                                     Grid
-                                </p>
+                                </div>
                             </div>
                         <PaginatePostings />
                     </div>
@@ -193,41 +197,41 @@
             <Table.Root class="overflow-hidden table-fixed">
                 <Table.Header>
                     <Table.Row class="border-b border-dashed">
-                        <Table.Head class="border-r border-dashed pl-8 w-2/12">
+                        <Table.Head class="border-r border-dashed pl-8 w-3/12">
                             <span class="inline-flex items-center gap-2">
-                                <Building2 class="w-[15px] h-[15px] stroke-[1.5]" />
+                                <Building2 class="w-[15px] h-[17px] stroke-[1.5]" />
                                 Company
                             </span>
                         </Table.Head>
                         <Table.Head class="border-r border-dashed w-5/12">
                             <span class="inline-flex items-center gap-2">
                                 <BriefcaseBusiness
-                                    class="w-[15px] h-[15px] stroke-[1.5]"
+                                    class="w-[15px] h-[17px] stroke-[1.5]"
                                 />
                                 Role
                             </span>
                         </Table.Head>
                         <Table.Head class="border-r border-dashed w-2/12">
                             <span class="inline-flex items-center gap-2">
-                                <Map class="w-[15px] h-[15px] stroke-[1.5]" />
+                                <Map class="w-[15px] h-[17px] stroke-[1.5]" />
                                 Locations
                             </span>
                         </Table.Head>
                         <Table.Head class="border-r border-dashed w-2/12">
                             <span class="inline-flex items-center gap-2">
-                                <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
+                                <Calendar class="w-[15px] h-[17px] stroke-[1.5]" />
                                 Posted
                             </span>
                         </Table.Head>
                         <Table.Head class="border-r border-dashed w-2/12">
                             <span class="inline-flex items-center gap-2">
-                                <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
+                                <Calendar class="w-[15px] h-[17px] stroke-[1.5]" />
                                 Updated
                             </span>
                         </Table.Head>
                         <Table.Head class="pr-8 w-1/12">
                             <span class="inline-flex items-center gap-2">
-                                <Link class="w-[15px] h-[15px] stroke-[1.5]" />
+                                <Link class="w-[15px] h-[17px] stroke-[1.5]" />
                                 Link
                             </span>
                         </Table.Head>
