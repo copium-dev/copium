@@ -28,7 +28,7 @@
         Ghosted: 26,
         Applied: 43,
         Screen: 58,
-        Interview: 77,
+        Interviewing: 77,
         Offer: 100,
     };
 
