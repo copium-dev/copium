@@ -1,8 +1,10 @@
 <script lang="ts">
     import { Input } from "$lib/components/ui/input";
     import { Separator } from "$lib/components/ui/separator";
+    import Switch from "$lib/components/ui/switch/switch.svelte";
 
     import { Job } from "$lib/components/Job";
+    import GridJob from "$lib/components/GridJob/GridJob.svelte";
     import AddJob from "$lib/components/AddJob/AddJob.svelte";
     import FilterJobs from "$lib/components/FilterJobs/FilterJobs.svelte";
     import PaginateJobs from "$lib/components/PaginateJobs/PaginateJobs.svelte";
@@ -10,15 +12,18 @@
     import { jobsFilterStore } from "$lib/stores/jobsFilterStore";
     import { dashboardPaginationStore } from "$lib/stores/dashboardPaginationStore";
 
+    import { List, LayoutGrid } from "lucide-svelte";
+
     import type { PageData } from "./$types";
     import { onMount, onDestroy } from "svelte";
     import { goto } from "$app/navigation";
     import { buildParamsFromFilters } from "$lib/utils/filter";
+    import { browser } from "$app/environment";
 
     export let data: PageData;
-    export let form;    // for eager loading
+    export let form; // for eager loading
 
-    $: if (form?.type === 'success' && form?.data) {
+    $: if (form?.type === "success" && form?.data) {
         // in svelte, reactive updates triggered by assignments not mutations
         // so we gotta do all this below instead of an unshift
         data = {
@@ -33,8 +38,8 @@
                     status: form.data.status,
                     link: form.data.link,
                 },
-                ...data.applications
-            ]
+                ...data.applications,
+            ],
         };
     }
 
@@ -55,7 +60,7 @@
     function handleKeyDown(e: KeyboardEvent) {
         if (e.key === "Enter") {
             const queryElement = document.getElementById(
-                "query",
+                "query"
             ) as HTMLInputElement | null;
             if (document.activeElement !== queryElement) return;
             e.preventDefault();
@@ -70,7 +75,7 @@
     function handleGlobalKeydown(e: KeyboardEvent) {
         if (e.key == "Escape") {
             const queryElement = document.getElementById(
-                "query",
+                "query"
             ) as HTMLInputElement | null;
             if (queryElement) queryElement.blur();
         }
@@ -102,13 +107,37 @@
         });
         goto(`?${params.toString()}`);
     }
+
+    // list - grid style toggle
+    let isViewPreferenceLoaded = false;
+    let isGridView: boolean | undefined = undefined;
+
+    // Use a reactive statement that runs as soon as possible client-side
+    $: if (browser && isGridView === undefined) {
+        const savedView = localStorage.getItem("view_preference");
+        isGridView = savedView === "true";
+        isViewPreferenceLoaded = true;
+    }
+
+    onMount(() => {
+        window.addEventListener("keydown", handleGlobalKeydown);
+
+        return () => {
+            window.removeEventListener("keydown", handleGlobalKeydown);
+        };
+    });
+
+    // save view preference
+    $: if (browser && isViewPreferenceLoaded && isGridView !== undefined) {
+        localStorage.setItem("view_preference", isGridView.toString());
+    }
 </script>
 
-<div
-    class="flex flex-col justify-start gap-4 items-stretch w-full my-12"
->
+<div class="flex flex-col justify-start gap-4 items-stretch w-full my-12">
     <!-- sticky controls wrapper -->
-    <div class="px-8 sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50">
+    <div
+        class="px-8 sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50"
+    >
         <div
             class="bg-background flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full py-2"
         >
@@ -119,35 +148,83 @@
                     <AddJob />
                     <Separator orientation="vertical" class="h-6" />
                     <Input
-                            type="text"
-                            placeholder="Search by company, role, or location."
-                            id="query"
-                            bind:value={$jobsFilterStore.query}
-                            on:input={updateInput}
-                            on:keydown={handleKeyDown}
+                        type="text"
+                        placeholder="Search by company, role, or location."
+                        id="query"
+                        bind:value={$jobsFilterStore.query}
+                        on:input={updateInput}
+                        on:keydown={handleKeyDown}
                     />
                     <Separator orientation="vertical" class="h-6" />
                     <FilterJobs />
                 </div>
-                <PaginateJobs />
+                {#if isViewPreferenceLoaded}
+                    <div
+                        class="flex flex-row gap-4 justify-between items-center w-full sm:w-auto"
+                    >
+                        <div class="flex gap-2 items-center justify-center">
+                            <div
+                                class={!isGridView
+                                    ? "flex items-stretch gap-1 text-sm font-medium"
+                                    : "flex items-stretch gap-1 text-muted-foreground text-sm font-medium"}
+                            >
+                                <List class="w-[15px] h-[17px] stroke-[1.5]" />
+                                List
+                            </div>
+                            <Switch bind:checked={isGridView} />
+                            <div
+                                class={isGridView
+                                    ? "flex items-stretch gap-1 text-sm font-medium"
+                                    : "flex items-stretch gap-1 text-muted-foreground text-sm font-medium"}
+                            >
+                                <LayoutGrid
+                                    class="w-[15px] h-[17px] stroke-[1.5]"
+                                />
+                                Grid
+                            </div>
+                        </div>
+                        <PaginateJobs />
+                    </div>
+                {/if}
             </div>
         </div>
     </div>
 
-    <div class="mb-4">
-        <!-- by default, visible is true. but for eager loading, if delete application called within Job
-         visible is set to false and there is a if block to only render if the job is visible -->
-        {#each data.applications as job (job.objectID)}
-            <Job
-                objectID={job.objectID}
-                company={job.company}
-                role={job.role}
-                appliedDate={job.appliedDate}
-                location={job.location}
-                status={job.status}
-                link={job.link}
-                visible={true}
-            />
-        {/each}
-    </div>
+    {#if isViewPreferenceLoaded}
+        {#if !isGridView}
+        <div class="mb-4">
+            <!-- by default, visible is true. but for eager loading, if delete application called within Job
+             visible is set to false and there is a if block to only render if the job is visible -->
+            {#each data.applications as job (job.objectID)}
+                <Job
+                    objectID={job.objectID}
+                    company={job.company}
+                    role={job.role}
+                    appliedDate={job.appliedDate}
+                    location={job.location}
+                    status={job.status}
+                    link={job.link}
+                    visible={true}
+                />
+            {/each}
+        </div>
+        {:else}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-8 mb-4">
+            {#each data.applications as job (job.objectID)}
+                <GridJob
+                    objectID={job.objectID}
+                    company={job.company}
+                    role={job.role}
+                    appliedDate={job.appliedDate}
+                    location={job.location}
+                    status={job.status}
+                    link={job.link}
+                    visible={true}
+                />
+            {/each}
+        </div>
+        {/if}
+    {/if}
+
+    
 </div>

@@ -1,6 +1,4 @@
 <script lang="ts">
-    import { onMount } from "svelte";
-
     import * as Pagination from "$lib/components/ui/pagination";
     import { Separator } from "$lib/components/ui/separator";
     import ChevronLeft from "svelte-radix/ChevronLeft.svelte";
