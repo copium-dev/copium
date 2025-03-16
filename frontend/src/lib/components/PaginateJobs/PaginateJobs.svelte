@@ -12,7 +12,7 @@
     import { afterNavigate } from "$app/navigation";
     import { page as pageStore } from "$app/state";
 
-    import Input from "../ui/input/input.svelte";
+    import Input from "$lib/components/ui/input/input.svelte";
 
     $: count = $dashboardPaginationStore.count;
 
@@ -83,8 +83,8 @@
                 placeholder={currentPageFromURL.toString()}
                 class="focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 w-[50px]"
             />
-            <Separator orientation="vertical" class="mx-3 h-6" />
         </form>
+        <Separator orientation="vertical" class="mx-3 h-6" />
     </div>
     <Pagination.Content>
         <Pagination.Item>
@@ -120,4 +120,4 @@
             </Pagination.NextButton>
         </Pagination.Item>
     </Pagination.Content>
-</Pagination.Root>
+</Pagination.Root>  

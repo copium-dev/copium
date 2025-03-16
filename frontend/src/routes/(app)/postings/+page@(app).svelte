@@ -18,6 +18,8 @@
 
     import placeholder from "$lib/images/placeholder.png";
 
+    import { formatDate } from "$lib/utils/date";
+
     import { buildParamsFromFilters } from "$lib/utils/filter";
     import FilterPostings from "$lib/components/FilterPostings/FilterPostings.svelte";
     import { postingsFilterStore } from "$lib/stores/postingsFilterStore";
@@ -96,34 +98,13 @@
         goto(`?${params.toString()}`);
     }
 
-    function formatDate(timestamp: number): string {
-        if (!timestamp) return "";
-
-        // convert seconds to milliseconds cause postings are stored in seconds and JS expects milliseconds lol
-        const timestampMs = timestamp * 1000;
-
-        const date = new Date(timestampMs);
-        if (isNaN(date.getTime())) return "";
-
-        // Adjust for timezone
-        const adjustedDate = new Date(
-            date.getTime() + date.getTimezoneOffset() * 60 * 1000
-        );
-
-        const month = String(adjustedDate.getMonth() + 1).padStart(2, "0");
-        const day = String(adjustedDate.getDate()).padStart(2, "0");
-        const year = adjustedDate.getFullYear();
-
-        return `${month}-${day}-${year}`;
-    }
-
     // list - grid style toggle
     let isViewPreferenceLoaded = false;
     let isGridView: boolean | undefined = undefined;
     
     // Use a reactive statement that runs as soon as possible client-side
     $: if (browser && isGridView === undefined) {
-        const savedView = localStorage.getItem("view_preference");
+        const savedView = localStorage.getItem("view_preference_postings");
         isGridView = savedView === "true";
         isViewPreferenceLoaded = true;
     }
@@ -138,7 +119,7 @@
 
     // save view preference
     $: if (browser && isViewPreferenceLoaded && isGridView !== undefined) {
-        localStorage.setItem("view_preference", isGridView.toString());
+        localStorage.setItem("view_preference_postings", isGridView.toString());
     }
 </script>
 
@@ -169,8 +150,8 @@
                             <div class="flex gap-2 items-center justify-center">
                                 <div
                                     class={!isGridView
-                                        ? "flex items-stretch gap-1 text-sm font-medium"
-                                        : "flex items-stretch gap-1 text-muted-foreground text-sm font-medium"}
+                                        ? "flex items-center gap-1 text-sm font-medium"
+                                        : "flex items-center gap-1 text-muted-foreground text-sm font-medium"}
                                 >
                                     <List class="w-[15px] h-[17px] stroke-[1.5]"/>
                                     List
@@ -178,8 +159,8 @@
                                 <Switch bind:checked={isGridView} />
                                 <div
                                     class={isGridView
-                                        ? "flex items-stretch gap-1 text-sm font-medium"
-                                        : "flex items-stretch gap-1 text-muted-foreground text-sm font-medium"}
+                                        ? "flex items-center gap-1 text-sm font-medium"
+                                        : "flex items-center gap-1 text-muted-foreground text-sm font-medium"}
                                 >
                                     <LayoutGrid class="w-[15px] h-[17px] stroke-[1.5]"/>
                                     Grid

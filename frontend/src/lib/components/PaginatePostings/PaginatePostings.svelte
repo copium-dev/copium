@@ -11,7 +11,7 @@
     import { page as pageStore } from "$app/state";
     import { afterNavigate } from "$app/navigation";
     import { goto } from "$app/navigation";
-    import Input from "../ui/input/input.svelte";
+    import Input from "$lib/components/ui/input/input.svelte";
 
     $: count = $postingsPaginationStore.count;
 
@@ -76,16 +76,16 @@
 >
     <div class="flex flex-row items-center gap-2">
         <div class="text-sm">Go to page:</div>
-        <form on:submit={goToPage} class="flex items-center">
-            <Input
-                type="text"
-                bind:value={pageValue}
-                on:keydown={handleKeydown}
-                placeholder={currentPageFromURL.toString()}
-                class="focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 w-[50px]"
-            />
+            <form on:submit={goToPage} class="flex items-center">
+                <Input
+                    type="text"
+                    bind:value={pageValue}
+                    on:keydown={handleKeydown}
+                    placeholder={currentPageFromURL.toString()}
+                    class="focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 w-[50px]"
+                />
+            </form>
             <Separator orientation="vertical" class="mx-3 h-6" />
-        </form>
     </div>
     <Pagination.Content>
         <Pagination.Item>

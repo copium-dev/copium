@@ -221,7 +221,7 @@
         </div>
 
         <section class="flex flex-col gap-4 items-stretch w-full sm:w-3/4 mb-4">
-            <div class="flex items-baseline justify-between">
+            <div class="flex items-center justify-between">
                 <h2 class="text-2xl font-bold tracking-tight">
                     Application Analytics
                 </h2>
@@ -261,7 +261,12 @@
                                     ?.application_velocity_trend || 0}
                             </div>
                             <div
-                                class={`flex items-center ${data.analytics?.application_velocity_trend > 0 ? "text-green-500" : "text-red-500"}`}
+                                class={`flex items-center ${
+                                    data.analytics?.application_velocity_trend > 0
+                                    ? "text-green-500"
+                                    : data.analytics?.application_velocity_trend < 0
+                                        ? "text-red-500"
+                                        : "text-muted-foreground"}`}
                             >
                                 {#if data.analytics?.application_velocity_trend > 0}
                                     <svg
@@ -298,16 +303,18 @@
                                 {/if}
                                 <span
                                     >{Math.abs(
-                                        data.analytics?.application_velocity ||
-                                            0,
-                                    )} apps</span
+                                        data.analytics?.application_velocity || 0)} apps sent</span
                                 >
                             </div>
                         </div>
                         <p class="text-sm text-muted-foreground mt-2">
-                            {data.analytics?.application_velocity_trend > 0
-                                ? "More"
-                                : "Fewer"} applications than previous 30 day period
+                            {#if data.analytics?.application_velocity_trend > 0}
+                                More
+                            {:else if data.analytics?.application_velocity_trend < 0}
+                                Fewer
+                            {:else}
+                                Same number of
+                            {/if} applications than previous 30 day period
                         </p>
                     </Card.Content>
                 </Card.Root>
@@ -328,7 +335,12 @@
                                     ?.resume_effectiveness_trend || 0}
                             </div>
                             <div
-                                class={`flex items-center ${data.analytics?.resume_effectiveness_trend > 0 ? "text-green-500" : "text-red-500"}`}
+                                class={`flex items-center ${
+                                    data.analytics?.resume_effectiveness_trend > 0
+                                    ? "text-green-500"
+                                    : data.analytics?.resume_effectiveness_trend < 0
+                                        ? "text-red-500"
+                                        : "text-muted-foreground"}`}
                             >
                                 {#if data.analytics?.resume_effectiveness_trend > 0}
                                     <svg
@@ -342,10 +354,10 @@
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
                                         class="h-4 w-4 mr-1"
-                                        ><path d="m5 12 7-7 7 7"></path><path
-                                            d="M5 19h14"
-                                        ></path></svg
                                     >
+                                        <path d="m5 12 7-7 7 7"></path>
+                                        <path d="M5 19h14"></path>
+                                    </svg>
                                 {:else}
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
@@ -363,18 +375,17 @@
                                         ></path></svg
                                     >
                                 {/if}
-                                <span
-                                    >{Math.abs(
-                                        data.analytics?.resume_effectiveness ||
-                                            0,
-                                    )} interviews</span
-                                >
+                                <span>{Math.abs(data.analytics?.resume_effectiveness || 0)} interviews</span>
                             </div>
                         </div>
                         <p class="text-sm text-muted-foreground mt-2">
-                            {data.analytics?.resume_effectiveness_trend > 0
-                                ? "More"
-                                : "Fewer"} interviews than previous 30 day period
+                            {#if data.analytics?.resume_effectiveness_trend > 0}
+                                More
+                            {:else if data.analytics?.resume_effectiveness_trend < 0}
+                                Fewer
+                            {:else}
+                                Same number of
+                            {/if} interviews than previous 30 day period
                         </p>
                     </Card.Content>
                 </Card.Root>
@@ -389,14 +400,19 @@
                     <Card.Content>
                         <div class="flex items-center justify-between">
                             <div class="text-2xl font-bold">
-                                {data.analytics?.interview_effectiveness_trend >
-                                0
+                                {data.analytics?.interview_effectiveness_trend > 0
                                     ? "+"
-                                    : ""}{data.analytics
-                                    ?.interview_effectiveness_trend || 0}
+                                    : ""}
+                                {data.analytics?.interview_effectiveness_trend || 0}
                             </div>
                             <div
-                                class={`flex items-center ${data.analytics?.interview_effectiveness_trend > 0 ? "text-green-500" : "text-red-500"}`}
+                                class={`flex items-center ${
+                                    data.analytics?.interview_effectiveness_trend > 0 
+                                    ? "text-green-500" 
+                                    : data.analytics?.interview_effectiveness_trend < 0 
+                                        ? "text-red-500" 
+                                        : "text-muted-foreground"
+                                }`}
                             >
                                 {#if data.analytics?.interview_effectiveness_trend > 0}
                                     <svg
@@ -410,10 +426,26 @@
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
                                         class="h-4 w-4 mr-1"
-                                        ><path d="m5 12 7-7 7 7"></path><path
-                                            d="M5 19h14"
-                                        ></path></svg
                                     >
+                                        <path d="m5 12 7-7 7 7"></path>
+                                        <path d="M5 19h14"></path>
+                                    </svg>
+                                {:else if data.analytics?.interview_effectiveness_trend < 0}
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="h-4 w-4 mr-1"
+                                    >
+                                        <path d="m5 12 7 7 7-7"></path>
+                                        <path d="M5 5h14"></path>
+                                    </svg>
                                 {:else}
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
@@ -426,21 +458,22 @@
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
                                         class="h-4 w-4 mr-1"
-                                        ><path d="m5 12 7 7 7-7"></path><path
-                                            d="M5 5h14"
-                                        ></path></svg
                                     >
+                                        <path d="M5 9h14"></path>
+                                        <path d="M5 15h14"></path>
+                                    </svg>
                                 {/if}
-                                <span
-                                    >{data.analytics?.interview_effectiveness ||
-                                        0} offers</span
-                                >
+                                <span>{data.analytics?.interview_effectiveness || 0} offers</span>
                             </div>
                         </div>
                         <p class="text-sm text-muted-foreground mt-2">
-                            {data.analytics?.interview_effectiveness_trend > 0
-                                ? "More"
-                                : "Fewer"} offers than previous 30 day period
+                            {#if data.analytics?.interview_effectiveness_trend > 0}
+                                More
+                            {:else if data.analytics?.interview_effectiveness_trend < 0}
+                                Fewer
+                            {:else}
+                                Same number of
+                            {/if} offers than previous 30 day period
                         </p>
                     </Card.Content>
                 </Card.Root>
@@ -448,19 +481,22 @@
                 <!-- Average Response Time -->
                 <Card.Root>
                     <Card.Header class="pb-2">
-                        <Card.Description class="text-sm font-medium"
-                            >Average Response Time</Card.Description
-                        >
+                        <Card.Description class="text-sm font-medium">
+                            Average Response Time
+                        </Card.Description>
                     </Card.Header>
                     <Card.Content>
                         <div class="flex items-center justify-between">
                             <div class="text-2xl font-bold">
-                                {data.analytics?.avg_response_time?.toFixed(
-                                    1,
-                                ) || 0} days
+                                {data.analytics?.avg_response_time?.toFixed(1) || 0} days
                             </div>
                             <div
-                                class={`flex items-center ${data.analytics?.avg_response_time_trend < 0 ? "text-green-500" : "text-red-500"}`}
+                                class={`flex items-center ${data.analytics?.avg_response_time_trend < 0
+                                    ? "text-green-500"
+                                    : data.analytics?.avg_response_time_trend > 0
+                                        ? "text-red-500"
+                                        : "text-muted-foreground"}`
+                                }
                             >
                                 {#if data.analytics?.avg_response_time_trend < 0}
                                     <svg
@@ -474,12 +510,11 @@
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
                                         class="h-4 w-4"
-                                        ><circle cx="12" cy="12" r="10"
-                                        ></circle><polyline
-                                            points="12 6 12 12 16 14"
-                                        ></polyline></svg
                                     >
-                                {:else}
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                {:else if data.analytics?.avg_response_time_trend > 0}
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
                                         width="24"
@@ -496,13 +531,34 @@
                                             points="12 6 12 12 8 14"
                                         ></polyline></svg
                                     >
+                                {:else}
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="h-4 w-4"
+                                        ><circle cx="12" cy="12" r="10"
+                                        ></circle><polyline
+                                            points="12 6 12 12 16 14"
+                                        ></polyline></svg
+                                    >
                                 {/if}
                             </div>
                         </div>
                         <p class="text-sm text-muted-foreground mt-2">
-                            {data.analytics?.avg_response_time_trend < 0
-                                ? "Faster"
-                                : "Slower"} than previous 30 day period ({Math.abs(
+                            {#if data.analytics?.avg_response_time_trend < 0}
+                                Faster
+                            {:else if data.analytics?.avg_response_time_trend > 0}
+                                Slower
+                            {:else}
+                                Same response time
+                            {/if} than previous 30 day period ({Math.abs(
                                 data.analytics?.avg_response_time_trend || 0,
                             ).toFixed(1)} days)
                         </p>

@@ -114,7 +114,7 @@
 
     // Use a reactive statement that runs as soon as possible client-side
     $: if (browser && isGridView === undefined) {
-        const savedView = localStorage.getItem("view_preference");
+        const savedView = localStorage.getItem("view_preference_dashboard");
         isGridView = savedView === "true";
         isViewPreferenceLoaded = true;
     }
@@ -129,7 +129,7 @@
 
     // save view preference
     $: if (browser && isViewPreferenceLoaded && isGridView !== undefined) {
-        localStorage.setItem("view_preference", isGridView.toString());
+        localStorage.setItem("view_preference_dashboard", isGridView.toString());
     }
 </script>
 
@@ -165,8 +165,8 @@
                         <div class="flex gap-2 items-center justify-center">
                             <div
                                 class={!isGridView
-                                    ? "flex items-stretch gap-1 text-sm font-medium"
-                                    : "flex items-stretch gap-1 text-muted-foreground text-sm font-medium"}
+                                    ? "flex items-center gap-1 text-sm font-medium"
+                                    : "flex items-center gap-1 text-muted-foreground text-sm font-medium"}
                             >
                                 <List class="w-[15px] h-[17px] stroke-[1.5]" />
                                 List
@@ -174,8 +174,8 @@
                             <Switch bind:checked={isGridView} />
                             <div
                                 class={isGridView
-                                    ? "flex items-stretch gap-1 text-sm font-medium"
-                                    : "flex items-stretch gap-1 text-muted-foreground text-sm font-medium"}
+                                    ? "flex items-center gap-1 text-sm font-medium"
+                                    : "flex items-center gap-1 text-muted-foreground text-sm font-medium"}
                             >
                                 <LayoutGrid
                                     class="w-[15px] h-[17px] stroke-[1.5]"
