@@ -34,6 +34,7 @@ export const load: PageServerLoad = async ({ fetch }) => {
             screen_count: data.screen_count,
             interviewing_count: data.interviewing_count,
             offer_count: data.offer_count,
+            last_updated: data.last_updated,
         }
     };
 };

@@ -11,10 +11,12 @@
     import { Progress } from "$lib/components/ui/progress/index.js";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
 
+    import { formatDate } from "$lib/utils/date";
+
     import placeholder from "$lib/images/placeholder.png";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
 
-    export let objectID: string; // temporarily not used; will be used for db operations later
+    export let objectID: string;
     export let company: string;
     export let role: string;
     export let appliedDate: number; // raw unix timestamp
@@ -31,20 +33,6 @@
         Interviewing: 74,
         Offer: 100,
     };
-
-    // format to mm-dd-yyyy
-    function formatDate(timestamp: number): string {
-        if (!timestamp) return "";
-
-        const date = new Date(timestamp * 1000);
-        if (isNaN(date.getTime())) return "";
-
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        const year = date.getFullYear();
-
-        return `${month}-${day}-${year}`;
-    }
 
     async function updateStatus(newStatus: keyof typeof statusValues) {
         value = statusValues[newStatus];
@@ -283,7 +271,7 @@
                     <AlertDialog.Trigger asChild let:builder>
                         <Button
                             builders={[builder]}
-                            class="text-red-500 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none sm:hover:bg-transparent hover:text-red-500 sm:hover:bg-accent"
+                            class="text-red-500 hover:text-red-600 hover:bg-red-50 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none"
                         >
                             Delete
                         </Button>

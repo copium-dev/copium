@@ -12,6 +12,8 @@
     import type { PageData } from "./$types";
     import { onMount } from "svelte";
 
+    import { formatDateWithSeconds } from "$lib/utils/date";
+
     function signOut() {
         window.location.href = "/auth/google/logout";
     }
@@ -238,7 +240,7 @@
                         ><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"
                         ></path><path d="M3 12h18"></path></svg
                     >
-                    Current 30 day period
+                    Last updated: {formatDateWithSeconds(data.analytics?.last_updated)}
                 </Badge>
             </div>
 

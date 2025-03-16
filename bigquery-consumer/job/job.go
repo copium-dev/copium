@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"cloud.google.com/go/bigquery"
 	"cloud.google.com/go/firestore"
@@ -375,11 +376,6 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 			COALESCE(current_30day_avg_response_time, 0) - COALESCE(previous_30day_avg_response_time, 0) AS response_time_trend
         FROM RawMetrics
     `)
-
-	// TODO: any all time analytics should be done in a separate query because....
-	// 		the AND applied_Date >= ... is used in prev query because
-	//		the WHERE statement is executed before the SELECT clause which is a little optimization to never
-	// 		look at records that are older than 60 days
 	q.Parameters = []bigquery.QueryParameter{
 		{Name: "email", Value: j.Data["email"]},
 	}
@@ -437,6 +433,7 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 	analytics["avg_response_time_trend"] = row.ResponseTimeTrend
 	analytics["interview_effectiveness"] = row.Current30DayOffers
 	analytics["interview_effectiveness_trend"] = row.InterviewEffectivenessTrend
+	analytics["last_updated"] = time.Now().Unix()
 
 	return analytics, nil
 }

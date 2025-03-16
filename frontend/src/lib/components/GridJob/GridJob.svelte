@@ -14,7 +14,7 @@
     import placeholder from "$lib/images/placeholder.png";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
 
-    export let objectID: string; // temporarily not used; will be used for db operations later
+    export let objectID: string;
     export let company: string;
     export let role: string;
     export let appliedDate: number; // raw unix timestamp
@@ -192,10 +192,10 @@
                     <Progress value={value} max={100} class="h-0.5 absolute top-[7px]" />
                     <div class="flex justify-between">
                         {#each Object.entries(statusValues) as [status, progressValue]}
-                            <div class="flex flex-col items-center mt-0.5">
+                            <div class="flex flex-col items-center mt-0.5 z-10">
                                 <Button
                                     size="icon"
-                                    class="w-3 h-3 rounded-full {value === progressValue
+                                    class="w-3 h-3 z-50 {value === progressValue
                                         ? 'bg-primary dark:bg-secondary-foreground'
                                         : 'bg-secondary dark:bg-primary-foreground'}"
                                     on:click={() => {

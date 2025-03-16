@@ -191,9 +191,10 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 		"interview_effectiveness_trend", "interview_effectiveness",
         "avg_response_time_trend", "avg_response_time",
         "monthly_trends", "rejected_count", "ghosted_count", "applied_count", 
-        "screen_count", "interviewing_count", "offer_count",
+        "screen_count", "interviewing_count", "offer_count", "last_updated",
     }
     
+	// loop over each field and add to response if it exists
     for _, field := range analyticsFields {
         if val, exists := doc.Data()[field]; exists {
             response[field] = val
