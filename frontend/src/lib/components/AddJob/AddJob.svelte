@@ -5,6 +5,7 @@
     import { Button } from "$lib/components/ui/button";
     
     import { enhance } from "$app/forms";
+    import { formatDateForInput } from "$lib/utils/date";
     
     let open = false;
 </script>
@@ -74,6 +75,7 @@
                     type="date"
                     name="appliedDate"
                     placeholder="Applied Date"
+                    value={formatDateForInput(Math.floor(Date.now()/1000))}
                     required
                 />
                 <AlertDialog.Footer>

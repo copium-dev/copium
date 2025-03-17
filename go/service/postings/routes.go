@@ -84,12 +84,33 @@ func (h *Handler) GetPostings(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Println("Page requested:", page)
 
+	hitsPerPage := r.URL.Query().Get("hits")
+	hitsPerPageInt := 10 // Default value
+
+	if hitsPerPage != "" {
+		parsed, err := strconv.Atoi(hitsPerPage)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			http.Error(w, "Error parsing hitsPerPage", http.StatusBadRequest)
+			return
+		}
+		hitsPerPageInt = parsed
+	}
+
+	if hitsPerPageInt < 10 {
+		hitsPerPageInt = 10
+	} else if hitsPerPageInt > 20 {
+		hitsPerPageInt = 20
+	}
+
+	log.Println("Hits per page requested:", hitsPerPageInt)
+
 	// 2. build a search params object (see users/dashboard as a reference)
 	// 2.a) set free text query if provided
 	// 2.b) finalize search params object
 
 	searchParamsObject := &search.SearchParamsObject{
-		HitsPerPage: utils.IntPtr(10),
+		HitsPerPage: utils.IntPtr(int32(hitsPerPageInt)),
 		Filters:     utils.StringPtr(filtersString),
 		Page:        utils.IntPtr(int32(page)),
 	}
@@ -139,7 +160,7 @@ func (h *Handler) GetPostings(w http.ResponseWriter, r *http.Request) {
 	// 5. return
 	responseObject := PostingsResponse{
 		Applications: applications,
-		TotalPages:   postingsutils.CalculateTotalPages(int(*response.NbHits), 10),
+		TotalPages:   postingsutils.CalculateTotalPages(int(*response.NbHits), hitsPerPageInt),
 		CurrentPage:  page,
 	}
 

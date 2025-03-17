@@ -22,7 +22,6 @@ func ParseQuery(r *http.Request) (string, string, error) {
 	title := params.Get("title")
 	startDate := params.Get("startDate")
 	endDate := params.Get("endDate")
-	active := params.Get("active")
 
 	// build filters for non free‑text filtering
 	filters := make(map[string]string)
@@ -34,9 +33,6 @@ func ParseQuery(r *http.Request) (string, string, error) {
 	}
 	if location != "" {
 		filters["locations"] = quoteIfNeeded(location)
-	}
-	if active != "" {
-		filters["active"] = active
 	}
 
 	var filterStrs []string

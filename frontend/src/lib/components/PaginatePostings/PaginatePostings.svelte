@@ -50,8 +50,12 @@
     function goToPage(event: Event) {
         event.preventDefault();
 
-        const pageNum = parseInt(pageValue);
+        let pageNum = parseInt(pageValue) || 1;
         const params = new URLSearchParams(pageStore.url.search);
+
+        if (pageNum < 1) {
+            pageNum = 1;
+        }
 
         params.set("page", pageNum.toString());
         goto(`?${params.toString()}`);

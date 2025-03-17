@@ -13,6 +13,8 @@
     import placeholder from "$lib/images/placeholder.png";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
 
+    import { formatDateForDisplay } from '$lib/utils/date';
+
     export let objectID: string;
     export let company: string;
     export let role: string;
@@ -30,20 +32,6 @@
         Interviewing: 77,
         Offer: 100,
     };
-
-    // format to mm-dd-yyyy
-    function formatDate(timestamp: number): string {
-        if (!timestamp) return "";
-
-        const date = new Date(timestamp * 1000);
-        if (isNaN(date.getTime())) return "";
-
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        const year = date.getFullYear();
-
-        return `${month}-${day}-${year}`;
-    }
 
     async function updateStatus(newStatus: keyof typeof statusValues) {
         value = statusValues[newStatus];
@@ -167,22 +155,24 @@
                 </div>
             </div>
         
-            <div class="mb-1 flex gap-2 items-center">
-                <div class="text-sm font-medium">
+            <div class="mb-1 flex gap-2 items-center w-full">
+                <div class="text-sm font-medium w-full truncate">
                     {#if link}
                         <a
                             href={link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="hover:underline text-primary"
+                            class="hover:underline text-primary truncate"
                         >{role}</a>
                     {:else}
-                        {role}
+                        <span class="truncate">
+                            {role}
+                        </span>
                     {/if}
                 </div>
                 <div class="flex items-center text-xs text-muted-foreground">
                     <Calendar class="w-3 h-3 mr-1" />
-                    {formatDate(appliedDate)}
+                    {formatDateForDisplay(appliedDate)}
                 </div>
             </div>
             

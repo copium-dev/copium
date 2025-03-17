@@ -282,6 +282,10 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 		)
 
 		-- final select to aggregate all metrics into one row
+		-- Q: some subqueries are made here; but why not JOIN them?
+		-- A: subqueries are just one operation -- none of the data from UserApplications is needed
+		--    to process ResponseMetrics or MonthlyTrends. Furthermore, columnar storage + BigQuery's optimizer
+		--    will likely recognize that subqueries can be run independently and processed in parallel
 		SELECT
 			-- application velocity metrics
 			COALESCE(SUM(CASE WHEN ua.in_current_period AND ua.is_application THEN 1 ELSE 0 END), 0) AS current_30day_count,

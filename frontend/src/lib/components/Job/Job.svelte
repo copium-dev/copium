@@ -11,7 +11,7 @@
     import { Progress } from "$lib/components/ui/progress/index.js";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
 
-    import { formatDate } from "$lib/utils/date";
+    import { formatDateForDisplay } from "$lib/utils/date";
 
     import placeholder from "$lib/images/placeholder.png";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
@@ -158,11 +158,11 @@
                         class="flex flex-col items-baseline sm:gap-1 px-5 w-full"
                     >
                         <p
-                            class="flex flex-row items-end font-bold gap-1 h-full"
+                            class="flex flex-row items-end font-bold gap-1 h-full truncate"
                         >
                             {company}
                         </p>
-                        <p class="flex flex-row items-end gap-1 text-xs h-full">
+                        <p class="flex flex-row items-end gap-1 text-xs h-full truncate">
                             <Map class="w-[15px] h-[15px] stroke-[1.5]" />
                             {location}
                         </p>
@@ -186,27 +186,27 @@
             <div
                 class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-full"
             >
-                <div class="flex flex-row items-center">
+                <div class="flex flex-row items-center w-full">
                     <div
-                        class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-0 sm:px-5"
+                        class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-0 sm:px-5 w-[384px] sm:w-[300px]"
                     >
-                        <p class="flex items-end">
+                        <p class="flex items-end w-full truncate">
                             {#if link}
                                 <a
                                     href={link}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    class="hover:underline">{role}</a
+                                    class="hover:underline truncate">{role}</a
                                 >
                             {:else}
-                                {role}
+                                <span class="truncate">{role}</span>
                             {/if}
                         </p>
                         <p class="flex flex-row items-end gap-1 text-xs h-full">
                             <Calendar
                                 class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0"
                             />
-                            {formatDate(appliedDate)}
+                            {formatDateForDisplay(appliedDate)}
                         </p>
                     </div>
                 </div>

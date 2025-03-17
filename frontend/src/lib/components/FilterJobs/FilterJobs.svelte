@@ -31,7 +31,10 @@
             endDate: "",
             status: "Status",
         })
-        goto('/dashboard');
+        // get hitsPerPage from URL before redirecting
+        const url = new URL(window.location.href);
+        const hitsPerPage = url.searchParams.get('hits');
+        goto('/dashboard' + (hitsPerPage ? `?hits=${hitsPerPage}` : ''));
     }
 
     function sendFilters() {

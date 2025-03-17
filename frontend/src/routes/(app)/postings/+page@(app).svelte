@@ -3,6 +3,7 @@
     import { Separator } from "$lib/components/ui/separator";
     import * as Table from "$lib/components/ui/table/index.js";
     import * as HoverCard from "$lib/components/ui/hover-card/index.js";
+    import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
     import { Button } from "$lib/components/ui/button";
     import Switch from "$lib/components/ui/switch/switch.svelte";
 
@@ -18,7 +19,7 @@
 
     import placeholder from "$lib/images/placeholder.png";
 
-    import { formatDate } from "$lib/utils/date";
+    import { formatDateForDisplay, formatDateForInput } from "$lib/utils/date";
 
     import { buildParamsFromFilters } from "$lib/utils/filter";
     import FilterPostings from "$lib/components/FilterPostings/FilterPostings.svelte";
@@ -84,6 +85,10 @@
         }
     });
 
+    // list - grid style toggle
+    let isViewPreferenceLoaded = false;
+    let isGridView: boolean | undefined = undefined;
+
     function updateURL() {
         const { query, company, role, location, startDate, endDate } =
             $postingsFilterStore;
@@ -94,13 +99,11 @@
             location,
             startDate,
             endDate,
+            // we can load more in grid view
+            hitsPerPage: isGridView ? 20 : 10,
         });
         goto(`?${params.toString()}`);
     }
-
-    // list - grid style toggle
-    let isViewPreferenceLoaded = false;
-    let isGridView: boolean | undefined = undefined;
     
     // Use a reactive statement that runs as soon as possible client-side
     $: if (browser && isGridView === undefined) {
@@ -120,6 +123,28 @@
     // save view preference
     $: if (browser && isViewPreferenceLoaded && isGridView !== undefined) {
         localStorage.setItem("view_preference_postings", isGridView.toString());
+        updateURL();    // must reload with saved view preference because of hitsPerPage
+    }
+
+    function addApplication(posting: any) {
+        const company = posting.company_name;
+        const role = posting.title;
+        const location = posting.locations[0];
+        const link = posting.url;
+        const appliedDate = formatDateForInput(Math.floor(Date.now()/1000))
+
+        const form = new FormData();
+        form.append("company", company);
+        form.append("role", role);
+        form.append("location", location);
+        form.append("link", link);
+        form.append("appliedDate", appliedDate.toString());
+        
+        // dont need to wait for response just fire and forget
+        fetch("dashboard?/add", {
+            method: "POST",
+            body: form,
+        });
     }
 </script>
 
@@ -265,24 +290,47 @@
                             </Table.Cell>
                             <Table.Cell class="border-r border-dashed"
                                 ><p class="truncate">
-                                    {formatDate(posting.date_posted)}
+                                    {formatDateForDisplay(posting.date_posted)}
                                 </p></Table.Cell
                             >
                             <Table.Cell class="border-r border-dashed"
                                 ><p class="truncate">
-                                    {formatDate(posting.date_updated)}
+                                    {formatDateForDisplay(posting.date_updated)}
                                 </p></Table.Cell
                             >
                             <Table.Cell
                                 class="flex items-center justify-center pr-8"
                             >
-                                <Button
-                                    href={posting.url}
-                                    target="_blank"
-                                    size="sm"
-                                >
-                                    Apply
-                                </Button>
+                                <AlertDialog.Root>
+                                    <AlertDialog.Trigger asChild let:builder>
+                                        <Button
+                                            builders={[builder]}
+                                            href={posting.url}
+                                            target="_blank"
+                                            size="sm"
+                                            >
+                                            Apply
+                                        </Button>
+                                    </AlertDialog.Trigger>
+                                    <AlertDialog.Content>
+                                        <AlertDialog.Header>
+                                            <AlertDialog.Title>
+                                                Did you apply for this job?
+                                            </AlertDialog.Title>
+                                            <AlertDialog.Description>
+                                                Click "Yes" below to automatically add this to your dashboard.
+                                            </AlertDialog.Description>
+                                        </AlertDialog.Header>
+                                        <AlertDialog.Footer>
+                                            <AlertDialog.Cancel>No</AlertDialog.Cancel>
+                                            <AlertDialog.Action
+                                                on:click={() => addApplication(posting)}
+                                            >
+                                                Yes
+                                            </AlertDialog.Action>
+                                        </AlertDialog.Footer>
+                                    </AlertDialog.Content>
+                                </AlertDialog.Root>
                             </Table.Cell>
                         </Table.Row>
                     {/each}
@@ -352,7 +400,7 @@
                             class="text-xs text-muted-foreground flex items-center gap-1"
                         >
                             <Calendar class="w-3 h-3 inline" />
-                            <span>Posted: {formatDate(posting.date_posted)}</span>
+                            <span>Posted: {formatDateForDisplay(posting.date_posted)}</span>
                         </div>
                     </div>
                 {/each}

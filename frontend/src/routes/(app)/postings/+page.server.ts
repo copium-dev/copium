@@ -18,9 +18,10 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
     const query = url.searchParams.get('q');
     const company = url.searchParams.get('company');
     const location = url.searchParams.get('location');
-    const title = url.searchParams.get('title');
+    const title = url.searchParams.get('role');
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
+    const hitsPerPage = url.searchParams.get('hits');
 
     const params = new URLSearchParams();
     if (page) params.set('page', page);
@@ -30,8 +31,8 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
     if (location) params.set('location', location);
     if (startDate) params.set('startDate', startDate);
     if (endDate) params.set('endDate', endDate);
+    if (hitsPerPage) params.set('hits', hitsPerPage);
 
-    // this should actually be implemented lololol
     const dashboardURL = `${BACKEND_URL}/postings?${params.toString()}`;
 
     const response = await fetch(dashboardURL, {

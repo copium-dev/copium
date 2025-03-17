@@ -6,6 +6,7 @@ export function buildParamsFromFilters({
     startDate,
     endDate,
     status,
+    hitsPerPage,
 }: {
     query: string;
     company: string;
@@ -14,6 +15,7 @@ export function buildParamsFromFilters({
     startDate: string;
     endDate: string;
     status?: string;
+    hitsPerPage?: number;
 }): URLSearchParams {
     const params = new URLSearchParams(window.location.search);
 
@@ -54,7 +56,12 @@ export function buildParamsFromFilters({
     } else {
         params.delete("endDate");
     }
-
+    if (hitsPerPage) {
+        params.set("hits", hitsPerPage.toString());
+    } else {
+        params.delete("hits");
+    }
+    
     // ALWAYS reset page to 1 when filters change
     params.set("page", "1");
 

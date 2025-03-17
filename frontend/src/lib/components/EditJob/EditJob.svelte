@@ -6,6 +6,8 @@
     import { Label } from "$lib/components/ui/label";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
 
+    import { formatDateForInput, convertLocalDateToTimestamp } from "$lib/utils/date";
+
     export let objectID: string;
     export let company: string;
     export let role: string;
@@ -43,31 +45,6 @@
             console.log("Application deleted successfully");
             onDeleteSuccess();
         }
-    }
-
-    function convertLocalDateToTimestamp(dateString: string): number {
-        // dateString comes as yyyy-mm-dd
-        const [year, month, day] = dateString.split('-').map(Number);
-        
-        // month is 0-indexed in Date constructor
-        const date = new Date(year, month - 1, day, 12, 0, 0);
-        
-        // return unix timestamp in seconds
-        return Math.floor(date.getTime() / 1000);
-}
-
-    // format to mm-dd-yyyy
-    function formatDate(timestamp: number): string {
-        if (!timestamp) return "";
-
-        const date = new Date(timestamp * 1000);
-        if (isNaN(date.getTime())) return "";
-
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        const year = date.getFullYear();
-
-        return `${year}-${month}-${day}`;
     }
 </script>
 
@@ -212,7 +189,7 @@
                         type="date"
                         name="appliedDate"
                         placeholder="Applied Date"
-                        value={formatDate(appliedDate)}
+                        value={formatDateForInput(appliedDate)}
                     />
                 </div>
 

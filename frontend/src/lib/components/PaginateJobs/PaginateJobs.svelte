@@ -49,8 +49,12 @@
     function goToPage(event: Event) {
         event.preventDefault();
 
-        const pageNum = parseInt(pageValue);
+        let pageNum = parseInt(pageValue) || 1;
         const params = new URLSearchParams(pageStore.url.search);
+
+        if (pageNum < 1) {
+            pageNum = 1;
+        }
 
         params.set("page", pageNum.toString());
         goto(`?${params.toString()}`);
@@ -75,16 +79,16 @@
 >
     <div class="flex flex-row items-center gap-2">
         <div class="text-sm">Go to page:</div>
-        <form on:submit={goToPage} class="flex items-center">
-            <Input
-                type="text"
-                bind:value={pageValue}
-                on:keydown={handleKeydown}
-                placeholder={(currentPageFromURL || 1).toString()}
-                class="focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 w-[50px]"
-            />
-        </form>
-        <Separator orientation="vertical" class="mx-3 h-6" />
+            <form on:submit={goToPage} class="flex items-center">
+                <Input
+                    type="text"
+                    bind:value={pageValue}
+                    on:keydown={handleKeydown}
+                    placeholder={(currentPageFromURL || 1).toString()}
+                    class="focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 w-[50px]"
+                />
+            </form>
+            <Separator orientation="vertical" class="mx-3 h-6" />
     </div>
     <Pagination.Content>
         <Pagination.Item>

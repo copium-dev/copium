@@ -25,7 +25,10 @@
             startDate: "",
             endDate: "",
         })
-        goto('/postings');
+        // get hitsPerPage from URL before redirecting
+        const url = new URL(window.location.href);
+        const hitsPerPage = url.searchParams.get('hits');
+        goto('/postings' + (hitsPerPage ? `?hits=${hitsPerPage}` : ''));
     }
 
     function sendFilters() {

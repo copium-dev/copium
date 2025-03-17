@@ -4,16 +4,16 @@ package user
 // it contains the following handlers:
 // (R) - Dashboard: queries Algolia for applications based on search query
 // (R) - Profile: (for now) returns simply email and app count; once we figure out what kind of data analytics we want to show, it will be updated
-// (C) - AddApplication: adds an application to Firestore and publishes a message to RabbitMQ
-// (D) - DeleteApplication: deletes an application from Firestore and publishes a message to RabbitMQ
-// (U) - EditStatus: edits the status of an application in Firestore and publishes a message to RabbitMQ
-// (U) - EditApplication: edits an application in Firestore and publishes a message to RabbitMQ
-// (D) - DeleteUser: deletes a user from Firestore and publishes a message to RabbitMQ to delete all applications from Algolia
+// (C) - AddApplication: adds an application to Firestore and publishes a message to PubSub
+// (D) - DeleteApplication: deletes an application from Firestore and publishes a message to PubSub
+// (U) - EditStatus: edits the status of an application in Firestore and publishes a message to PubSub
+// (U) - EditApplication: edits an application in Firestore and publishes a message to PubSub
+// (D) - DeleteUser: deletes a user from Firestore and publishes a message to PubSub to delete all applications from Algolia
 // this file contains the following utility functions:
 // - deleteUserFromFirestore: deletes a user from Firestore, including all applications
-// - publishMessage: publishes a message to RabbitMQ with publish and connection retries
+// - publishMessage: publishes a message to PubSub with publish and connection retries
 //     (relies on utils.PublishWithRetry and retryRabbitConnectionAndRetryPublish)
-// - retryRabbitConnectionAndRetryPublish: re-establishes connection to RabbitMQ and retries publishing a message
+// - retryRabbitConnectionAndRetryPublish: re-establishes connection to PubSub and retries publishing a message
 //	   (relies on utils.RetryRabbitConnection and utils.PublishWithRetry)
 // NOTE: all CRUD operations (AddApplication, DeleteApplication, EditStatus, EditApplication, DeleteUser) are idempotent
 //       and can be retried without side effects. This is why there is no timestamping or versioning.
@@ -245,11 +245,33 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Println("Page requested:", page)
 
+
+	hitsPerPage := r.URL.Query().Get("hits")
+	hitsPerPageInt := 10 // Default value
+
+	if hitsPerPage != "" {
+		parsed, err := strconv.Atoi(hitsPerPage)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			http.Error(w, "Error parsing hitsPerPage", http.StatusBadRequest)
+			return
+		}
+		hitsPerPageInt = parsed
+	}
+
+	if hitsPerPageInt < 10 {
+		hitsPerPageInt = 10
+	} else if hitsPerPageInt > 20 {
+		hitsPerPageInt = 20
+	}
+
+	log.Println("Hits per page requested:", hitsPerPageInt)
+
 	// 2. build a search params object
 	searchParamsObject := &search.SearchParamsObject{
 		Facets:       []string{"email"},
 		FacetFilters: &search.FacetFilters{String: utils.StringPtr("email:" + email)},
-		HitsPerPage:  utils.IntPtr(10),
+		HitsPerPage:  utils.IntPtr(int32(hitsPerPageInt)),
 		Filters:      utils.StringPtr(filtersString),
 		Page:         utils.IntPtr(int32(page)),
 	}
@@ -299,7 +321,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	// create response object pagination info
 	responseObject := DashboardResponse{
 		Applications: applications,
-		TotalPages:   userutils.CalculateTotalPages(int(*response.NbHits), 10),
+		TotalPages:   userutils.CalculateTotalPages(int(*response.NbHits), hitsPerPageInt),
 		CurrentPage:  page,
 	}
 

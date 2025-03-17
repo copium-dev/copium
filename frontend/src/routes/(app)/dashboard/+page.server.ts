@@ -24,6 +24,7 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
     const location = url.searchParams.get('location');
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
+    const hitsPerPage = url.searchParams.get('hits');
 
     const params = new URLSearchParams();
     if (page) params.set('page', page);
@@ -34,7 +35,7 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
     if (location) params.set('location', location);
     if (startDate) params.set('startDate', startDate);
     if (endDate) params.set('endDate', endDate);
-    console.log(params.toString());
+    if (hitsPerPage) params.set('hits', hitsPerPage);
 
     const dashboardURL = `${BACKEND_URL}/user/dashboard?${params.toString()}`;
 

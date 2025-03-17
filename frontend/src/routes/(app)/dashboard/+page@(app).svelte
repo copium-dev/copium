@@ -93,6 +93,10 @@
         }
     });
 
+    // list - grid style toggle
+    let isViewPreferenceLoaded = false;
+    let isGridView: boolean | undefined = undefined;
+
     function updateURL() {
         const { query, company, role, location, startDate, endDate, status } =
             $jobsFilterStore;
@@ -104,13 +108,11 @@
             startDate,
             endDate,
             status,
+            // we can load more in grid view
+            hitsPerPage: isGridView ? 20 : 10,
         });
         goto(`?${params.toString()}`);
     }
-
-    // list - grid style toggle
-    let isViewPreferenceLoaded = false;
-    let isGridView: boolean | undefined = undefined;
 
     // Use a reactive statement that runs as soon as possible client-side
     $: if (browser && isGridView === undefined) {
@@ -129,7 +131,8 @@
 
     // save view preference
     $: if (browser && isViewPreferenceLoaded && isGridView !== undefined) {
-        localStorage.setItem("view_preference_dashboard", isGridView.toString());
+        localStorage.setItem("view_preference_dashboard", isGridView.toString())
+        updateURL();    // must reload with saved view preference because of hitsPerPage
     }
 </script>
 
@@ -192,37 +195,37 @@
 
     {#if isViewPreferenceLoaded}
         {#if !isGridView}
-        <div class="mb-4">
-            <!-- by default, visible is true. but for eager loading, if delete application called within Job
-             visible is set to false and there is a if block to only render if the job is visible -->
-            {#each data.applications as job (job.objectID)}
-                <Job
-                    objectID={job.objectID}
-                    company={job.company}
-                    role={job.role}
-                    appliedDate={job.appliedDate}
-                    location={job.location}
-                    status={job.status}
-                    link={job.link}
-                    visible={true}
-                />
-            {/each}
-        </div>
+            <div class="mb-4">
+                <!-- by default, visible is true. but for eager loading, if delete application called within Job
+                visible is set to false and there is a if block to only render if the job is visible -->
+                {#each data.applications as job (job.objectID)}
+                    <Job
+                        objectID={job.objectID}
+                        company={job.company}
+                        role={job.role}
+                        appliedDate={job.appliedDate}
+                        location={job.location}
+                        status={job.status}
+                        link={job.link}
+                        visible={true}
+                    />
+                {/each}
+            </div>
         {:else}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-8 mb-4">
-            {#each data.applications as job (job.objectID)}
-                <GridJob
-                    objectID={job.objectID}
-                    company={job.company}
-                    role={job.role}
-                    appliedDate={job.appliedDate}
-                    location={job.location}
-                    status={job.status}
-                    link={job.link}
-                    visible={true}
-                />
-            {/each}
-        </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-8 mb-4">
+                {#each data.applications as job (job.objectID)}
+                    <GridJob
+                        objectID={job.objectID}
+                        company={job.company}
+                        role={job.role}
+                        appliedDate={job.appliedDate}
+                        location={job.location}
+                        status={job.status}
+                        link={job.link}
+                        visible={true}
+                    />
+                {/each}
+            </div>
         {/if}
     {/if}
 
