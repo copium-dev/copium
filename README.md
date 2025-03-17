@@ -20,5 +20,5 @@
 - **why firestore?:** speed is of upmost importance... it also has a free tier
 - **why traefik?:** automatically handles SSL certification renewal which Nginx doesn't natively handle and does not support hot renewal with new certificates
 
-![image](https://github.com/user-attachments/assets/0be18753-2c91-4cbe-8db1-db0dc13302f3)
+![image](https://github.com/user-attachments/assets/4f9655e1-a821-4c7f-ad0c-d3421bcedc1b)
 
