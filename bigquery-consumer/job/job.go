@@ -221,160 +221,125 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 	analytics := make(map[string]interface{})
 
 	q := j.BigQueryClient.Query(`
-		-- all analytics start from latest applied date
-        WITH LatestAppliedDate AS (
-            SELECT
-                jobID,
-                MAX(applied_date) AS latest_applied_date
-            FROM applications_data.applications
-            WHERE email = @email
-            GROUP BY jobID
-        ),
+		-- extract all relevant data in one pass of applications table
+		WITH UserApplications AS (
+			SELECT 
+				jobID,
+				email,
+				event_time,
+				applied_date,
+				status,
+				operation,
+				-- pre-calculate conditions we'll use multiple times
+				(operation = 'add') AS is_application,
+				(operation = 'edit' AND status IN ('Interviewing', 'Screen')) AS is_interview,
+				(operation = 'edit' AND status = 'Offer') AS is_offer,
+				(operation = 'edit' AND status IN ('Interviewing', 'Screen', 'Offer', 'Rejected', 'Ghosted')) AS is_response,
+				-- time periods
+				(applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)) AS in_current_period,
+				(applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY) 
+				AND applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)) AS in_previous_period,
+				FORMAT_TIMESTAMP('%Y-%m', applied_date) AS month
+			FROM applications_data.applications
+			WHERE email = @email
+		),
 
-		-- for each jobID, find (1) the first response aka min(event_time) after latest_applied_date
-		-- and (2) the days between the two
+		-- latest applied date must be separate from JobMetrics (window functions cannot be nested within aggregate functions)
+		LatestAppliedDates AS (
+			SELECT
+				jobID,
+				MAX(applied_date) AS latest_applied_date
+			FROM UserApplications
+			GROUP BY jobID
+		),
+
+		-- calculate avg time to first response 
 		ResponseMetrics AS (
 			SELECT
 				l.jobID,
 				l.latest_applied_date,
-				-- use NULL to handle cases where no response yet; this ensures they are not included in the AVG
-				-- and don't skew the results
 				MIN(CASE 
-					WHEN a.operation = 'edit' 
-					AND a.status IN ('Interviewing', 'Screen', 'Offer', 'Rejected', 'Ghosted')
-					AND a.event_time > l.latest_applied_date
-					THEN TIMESTAMP_DIFF(a.event_time, l.latest_applied_date, DAY)
+					WHEN ua.is_response AND ua.event_time > l.latest_applied_date
+					THEN TIMESTAMP_DIFF(ua.event_time, l.latest_applied_date, DAY)
 					ELSE NULL
 				END) AS days_to_response
-			FROM LatestAppliedDate l
-			JOIN applications_data.applications a 
-			ON l.jobID = a.jobID AND a.email = @email
+			FROM LatestAppliedDates l
+			JOIN UserApplications ua ON l.jobID = ua.jobID
 			GROUP BY l.jobID, l.latest_applied_date
 		),
 
-		-- ANALYTIC 1 (monthly trends): # applications and interviews and offers by month
+		-- get monthly trends in # apps sent, # interview, # offer
 		MonthlyTrends AS (
 			SELECT
-				FORMAT_TIMESTAMP('%Y-%m', applied_date) AS month,
-				COUNT(DISTINCT CASE WHEN OPERATION = 'add' THEN jobID ELSE NULL END) AS applications,
-				COUNT(DISTINCT CASE WHEN OPERATION = 'edit' AND status = 'Interviewing' THEN jobID ELSE NULL END) AS interviews,
-				COUNT(DISTINCT CASE WHEN OPERATION = 'edit' AND status = 'Offer' THEN jobID ELSE NULL END) AS offers
-			FROM applications_data.applications
-			WHERE email = @email
-			AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 365 DAY)
-			GROUP BY FORMAT_TIMESTAMP('%Y-%m', applied_date)
-			ORDER BY month ASC
-		),
+				month,
+				SUM(CASE WHEN is_application THEN 1 ELSE 0 END) AS applications,
+				COUNT(DISTINCT CASE WHEN is_interview THEN jobID END) AS interviews,
+				COUNT(DISTINCT CASE WHEN is_offer THEN jobID END) AS offers
+			FROM UserApplications
+			WHERE applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 365 DAY)
+			GROUP BY month
+			ORDER BY month
+		)
 
-		-- we can't reference the aliases in the outer query so we need to do this
-        RawMetrics AS (
-            SELECT
-				-- ANALYTIC 2 (application velocity): # apps sent in the current 30 vs previous 30 days
-				-- no need for DISTINCT because every application has at max one 'add' event
-                COALESCE(
-                    SUM(
-						CASE
-							WHEN operation = 'add'
-							AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) 
-							THEN 1
-							ELSE NULL
-                    	END
-					), 0 
-                ) AS current_30day_count,
+		-- final select to aggregate all metrics into one row
+		SELECT
+			-- application velocity metrics
+			COALESCE(SUM(CASE WHEN ua.in_current_period AND ua.is_application THEN 1 ELSE 0 END), 0) AS current_30day_count,
+			COALESCE(SUM(CASE WHEN ua.in_previous_period AND ua.is_application THEN 1 ELSE 0 END), 0) AS previous_30day_count,
+			COALESCE(SUM(CASE WHEN ua.in_current_period AND ua.is_application THEN 1 ELSE 0 END), 0) - 
+				COALESCE(SUM(CASE WHEN ua.in_previous_period AND ua.is_application THEN 1 ELSE 0 END), 0) AS application_velocity_trend,
+			
+			-- resume effectiveness metrics
+			COUNT(DISTINCT CASE WHEN ua.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) 
+							AND ua.is_interview THEN ua.jobID ELSE NULL END) AS current_30day_interviews,
+			COUNT(DISTINCT CASE WHEN ua.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+							AND ua.event_time < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+							AND ua.is_interview THEN ua.jobID ELSE NULL END) AS previous_30day_interviews,
+			COUNT(DISTINCT CASE WHEN ua.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) 
+							AND ua.is_interview THEN ua.jobID ELSE NULL END) -
+			COUNT(DISTINCT CASE WHEN ua.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+							AND ua.event_time < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+							AND ua.is_interview THEN ua.jobID ELSE NULL END) AS resume_effectiveness_trend,
+			
+			-- interview effectiveness metrics
+			COUNT(DISTINCT CASE WHEN ua.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) 
+							AND ua.is_offer THEN ua.jobID ELSE NULL END) AS current_30day_offers,
+			COUNT(DISTINCT CASE WHEN ua.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+							AND ua.event_time < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+							AND ua.is_offer THEN ua.jobID ELSE NULL END) AS previous_30day_offers,
+			COUNT(DISTINCT CASE WHEN ua.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) 
+							AND ua.is_offer THEN ua.jobID ELSE NULL END) -
+			COUNT(DISTINCT CASE WHEN ua.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+							AND ua.event_time < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+							AND ua.is_offer THEN ua.jobID ELSE NULL END) AS interview_effectiveness_trend,
+			
+			-- response time metrics (gets as a subquery, avoids unnecessary JOIN since does not use UserApplications)
+			-- scalar subqueries can only have one column so separate into multiple
+			(SELECT
 				COALESCE(
-					SUM(
-						CASE
-							WHEN operation = 'add'
-							AND applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
-							AND applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-							THEN 1
-							ELSE NULL
-						END
-					), 0
-				) AS previous_30day_count,
+					AVG(CASE WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+						THEN days_to_response ELSE NULL END
+					), 0) FROM ResponseMetrics) AS current_30day_avg_response_time,
+			(SELECT
+				COALESCE(
+					AVG(CASE WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+						AND latest_applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+						THEN days_to_response ELSE NULL END
+					), 0) FROM ResponseMetrics) AS previous_30day_avg_response_time,
+			(SELECT COALESCE(AVG(CASE WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+				THEN days_to_response ELSE NULL END), 0) - 
+			COALESCE(AVG(CASE WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+				AND latest_applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+				THEN days_to_response ELSE NULL END), 0) FROM ResponseMetrics) AS response_time_trend,
+			
+			-- monthly trends (gets as a subquery, avoids unnecessary JOIN since does not use UserApplications)
+			(SELECT
+				ARRAY_AGG(
+					STRUCT(month, applications, interviews, offers)
+				)
+			FROM MonthlyTrends) AS monthly_trends
 
-				-- ANALYTIC 3 (resume effectiveness): # interviews in the current 30 vs previous 30 days
-				-- agnostic of applied date, because (1) interview is not always immediate and (2) interview usually comes within 30-60 days anyway
-                COUNT(DISTINCT 
-                    CASE WHEN a.operation = 'edit'
-                        AND (a.status = 'Interviewing' OR a.status = 'Screen')
-                        AND a.event_time > l.latest_applied_date
-                        AND a.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-                        THEN a.jobID
-                        ELSE NULL
-                    END
-                ) AS current_30day_interviews,
-                COUNT(DISTINCT
-                    CASE WHEN a.operation = 'edit'
-                        AND (a.status = 'Interviewing' OR a.status = 'Screen')
-                        AND a.event_time > l.latest_applied_date
-                        AND a.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
-                        AND a.event_time < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-                        THEN a.jobID
-                        ELSE NULL
-                    END
-                ) AS previous_30day_interviews,
-
-				-- ANALYTIC 4 (interview effectiveness): # interviews that led to offers in the current 30 vs previous 30 days
-				-- agnostic of applied date, because (1) interview is not always immediate and (2) interview usually comes within 30-60 days anyway
-				-- there's actually no need to actually check if previous status was 'Interviewing'
-				-- because we already assume that the previous status was 'Interviewing' in the previous 30 days. plus sometimes direct offer
-				COUNT(DISTINCT
-					CASE WHEN a.operation = 'edit'
-						AND a.status = 'Offer'
-						AND a.event_time > l.latest_applied_date
-						AND a.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-						THEN a.jobID
-						ELSE NULL
-					END
-				) AS current_30day_offers,
-				COUNT(DISTINCT
-					CASE WHEN a.operation = 'edit'
-						AND a.status = 'Offer'
-						AND a.event_time > l.latest_applied_date
-						AND a.event_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
-						AND a.event_time < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-						THEN a.jobID
-						ELSE NULL
-					END
-				) AS previous_30day_offers,
-
-				-- ANALYTIC 5 (average response time): average time for ANY response (applied -> interivew, interview -> offer, applied -> rejected, etc)
-				-- only tracks applications from current 30 or prev 30 day period
-				AVG(CASE 
-					WHEN l.latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-					THEN rm.days_to_response
-					ELSE NULL
-				END) AS current_30day_avg_response_time,
-				AVG(CASE
-					WHEN l.latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
-						AND l.latest_applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-					THEN rm.days_to_response
-					ELSE NULL
-				END) AS previous_30day_avg_response_time
-			FROM applications_data.applications a
-			JOIN LatestAppliedDate l ON a.jobID = l.jobID
-			LEFT JOIN ResponseMetrics rm ON a.jobID = rm.jobID
-			WHERE email = @email
-        )
-        
-        -- now we reference the aliases in an outer query
-		-- COALESCE() is used to handle NULL values
-        SELECT
-			COALESCE(current_30day_count, 0) AS current_30day_count,
-			COALESCE(previous_30day_count, 0) AS previous_30day_count,
-			COALESCE(current_30day_count, 0) - COALESCE(previous_30day_count, 0) AS application_velocity_trend,
-			COALESCE(current_30day_interviews, 0) AS current_30day_interviews,
-			COALESCE(previous_30day_interviews, 0) AS previous_30day_interviews,
-			COALESCE(current_30day_interviews, 0) - COALESCE(previous_30day_interviews, 0) AS resume_effectiveness_trend,
-			COALESCE(current_30day_offers, 0) AS current_30day_offers,
-			COALESCE(previous_30day_offers, 0) AS previous_30day_offers,
-			COALESCE(current_30day_offers, 0) - COALESCE(previous_30day_offers, 0) AS interview_effectiveness_trend, 
-			(SELECT ARRAY_AGG(STRUCT(month, applications, interviews, offers)) FROM MonthlyTrends) AS monthly_trends,
-			COALESCE(current_30day_avg_response_time, 0) AS current_30day_avg_response_time,
-			COALESCE(previous_30day_avg_response_time, 0) AS previous_30day_avg_response_time,
-			COALESCE(current_30day_avg_response_time, 0) - COALESCE(previous_30day_avg_response_time, 0) AS response_time_trend
-        FROM RawMetrics
+		FROM UserApplications ua
     `)
 	q.Parameters = []bigquery.QueryParameter{
 		{Name: "email", Value: j.Data["email"]},

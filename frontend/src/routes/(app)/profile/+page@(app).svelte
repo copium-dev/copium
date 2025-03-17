@@ -284,7 +284,7 @@
                                             d="M5 19h14"
                                         ></path></svg
                                     >
-                                {:else}
+                                {:else if data.analytics?.application_velocity_trend < 0}
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
                                         width="24"
@@ -300,6 +300,22 @@
                                             d="M5 5h14"
                                         ></path></svg
                                     >
+                                {:else}
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="h-4 w-4 mr-1"
+                                    >
+                                        <path d="M5 9h14"></path>
+                                        <path d="M5 15h14"></path>
+                                  </svg>
                                 {/if}
                                 <span
                                     >{Math.abs(
@@ -358,7 +374,7 @@
                                         <path d="m5 12 7-7 7 7"></path>
                                         <path d="M5 19h14"></path>
                                     </svg>
-                                {:else}
+                                {:else if data.analytics?.resume_effectiveness_trend < 0}
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
                                         width="24"
@@ -374,6 +390,22 @@
                                             d="M5 5h14"
                                         ></path></svg
                                     >
+                                {:else}
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        class="h-4 w-4 mr-1"
+                                 >
+                                    <path d="M5 9h14"></path>
+                                    <path d="M5 15h14"></path>
+                                </svg>
                                 {/if}
                                 <span>{Math.abs(data.analytics?.resume_effectiveness || 0)} interviews</span>
                             </div>

@@ -7,7 +7,6 @@
     import { Calendar } from "lucide-svelte";
 
     import { Button } from "$lib/components/ui/button";
-    import { Separator } from "$lib/components/ui/separator";
     import { Progress } from "$lib/components/ui/progress/index.js";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
 

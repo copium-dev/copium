@@ -81,7 +81,7 @@
                     type="text"
                     bind:value={pageValue}
                     on:keydown={handleKeydown}
-                    placeholder={currentPageFromURL.toString()}
+                    placeholder={(currentPageFromURL || 1).toString()}
                     class="focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 w-[50px]"
                 />
             </form>
