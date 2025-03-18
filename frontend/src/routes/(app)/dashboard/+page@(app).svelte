@@ -212,7 +212,7 @@
                 {/each}
             </div>
         {:else}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-8 mb-4">
+            <div class="flex flex-wrap items-center justify-start grid-rows-auto px-6 mb-4">
                 {#each data.applications as job (job.objectID)}
                     <GridJob
                         objectID={job.objectID}

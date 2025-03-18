@@ -410,7 +410,7 @@
 
     <div class="container flex justify-end gap-4">
         <p class="text-muted-foreground text-xs">*Only shows active postings</p>
-        <p class="text-muted-foreground text-xs">*Updated every 3 hours</p>
+        <!-- <p class="text-muted-foreground text-xs">*Updated every 3 hours</p> -->
         <div class="flex space-x-1">
             <p class="text-muted-foreground text-xs">
                 *Internship postings from

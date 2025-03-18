@@ -13,7 +13,7 @@
     import placeholder from "$lib/images/placeholder.png";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
 
-    import { formatDateForDisplay } from '$lib/utils/date';
+    import { formatDateForDisplay } from "$lib/utils/date";
 
     export let objectID: string;
     export let company: string;
@@ -25,7 +25,7 @@
     export let visible: boolean;
 
     const statusValues: Record<string, number> = {
-        Rejected: 9,
+        Rejected: 7,
         Ghosted: 26,
         Applied: 43,
         Screen: 58,
@@ -110,7 +110,7 @@
 
         // if company changed then we refetch logo
         const companyChanged = company !== updatedJob.company;
-        
+
         company = updatedJob.company;
         role = updatedJob.role;
         location = updatedJob.location;
@@ -136,109 +136,133 @@
 </script>
 
 {#if visible}
-    <div class="bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow">
-        <div class="px-6 pt-4 pb-3">
-            <div class="flex items-start justify-between mb-2">
-                <div class="flex gap-3 items-center">
-                    <img
-                        src={imgSrc}
-                        alt={company}
-                        class="w-8 h-8 rounded-lg object-cover"
-                    />
-                    <div>
-                        <h3 class="font-medium">{company}</h3>
-                        <div class="flex items-center text-xs text-muted-foreground">
-                            <Map class="w-3 h-3 mr-1" />
-                            {location}
+    <div class="w-1/3 gap-2">
+        <div
+            class="bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow m-2"
+        >
+            <div class="px-4 pt-3 pb-2">
+                <div class="flex items-start justify-between mb-2">
+                    <div class="flex gap-3 items-center">
+                        <img
+                            src={imgSrc}
+                            alt={company}
+                            class="w-8 h-8 rounded-lg object-cover"
+                        />
+                        <div>
+                            <h3 class="font-medium">{company}</h3>
+                            <div
+                                class="flex items-center text-xs text-muted-foreground w-full"
+                            >
+                                <Map class="w-3 h-3 mr-1" />
+                                {location}
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        
-            <div class="mb-1 flex gap-2 items-center w-full">
-                <div class="text-sm font-medium w-full truncate">
-                    {#if link}
-                        <a
-                            href={link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="hover:underline text-primary truncate"
-                        >{role}</a>
-                    {:else}
-                        <span class="truncate">
-                            {role}
-                        </span>
-                    {/if}
-                </div>
-                <div class="flex items-center text-xs text-muted-foreground">
-                    <Calendar class="w-3 h-3 mr-1" />
-                    {formatDateForDisplay(appliedDate)}
-                </div>
-            </div>
-            
-            <div class="my-1">
-                <div class="relative">
-                    <Progress value={value} max={100} class="h-0.5 absolute top-[7px]" />
-                    <div class="flex justify-between">
-                        {#each Object.entries(statusValues) as [status, progressValue]}
-                            <div class="flex flex-col items-center mt-0.5 z-10">
-                                <Button
-                                    size="icon"
-                                    class="w-3 h-3 z-50 {value === progressValue
-                                        ? 'bg-primary dark:bg-secondary-foreground'
-                                        : 'bg-secondary dark:bg-primary-foreground'}"
-                                    on:click={() => {
-                                        updateStatus(
-                                            status as keyof typeof statusValues
-                                        );
-                                    }}
-                                    aria-label={`Set status to ${status}`}
-                                ></Button>
-                                <span class="text-[10px] mt-1 hidden sm:inline">{status}</span>
-                            </div>
-                        {/each}
+
+                <div class="mb-1 flex items-center w-full">
+                    <div class="text-sm font-medium w-full truncate">
+                        {#if link}
+                            <a
+                                href={link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="hover:underline text-primary truncate"
+                                >{role}</a
+                            >
+                        {:else}
+                            <span class="truncate">
+                                {role}
+                            </span>
+                        {/if}
+                    </div>
+                    <div
+                        class="flex items-center justify-end text-xs text-muted-foreground w-full"
+                    >
+                        <Calendar class="w-3 h-3 mr-1" />
+                        {formatDateForDisplay(appliedDate)}
                     </div>
                 </div>
-            </div>
-            
-            <div class="flex justify-between items-center">
-                <EditJob
-                    {objectID}
-                    {company}
-                    {role}
-                    {appliedDate}
-                    {location}
-                    {status}
-                    {link}
-                    onUpdateSuccess={handleJobUpdate}
-                    onDeleteSuccess={() => visible = false}
-                />
-                
-                <AlertDialog.Root>
-                    <AlertDialog.Trigger asChild let:builder>
-                        <Button
-                            builders={[builder]}
-                            variant="ghost"
-                            size="sm"
-                            class="text-red-500 hover:text-red-600 hover:bg-red-50 p-2 h-8 w-1/2"
-                        >
-                            Delete
-                        </Button>
-                    </AlertDialog.Trigger>
-                    <AlertDialog.Content>
-                        <!-- Keep your existing Alert Dialog content -->
-                        <AlertDialog.Header>
-                            <AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
-                            <AlertDialog.Description>
-                                This action cannot be undone. This will permanently delete this application data from our servers.
-                            </AlertDialog.Description>
-                        </AlertDialog.Header>
-                        <AlertDialog.Footer>
-                            <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-                            <AlertDialog.Action on:click={deleteApplication}>Continue</AlertDialog.Action>
-                        </AlertDialog.Footer>
-                    </AlertDialog.Content>
-                </AlertDialog.Root>
+
+                <div class="my-1">
+                    <div class="relative">
+                        <Progress
+                            {value}
+                            max={100}
+                            class="h-0.5 absolute top-[7px]"
+                        />
+                        <div class="flex justify-between gap-2">
+                            {#each Object.entries(statusValues) as [status, progressValue]}
+                                <div
+                                    class="flex flex-col items-center mt-0.5 z-10"
+                                >
+                                    <Button
+                                        size="icon"
+                                        class="w-3 h-3 z-50 rounded-full {value ===
+                                        progressValue
+                                            ? 'bg-primary dark:bg-secondary-foreground'
+                                            : 'bg-secondary dark:bg-primary-foreground'}"
+                                        on:click={() => {
+                                            updateStatus(
+                                                status as keyof typeof statusValues
+                                            );
+                                        }}
+                                        aria-label={`Set status to ${status}`}
+                                    ></Button>
+                                    <span class="text-xs text-muted-foreground"
+                                        >{status}</span
+                                    >
+                                </div>
+                            {/each}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <EditJob
+                        {objectID}
+                        {company}
+                        {role}
+                        {appliedDate}
+                        {location}
+                        {status}
+                        {link}
+                        onUpdateSuccess={handleJobUpdate}
+                        onDeleteSuccess={() => (visible = false)}
+                    />
+
+                    <AlertDialog.Root>
+                        <AlertDialog.Trigger asChild let:builder>
+                            <Button
+                                builders={[builder]}
+                                variant="ghost"
+                                size="sm"
+                                class="text-red-500 hover:text-red-600 hover:bg-red-50 p-2 h-8 w-1/2"
+                            >
+                                Delete
+                            </Button>
+                        </AlertDialog.Trigger>
+                        <AlertDialog.Content>
+                            <!-- Keep your existing Alert Dialog content -->
+                            <AlertDialog.Header>
+                                <AlertDialog.Title
+                                    >Are you absolutely sure?</AlertDialog.Title
+                                >
+                                <AlertDialog.Description>
+                                    This action cannot be undone. This will
+                                    permanently delete this application data
+                                    from our servers.
+                                </AlertDialog.Description>
+                            </AlertDialog.Header>
+                            <AlertDialog.Footer>
+                                <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+                                <AlertDialog.Action on:click={deleteApplication}
+                                    >Continue</AlertDialog.Action
+                                >
+                            </AlertDialog.Footer>
+                        </AlertDialog.Content>
+                    </AlertDialog.Root>
+                </div>
             </div>
         </div>
     </div>
