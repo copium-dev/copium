@@ -14,7 +14,7 @@
         Link,
         BriefcaseBusiness,
         List,
-        LayoutGrid
+        LayoutGrid,
     } from "lucide-svelte";
 
     import placeholder from "$lib/images/placeholder.png";
@@ -31,7 +31,7 @@
     import type { PageData } from "./$types";
     import { onMount, onDestroy } from "svelte";
     import { goto } from "$app/navigation";
-    import { browser } from '$app/environment';
+    import { browser } from "$app/environment";
 
     export let data: PageData;
 
@@ -104,7 +104,7 @@
         });
         goto(`?${params.toString()}`);
     }
-    
+
     // Use a reactive statement that runs as soon as possible client-side
     $: if (browser && isGridView === undefined) {
         const savedView = localStorage.getItem("view_preference_postings");
@@ -114,7 +114,7 @@
 
     onMount(() => {
         window.addEventListener("keydown", handleGlobalKeydown);
-        
+
         return () => {
             window.removeEventListener("keydown", handleGlobalKeydown);
         };
@@ -123,7 +123,7 @@
     // save view preference
     $: if (browser && isViewPreferenceLoaded && isGridView !== undefined) {
         localStorage.setItem("view_preference_postings", isGridView.toString());
-        updateURL();    // must reload with saved view preference because of hitsPerPage
+        updateURL(); // must reload with saved view preference because of hitsPerPage
     }
 
     function addApplication(posting: any) {
@@ -131,7 +131,7 @@
         const role = posting.title;
         const location = posting.locations[0];
         const link = posting.url;
-        const appliedDate = formatDateForInput(Math.floor(Date.now()/1000))
+        const appliedDate = formatDateForInput(Math.floor(Date.now() / 1000));
 
         const form = new FormData();
         form.append("company", company);
@@ -139,7 +139,7 @@
         form.append("location", location);
         form.append("link", link);
         form.append("appliedDate", appliedDate.toString());
-        
+
         // dont need to wait for response just fire and forget
         fetch("dashboard?/add", {
             method: "POST",
@@ -171,33 +171,37 @@
                     <FilterPostings />
                 </div>
                 {#if isViewPreferenceLoaded}
-                    <div class="flex flex-row gap-4 justify-between items-center w-full sm:w-auto">
-                            <div class="flex gap-2 items-center justify-center">
-                                <div
-                                    class={!isGridView
-                                        ? "flex items-center gap-1 text-sm font-medium"
-                                        : "flex items-center gap-1 text-muted-foreground text-sm font-medium"}
-                                >
-                                    <List class="w-[15px] h-[17px] stroke-[1.5]"/>
-                                    List
-                                </div>
-                                <Switch bind:checked={isGridView} />
-                                <div
-                                    class={isGridView
-                                        ? "flex items-center gap-1 text-sm font-medium"
-                                        : "flex items-center gap-1 text-muted-foreground text-sm font-medium"}
-                                >
-                                    <LayoutGrid class="w-[15px] h-[17px] stroke-[1.5]"/>
-                                    Grid
-                                </div>
+                    <div
+                        class="flex flex-row gap-4 justify-between items-center w-full sm:w-auto"
+                    >
+                        <div class="flex gap-2 items-center justify-center">
+                            <div
+                                class={!isGridView
+                                    ? "flex items-center gap-1 text-sm font-medium"
+                                    : "flex items-center gap-1 text-muted-foreground text-sm font-medium"}
+                            >
+                                <List class="w-[15px] h-[17px] stroke-[1.5]" />
+                                List
                             </div>
+                            <Switch bind:checked={isGridView} />
+                            <div
+                                class={isGridView
+                                    ? "flex items-center gap-1 text-sm font-medium"
+                                    : "flex items-center gap-1 text-muted-foreground text-sm font-medium"}
+                            >
+                                <LayoutGrid
+                                    class="w-[15px] h-[17px] stroke-[1.5]"
+                                />
+                                Grid
+                            </div>
+                        </div>
                         <PaginatePostings />
                     </div>
                 {/if}
             </div>
         </div>
     </div>
-    
+
     {#if isViewPreferenceLoaded}
         {#if !isGridView}
             <Table.Root class="overflow-hidden table-fixed">
@@ -205,7 +209,9 @@
                     <Table.Row class="border-b border-dashed">
                         <Table.Head class="border-r border-dashed pl-8 w-3/12">
                             <span class="inline-flex items-center gap-2">
-                                <Building2 class="w-[15px] h-[17px] stroke-[1.5]" />
+                                <Building2
+                                    class="w-[15px] h-[17px] stroke-[1.5]"
+                                />
                                 Company
                             </span>
                         </Table.Head>
@@ -225,13 +231,17 @@
                         </Table.Head>
                         <Table.Head class="border-r border-dashed w-2/12">
                             <span class="inline-flex items-center gap-2">
-                                <Calendar class="w-[15px] h-[17px] stroke-[1.5]" />
+                                <Calendar
+                                    class="w-[15px] h-[17px] stroke-[1.5]"
+                                />
                                 Posted
                             </span>
                         </Table.Head>
                         <Table.Head class="border-r border-dashed w-2/12">
                             <span class="inline-flex items-center gap-2">
-                                <Calendar class="w-[15px] h-[17px] stroke-[1.5]" />
+                                <Calendar
+                                    class="w-[15px] h-[17px] stroke-[1.5]"
+                                />
                                 Updated
                             </span>
                         </Table.Head>
@@ -245,13 +255,16 @@
                 </Table.Header>
                 <Table.Body>
                     {#each data.postings as posting, i (i)}
-                        <Table.Row class="border-b border-dashed ">
+                        <Table.Row
+                            class="border-b border-dashed dark:brightness-[0.9]"
+                        >
                             <Table.Cell
                                 class="border-r border-dashed w-full inline-flex items-center gap-2 h-12 pl-8"
                             >
                                 <img
-                                    src={data.companyLogos[posting.company_name] ||
-                                        placeholder}
+                                    src={data.companyLogos[
+                                        posting.company_name
+                                    ] || placeholder}
                                     alt={posting.company_name}
                                     class="w-6 h-6 rounded-lg object-cover"
                                 />
@@ -266,17 +279,25 @@
                             </Table.Cell>
                             <Table.Cell class="border-r border-dashed">
                                 <HoverCard.Root>
-                                    <HoverCard.Trigger class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-black">
+                                    <HoverCard.Trigger
+                                        class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-black"
+                                    >
                                         <p class="truncate">
                                             {#if posting.locations.length > 1}
-                                                {posting.locations[0]} <span class="font-semibold">+{posting.locations.length - 1}</span>
+                                                {posting.locations[0]}
+                                                <span class="font-semibold"
+                                                    >+{posting.locations
+                                                        .length - 1}</span
+                                                >
                                             {:else}
                                                 {posting.locations[0]}
                                             {/if}
                                         </p>
                                     </HoverCard.Trigger>
                                     <HoverCard.Content class="w-fit">
-                                        <div class="flex justify-between space-x-4">
+                                        <div
+                                            class="flex justify-between space-x-4"
+                                        >
                                             <div class="space-y-1">
                                                 {#each posting.locations as location}
                                                     <p class="text-sm">
@@ -284,7 +305,7 @@
                                                     </p>
                                                 {/each}
                                             </div>
-                                      </div>
+                                        </div>
                                     </HoverCard.Content>
                                 </HoverCard.Root>
                             </Table.Cell>
@@ -308,7 +329,7 @@
                                             href={posting.url}
                                             target="_blank"
                                             size="sm"
-                                            >
+                                        >
                                             Apply
                                         </Button>
                                     </AlertDialog.Trigger>
@@ -318,13 +339,18 @@
                                                 Did you apply for this job?
                                             </AlertDialog.Title>
                                             <AlertDialog.Description>
-                                                Click "Yes" below to automatically add this to your dashboard.
+                                                Click "Yes" below to
+                                                automatically add this to your
+                                                dashboard.
                                             </AlertDialog.Description>
                                         </AlertDialog.Header>
                                         <AlertDialog.Footer>
-                                            <AlertDialog.Cancel>No</AlertDialog.Cancel>
+                                            <AlertDialog.Cancel
+                                                >No</AlertDialog.Cancel
+                                            >
                                             <AlertDialog.Action
-                                                on:click={() => addApplication(posting)}
+                                                on:click={() =>
+                                                    addApplication(posting)}
                                             >
                                                 Yes
                                             </AlertDialog.Action>
@@ -342,7 +368,9 @@
                 class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 px-8"
             >
                 {#each data.postings as posting, i (i)}
-                    <div class="border rounded-lg p-4 flex flex-col gap-1 h-full">
+                    <div
+                        class="border rounded-lg p-4 flex flex-col gap-1 h-full dark:brightness-[0.9]"
+                    >
                         <div class="flex items-center gap-2 mb-2">
                             <img
                                 src={data.companyLogos[posting.company_name] ||
@@ -359,7 +387,7 @@
                                     href={posting.url}
                                     target="_blank"
                                     size="sm"
-                                    class="w-full">Apply</Button
+                                    class="w-full px-2">Apply</Button
                                 >
                             </div>
                         </div>
@@ -369,14 +397,21 @@
                         </h4>
 
                         <div
-                            class="text-xs text-muted-foreground flex items-center gap-1 mt-1"
+                            class="text-xs text-muted-foreground flex flex-col items-start"
                         >
-                            <Map class="w-3 h-3 inline" />
+                            
                             <HoverCard.Root>
-                                <HoverCard.Trigger class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-black">
+                                <HoverCard.Trigger
+                                    class="flex gap-1 items-center rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-black"
+                                >
+                                <Map class="w-3 h-3 inline" />
                                     <p class="truncate">
                                         {#if posting.locations.length > 1}
-                                            {posting.locations[0]} <span class="font-semibold">+{posting.locations.length - 1}</span>
+                                            {posting.locations[0]}
+                                            <span class="font-semibold"
+                                                >+{posting.locations.length -
+                                                    1}</span
+                                            >
                                         {:else}
                                             {posting.locations[0]}
                                         {/if}
@@ -391,16 +426,19 @@
                                                 </p>
                                             {/each}
                                         </div>
-                                  </div>
+                                    </div>
                                 </HoverCard.Content>
                             </HoverCard.Root>
-                        </div>
-
-                        <div
-                            class="text-xs text-muted-foreground flex items-center gap-1"
-                        >
-                            <Calendar class="w-3 h-3 inline" />
-                            <span>Posted: {formatDateForDisplay(posting.date_posted)}</span>
+                            <div
+                                class="text-xs text-muted-foreground flex items-center gap-1"
+                            >
+                                <Calendar class="w-3 h-3 inline" />
+                                <span
+                                    >Posted: {formatDateForDisplay(
+                                        posting.date_posted
+                                    )}</span
+                                >
+                            </div>
                         </div>
                     </div>
                 {/each}

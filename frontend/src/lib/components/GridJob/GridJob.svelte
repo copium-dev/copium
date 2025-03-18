@@ -138,7 +138,7 @@
 {#if visible}
     <div class="w-1/3 gap-2">
         <div
-            class="bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow m-2"
+            class="bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow m-2 dark:brightness-[0.9]"
         >
             <div class="px-4 pt-3 pb-2">
                 <div class="flex items-start justify-between mb-2">
@@ -198,7 +198,7 @@
                                 >
                                     <Button
                                         size="icon"
-                                        class="w-3 h-3 z-50 rounded-full {value ===
+                                        class="w-3 h-3 z-50 rounded-full border dark:border-stone-500 {value ===
                                         progressValue
                                             ? 'bg-primary dark:bg-secondary-foreground'
                                             : 'bg-secondary dark:bg-primary-foreground'}"

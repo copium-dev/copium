@@ -6,13 +6,13 @@ toolchain go1.23.5
 
 require (
 	cloud.google.com/go/firestore v1.18.0
+	cloud.google.com/go/pubsub v1.47.0
 	firebase.google.com/go v3.13.0+incompatible
 	github.com/algolia/algoliasearch-client-go/v4 v4.12.2
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/sessions v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/markbates/goth v1.80.0
-	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/rs/cors v1.11.1
 	google.golang.org/api v0.218.0
 	google.golang.org/grpc v1.70.0
@@ -27,7 +27,6 @@ require (
 	cloud.google.com/go/iam v1.3.1 // indirect
 	cloud.google.com/go/longrunning v0.6.4 // indirect
 	cloud.google.com/go/monitoring v1.23.0 // indirect
-	cloud.google.com/go/pubsub v1.47.0 // indirect
 	cloud.google.com/go/storage v1.50.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.25.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.49.0 // indirect

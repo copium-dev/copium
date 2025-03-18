@@ -143,7 +143,7 @@
     />
     <div class="px-8 flex flex-col justify-start items-center py-4 sm:py-0">
         <div
-            class="gap-4 sm:gap-0 w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center"
+            class="gap-4 sm:gap-0 w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center dark:brightness-[0.9]"
         >
             <div
                 class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-full"
@@ -234,7 +234,7 @@
                                 >
                                     <Button
                                         size="icon"
-                                        class="w-3 h-3 {value === progressValue
+                                        class="w-3 h-3 border dark:border-stone-500 {value === progressValue
                                             ? 'bg-primary dark:bg-secondary-foreground'
                                             : 'bg-secondary dark:bg-primary-foreground'}"
                                         on:click={() => {

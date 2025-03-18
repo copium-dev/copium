@@ -17,7 +17,7 @@ package user
 //	   (relies on utils.RetryRabbitConnection and utils.PublishWithRetry)
 // NOTE: all CRUD operations (AddApplication, DeleteApplication, EditStatus, EditApplication, DeleteUser) are idempotent
 //       and can be retried without side effects. This is why there is no timestamping or versioning.
-// NOTE: all CRUD operations are NOT commutative. We rely on an optimistic but strong consistency model. So, 
+// NOTE: all CRUD operations are NOT commutative. We rely on an optimistic but strong consistency model. So,
 //	 	 every user request is fulfilled to DB, but in the rare event of publishing failure, we can quickly revert.
 //		 Actually, this does not add any latency because we have frontend send previous state in the delete or edit request
 //       so there's no need to query the DB for the previous state.
@@ -34,18 +34,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"time"
 	"net/http"
-	"strings"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/copium-dev/copium/go/service/auth"
-	"github.com/copium-dev/copium/go/utils"
 	"github.com/copium-dev/copium/go/service/user/userutils"
+	"github.com/copium-dev/copium/go/utils"
 
 	"cloud.google.com/go/firestore"
-	"github.com/gorilla/mux"
 	"cloud.google.com/go/pubsub"
+	"github.com/gorilla/mux"
 	"google.golang.org/api/iterator"
 
 	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
@@ -71,9 +71,9 @@ type Application struct {
 }
 
 type DashboardResponse struct {
-	Applications []AlgoliaResponse 	`json:"applications"`
-	TotalPages   int           		`json:"totalPages"`
-	CurrentPage  int           		`json:"currentPage"`
+	Applications []AlgoliaResponse `json:"applications"`
+	TotalPages   int               `json:"totalPages"`
+	CurrentPage  int               `json:"currentPage"`
 }
 
 type AlgoliaResponse struct {
@@ -87,43 +87,43 @@ type AlgoliaResponse struct {
 }
 
 type DeleteApplicationRequest struct {
-	ID string `json:"id"`
-	Role string `json:"role"`
-	Company string `json:"company"`
-	Location string `json:"location"`
-	AppliedDate int64 `json:"appliedDate"`
-	Status string `json:"status"`
-	Link string `json:"link"`
-}
-
-type EditApplicationStatusRequest struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
-	OldStatus string `json:"oldStatus"`
-	AppliedDate int64 `json:"appliedDate"`
-}
-
-// edit application does not include status because status is edited separately
-type EditApplicationRequest struct {
 	ID          string `json:"id"`
 	Role        string `json:"role"`
 	Company     string `json:"company"`
 	Location    string `json:"location"`
 	AppliedDate int64  `json:"appliedDate"`
+	Status      string `json:"status"`
 	Link        string `json:"link"`
-	OldRole     string `json:"oldRole"`
-	OldCompany  string `json:"oldCompany"`
-	OldLocation string `json:"oldLocation"`
-	OldLink     string `json:"oldLink"`
-	OldAppliedDate int64 `json:"oldAppliedDate"`
-	Status 		string 	`json:status`
+}
+
+type EditApplicationStatusRequest struct {
+	ID          string `json:"id"`
+	Status      string `json:"status"`
+	OldStatus   string `json:"oldStatus"`
+	AppliedDate int64  `json:"appliedDate"`
+}
+
+// edit application does not include status because status is edited separately
+type EditApplicationRequest struct {
+	ID             string `json:"id"`
+	Role           string `json:"role"`
+	Company        string `json:"company"`
+	Location       string `json:"location"`
+	AppliedDate    int64  `json:"appliedDate"`
+	Link           string `json:"link"`
+	OldRole        string `json:"oldRole"`
+	OldCompany     string `json:"oldCompany"`
+	OldLocation    string `json:"oldLocation"`
+	OldLink        string `json:"oldLink"`
+	OldAppliedDate int64  `json:"oldAppliedDate"`
+	Status         string `json:status`
 }
 
 type Handler struct {
 	FirestoreClient *firestore.Client
 	algoliaClient   *search.APIClient
-	pubsubTopic   *pubsub.Topic
-	orderingKey    string
+	pubsubTopic     *pubsub.Topic
+	orderingKey     string
 }
 
 func NewHandler(
@@ -135,8 +135,8 @@ func NewHandler(
 	return &Handler{
 		FirestoreClient: firestoreClient,
 		algoliaClient:   algoliaClient,
-		pubsubTopic:   pubsubTopic,
-		orderingKey:    orderingKey,
+		pubsubTopic:     pubsubTopic,
+		orderingKey:     orderingKey,
 	}
 }
 
@@ -173,34 +173,34 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 
 	userData := doc.Data()
 
-    applicationsCount := int64(0)
-    if countVal, exists := userData["applicationsCount"]; exists && countVal != nil {
-        if count, ok := countVal.(int64); ok {
-            applicationsCount = count
-        }
-    }
+	applicationsCount := int64(0)
+	if countVal, exists := userData["applicationsCount"]; exists && countVal != nil {
+		if count, ok := countVal.(int64); ok {
+			applicationsCount = count
+		}
+	}
 
 	response := map[string]interface{}{
-        "email":             email,
-        "applicationsCount": applicationsCount,
-    }
+		"email":             email,
+		"applicationsCount": applicationsCount,
+	}
 
-    analyticsFields := []string{
-        "application_velocity_trend", "application_velocity",
+	analyticsFields := []string{
+		"application_velocity_trend", "application_velocity",
 		"resume_effectiveness_trend", "resume_effectiveness",
 		"interview_effectiveness_trend", "interview_effectiveness",
-        "avg_response_time_trend", "avg_response_time",
-        "monthly_trends", "rejected_count", "ghosted_count", "applied_count", 
-        "screen_count", "interviewing_count", "offer_count", "last_updated",
-    }
-    
+		"avg_response_time_trend", "avg_response_time",
+		"monthly_trends", "rejected_count", "ghosted_count", "applied_count",
+		"screen_count", "interviewing_count", "offer_count", "last_updated",
+	}
+
 	// loop over each field and add to response if it exists
-    for _, field := range analyticsFields {
-        if val, exists := doc.Data()[field]; exists {
-            response[field] = val
-        }
-    }
-	
+	for _, field := range analyticsFields {
+		if val, exists := doc.Data()[field]; exists {
+			response[field] = val
+		}
+	}
+
 	log.Println("Profile data extracted")
 	log.Println("-----------------")
 
@@ -245,7 +245,6 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Println("Page requested:", page)
 
-
 	hitsPerPage := r.URL.Query().Get("hits")
 	hitsPerPageInt := 10 // Default value
 
@@ -261,8 +260,8 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 
 	if hitsPerPageInt < 10 {
 		hitsPerPageInt = 10
-	} else if hitsPerPageInt > 20 {
-		hitsPerPageInt = 20
+	} else if hitsPerPageInt > 18 {
+		hitsPerPageInt = 18
 	}
 
 	log.Println("Hits per page requested:", hitsPerPageInt)
@@ -381,7 +380,8 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 		"objectID":    doc.ID,
 	}
 
-	err = h.publishMessage(message); if err != nil {
+	err = h.publishMessage(message)
+	if err != nil {
 		// delete added application if publish fails
 		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(doc.ID).Delete(r.Context())
 		if err != nil {
@@ -413,7 +413,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	// return doc.ID to user for eager loading
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"objectID":    doc.ID,
+		"objectID": doc.ID,
 	})
 }
 
@@ -428,14 +428,14 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	
+
 	log.Println("User authenticated")
 
 	// extract json from request body
 	var deleteApplicationRequest DeleteApplicationRequest
 	err = json.NewDecoder(r.Body).Decode(&deleteApplicationRequest)
 	if err != nil {
-		fmt.Println(err)	
+		fmt.Println(err)
 		http.Error(w, "Error decoding request body", http.StatusBadRequest)
 		return
 	}
@@ -458,7 +458,8 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 		"objectID":  applicationID,
 	}
 
-	err = h.publishMessage(message); if err != nil {
+	err = h.publishMessage(message)
+	if err != nil {
 		// revert status if publish fails
 		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Set(context.Background(), map[string]interface{}{
 			"role":        deleteApplicationRequest.Role,
@@ -539,19 +540,20 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	log.Println("Application status edited")
 
 	message := map[string]interface{}{
-		"operation": "edit",
-		"email":     email,
-		"objectID":  applicationID,
-		"status":    newStatus,
+		"operation":   "edit",
+		"email":       email,
+		"objectID":    applicationID,
+		"status":      newStatus,
 		"appliedDate": appliedDate,
 		"timestamp":   time.Now().Unix(),
 	}
 
-	err = h.publishMessage(message); if err != nil {
-		// revert status if publish fails 
+	err = h.publishMessage(message)
+	if err != nil {
+		// revert status if publish fails
 		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(context.Background(), []firestore.Update{
 			{
-				Path: "status",
+				Path:  "status",
 				Value: EditApplicationStatusRequest.OldStatus,
 			},
 		})
@@ -609,11 +611,11 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 
 	// frontend will send all fields, so we need to update all fields
 	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
-		{Path:  "role", Value: editApplicationRequest.Role},
-		{Path:  "company", Value: editApplicationRequest.Company},
-		{Path:  "location", Value: editApplicationRequest.Location},
-		{Path:  "link", Value: editApplicationRequest.Link},
-		{Path:  "appliedDate", Value: editApplicationRequest.AppliedDate},
+		{Path: "role", Value: editApplicationRequest.Role},
+		{Path: "company", Value: editApplicationRequest.Company},
+		{Path: "location", Value: editApplicationRequest.Location},
+		{Path: "link", Value: editApplicationRequest.Link},
+		{Path: "appliedDate", Value: editApplicationRequest.AppliedDate},
 	})
 	if err != nil {
 		fmt.Printf("Error editing application: %v\n", err)
@@ -631,12 +633,13 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		"link":        editApplicationRequest.Link,
 		"location":    editApplicationRequest.Location,
 		"role":        editApplicationRequest.Role,
-		"status": 	   editApplicationRequest.Status,	// status is only sent to satisfy bigquery schema
+		"status":      editApplicationRequest.Status, // status is only sent to satisfy bigquery schema
 		"objectID":    applicationID,
 		"timestamp":   time.Now().Unix(),
 	}
 
-	err = h.publishMessage(message); if err != nil {
+	err = h.publishMessage(message)
+	if err != nil {
 		// revert status if publish fails
 		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(context.Background(), []firestore.Update{
 			{Path: "role", Value: editApplicationRequest.OldRole},
@@ -680,7 +683,8 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		"email":     email,
 	}
 
-	err = h.publishMessage(message); if err != nil {
+	err = h.publishMessage(message)
+	if err != nil {
 		fmt.Printf("Error publishing message: %v\n", err)
 		http.Error(w, "Error deleting user", http.StatusInternalServerError)
 		return
@@ -707,13 +711,13 @@ func (h *Handler) publishMessage(message map[string]interface{}) error {
 		return err
 	}
 
-	// hold the publish result. this is necessary for 
+	// hold the publish result. this is necessary for
 	// our strong consistency model
 	var result *pubsub.PublishResult
 
 	// attempt to publish message (algolia and bigquery both subscribe to this topic)
 	r := h.pubsubTopic.Publish(context.Background(), &pubsub.Message{
-		Data: messageBody,
+		Data:        messageBody,
 		OrderingKey: h.orderingKey,
 	})
 
