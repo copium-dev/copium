@@ -49,7 +49,8 @@
     //    component is not rerendered when goto() is called
     $: dashboardPaginationStore.update((current) => ({
         ...current,
-        count: 9 * data.totalPages,
+        count: isGridView ? 18 * data.totalPages : 10 * data.totalPages,
+        perPage: isGridView ? 18 : 10,
     }));
 
     function updateInput(e: Event) {
@@ -100,6 +101,13 @@
             // we can load more in grid view
             hitsPerPage: isGridView ? 18 : 10,
         });
+
+        dashboardPaginationStore.update((current) => ({
+            ...current,
+            count: isGridView ? 18 * data.totalPages : 10 * data.totalPages,
+            perPage: isGridView ? 18 : 10,
+        }));
+
         goto(`?${params.toString()}`);
     }
 

@@ -40,7 +40,8 @@
     //    component is not rerendered when goto() is called
     $: postingsPaginationStore.update((current) => ({
         ...current,
-        count: 10 * data.totalPages,
+        count: isGridView ? 20 * data.totalPages : 10 * data.totalPages,
+        perPage: isGridView ? 20 : 10,
     }));
 
     function updateInput(e: Event) {
@@ -102,6 +103,14 @@
             // we can load more in grid view
             hitsPerPage: isGridView ? 20 : 10,
         });
+
+        // this has to be updated in updateURL as well because user may have changed view preference
+        postingsPaginationStore.update((current) => ({
+            ...current,
+            count: isGridView ? 20 * data.totalPages : 10 * data.totalPages,
+            perPage: isGridView ? 20 : 10,
+        }));
+
         goto(`?${params.toString()}`);
     }
 

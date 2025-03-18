@@ -105,7 +105,7 @@ func runPushSubscription(bigQueryClient *bigquery.Client, firestoreClient *fires
         w.WriteHeader(http.StatusOK)
     })
 
-    // Start HTTP server
+    // Start HTTP server - cloud run will automatically assign PORT variable
     port := os.Getenv("PORT")
     if port == "" {
         port = "8080"

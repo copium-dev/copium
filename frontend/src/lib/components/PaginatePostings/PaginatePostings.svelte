@@ -11,11 +11,11 @@
     import { page as pageStore } from "$app/state";
     import { afterNavigate } from "$app/navigation";
     import { goto } from "$app/navigation";
+    
     import Input from "$lib/components/ui/input/input.svelte";
 
     $: count = $postingsPaginationStore.count;
-
-    let perPage = 10;
+    $: perPage = $postingsPaginationStore.perPage;
 
     const siblingCount = 1;
 

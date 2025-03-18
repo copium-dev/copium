@@ -15,8 +15,8 @@
     import Input from "$lib/components/ui/input/input.svelte";
 
     $: count = $dashboardPaginationStore.count;
+    $: perPage = $dashboardPaginationStore.perPage;
 
-    const perPage = 10;
     const siblingCount = 1;
 
     let currentPageFromURL = parseInt(
@@ -25,7 +25,7 @@
 
     $: dashboardPaginationStore.update((state) => ({
         ...state,
-        currentPage: currentPageFromURL,
+        currentPage: currentPageFromURL ? currentPageFromURL : 1,
     }));
 
     afterNavigate(() => {

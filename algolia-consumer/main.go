@@ -94,7 +94,7 @@ func runPushSubscription(algoliaClient *search.APIClient, counter int32) {
         w.WriteHeader(http.StatusOK)
     })
 
-    // Start HTTP server
+    // Start HTTP server - cloud run will automatically assign PORT variable
     port := os.Getenv("PORT")
     if port == "" {
         port = "8080"
