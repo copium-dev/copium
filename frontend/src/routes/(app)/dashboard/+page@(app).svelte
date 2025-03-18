@@ -23,24 +23,25 @@
     export let data: PageData;
     export let form; // for eager loading
 
+    // reactive block to add new job to the top of the list for optimistic UI
     $: if (form?.type === "success" && form?.data) {
         // in svelte, reactive updates triggered by assignments not mutations
         // so we gotta do all this below instead of an unshift
-        data = {
-            ...data,
-            applications: [
-                {
-                    objectID: form.data.objectID,
-                    company: form.data.company,
-                    role: form.data.role,
-                    appliedDate: form.data.appliedDate,
-                    location: form.data.location,
-                    status: form.data.status,
-                    link: form.data.link,
-                },
-                ...data.applications,
-            ],
+        const newJob = {
+            objectID: form.data.objectID,
+            company: form.data.company,
+            role: form.data.role,
+            appliedDate: form.data.appliedDate,
+            location: form.data.location,
+            status: form.data.status,
+            link: form.data.link,
         };
+
+        let updated = [newJob, ...data.applications];
+
+        data = { ...data, applications: updated };
+
+        form = null;
     }
 
     // reactive block to update pagination count
@@ -81,18 +82,6 @@
         }
     }
 
-    onMount(() => {
-        if (typeof window !== "undefined") {
-            window.addEventListener("keydown", handleGlobalKeydown);
-        }
-    });
-
-    onDestroy(() => {
-        if (typeof window !== "undefined") {
-            window.removeEventListener("keydown", handleGlobalKeydown);
-        }
-    });
-
     // list - grid style toggle
     let isViewPreferenceLoaded = false;
     let isGridView: boolean | undefined = undefined;
@@ -127,6 +116,12 @@
         return () => {
             window.removeEventListener("keydown", handleGlobalKeydown);
         };
+    });
+
+    onDestroy(() => {
+        if (typeof window !== "undefined") {
+            window.removeEventListener("keydown", handleGlobalKeydown);
+        }
     });
 
     // save view preference

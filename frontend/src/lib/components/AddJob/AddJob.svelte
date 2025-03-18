@@ -42,7 +42,7 @@
                             open = false;
                             update();
                         } else {
-                            // Report validity errors so the dialog remains open.
+                            // report validity errors so the dialog remains open on failure
                             data.formElement.reportValidity();
                         }
                     };

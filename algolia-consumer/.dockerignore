@@ -1,0 +1,2 @@
+# in push model, code never connects to Pub/Sub so authentication does not use the credentials file
+pubsub-credentials.json
