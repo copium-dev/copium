@@ -19,22 +19,6 @@
 
     const siblingCount = 1;
 
-    // get current page from URL because it needs to follow the URL for correct pagination
-    let currentPageFromURL = parseInt(
-        pageStore.url.searchParams.get("page") || "1"
-    );
-
-    $: postingsPaginationStore.update((state) => ({
-        ...state,
-        currentPage: currentPageFromURL ? currentPageFromURL : 1,
-    }));
-
-    afterNavigate(() => {
-        currentPageFromURL = parseInt(
-            pageStore.url.searchParams.get("page") || "1"
-        );
-    });
-
     function nextPage() {
         const params = changePage("next");
         goto(`?${params.toString()}`);
@@ -44,9 +28,7 @@
         const params = changePage("prev");
         goto(`?${params.toString()}`);
     }
-
-    let pageValue = "";
-
+    
     function goToPage(event: Event) {
         event.preventDefault();
 
@@ -68,6 +50,19 @@
             goToPage(event);
         }
     }
+
+    // get current page from URL because it needs to follow the URL for correct pagination
+    let currentPageFromURL = parseInt(
+        pageStore.url.searchParams.get("page") || "1"
+    );
+
+    afterNavigate(() => {
+        currentPageFromURL = parseInt(
+            pageStore.url.searchParams.get("page") || "1"
+        );
+    });
+
+    let pageValue = "";
 </script>
 
 <Pagination.Root

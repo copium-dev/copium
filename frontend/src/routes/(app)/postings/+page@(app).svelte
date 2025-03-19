@@ -35,14 +35,26 @@
 
     export let data: PageData;
 
-    // reactive block to update pagination count
-    //  - onMount does not work here since page data is updated but
-    //    component is not rerendered when goto() is called
-    $: postingsPaginationStore.update((current) => ({
-        ...current,
-        count: isGridView ? 20 * data.totalPages : 10 * data.totalPages,
-        perPage: isGridView ? 20 : 10,
-    }));
+    function addApplication(posting: any) {
+        const company = posting.company_name;
+        const role = posting.title;
+        const location = posting.locations[0];
+        const link = posting.url;
+        const appliedDate = formatDateForInput(Math.floor(Date.now() / 1000));
+
+        const form = new FormData();
+        form.append("company", company);
+        form.append("role", role);
+        form.append("location", location);
+        form.append("link", link);
+        form.append("appliedDate", appliedDate.toString());
+
+        // dont need to wait for response just fire and forget
+        fetch("dashboard?/add", {
+            method: "POST",
+            body: form,
+        });
+    }
 
     function updateInput(e: Event) {
         const value = (e.currentTarget as HTMLInputElement).value;
@@ -74,22 +86,6 @@
         }
     }
 
-    onMount(() => {
-        if (typeof window !== "undefined") {
-            window.addEventListener("keydown", handleGlobalKeydown);
-        }
-    });
-
-    onDestroy(() => {
-        if (typeof window !== "undefined") {
-            window.removeEventListener("keydown", handleGlobalKeydown);
-        }
-    });
-
-    // list - grid style toggle
-    let isViewPreferenceLoaded = false;
-    let isGridView: boolean | undefined = undefined;
-
     function updateURL() {
         const { query, company, role, location, startDate, endDate } =
             $postingsFilterStore;
@@ -114,28 +110,25 @@
         goto(`?${params.toString()}`);
     }
 
-    // Use a reactive statement that runs as soon as possible client-side
+    // list - grid style toggle
+    let isViewPreferenceLoaded = false;
+    let isGridView: boolean | undefined = undefined;
+
+    // reactive block to update pagination count
+    //  - onMount does not work here since page data is updated but
+    //    component is not rerendered when goto() is called
+    $: postingsPaginationStore.update((current) => ({
+        ...current,
+        count: isGridView ? 20 * data.totalPages : 10 * data.totalPages,
+        perPage: isGridView ? 20 : 10,
+    }));
+
+    // update view preference as soon as possible
     $: if (browser && isGridView === undefined) {
-        if (isSmallScreen()) {
-            isGridView = true;
-        } else {
-            const savedView = localStorage.getItem("view_preference_postings");
-            isGridView = savedView === "true";
-        }
+        const savedView = localStorage.getItem("view_preference_postings");
+        isGridView = savedView === "true";
         isViewPreferenceLoaded = true;
     }
-
-    function isSmallScreen() {
-        return browser && window.innerWidth < 640;
-    }
-
-    onMount(() => {
-        window.addEventListener("keydown", handleGlobalKeydown);
-
-        return () => {
-            window.removeEventListener("keydown", handleGlobalKeydown);
-        };
-    });
 
     // save view preference
     $: if (browser && isViewPreferenceLoaded && isGridView !== undefined) {
@@ -143,26 +136,22 @@
         updateURL(); // must reload with saved view preference because of hitsPerPage
     }
 
-    function addApplication(posting: any) {
-        const company = posting.company_name;
-        const role = posting.title;
-        const location = posting.locations[0];
-        const link = posting.url;
-        const appliedDate = formatDateForInput(Math.floor(Date.now() / 1000));
+    onMount(() => {
+        window.addEventListener("keydown", handleGlobalKeydown);
 
-        const form = new FormData();
-        form.append("company", company);
-        form.append("role", role);
-        form.append("location", location);
-        form.append("link", link);
-        form.append("appliedDate", appliedDate.toString());
+        isGridView = browser && window.innerWidth < 640;
 
-        // dont need to wait for response just fire and forget
-        fetch("dashboard?/add", {
-            method: "POST",
-            body: form,
-        });
-    }
+        return () => {
+            window.removeEventListener("keydown", handleGlobalKeydown);
+        };
+    });
+
+    onDestroy(() => {
+        if (typeof window !== "undefined") {
+            window.removeEventListener("keydown", handleGlobalKeydown);
+        }
+    });
+
 </script>
 
 <div class="flex flex-col justify-start gap-4 items-stretch w-full my-12">
@@ -223,7 +212,7 @@
         {#if !isGridView}
             <Table.Root class="overflow-collapse table-fixed">
                 <Table.Header>
-                    <Table.Row class="">
+                    <Table.Row class="border-b border-dashed">
                         <Table.Head
                             class="border-r border-dashed pl-3 lg:pl-6 w-[1px]"
                         ></Table.Head>
@@ -273,14 +262,14 @@
                                 Updated
                             </span>
                         </Table.Head>
-                        <Table.Head class="w-1/6 md:w-1/12">
+                        <Table.Head class="w-1/6 md:w-1/12 border-r border-dashed">
                             <span class="w-full inline-flex items-center justify-center gap-2">
                                 <Link class="w-[15px] h-[17px] stroke-[1.5]" />
                                 Link
                             </span>
                         </Table.Head>
                         <Table.Head
-                            class="w-[0.1px] pr-3 lg:pr-6 border-l border-dashed"
+                            class="border-r border-dashed pl-3 lg:pl-6 w-[1px]"
                         ></Table.Head>
                     </Table.Row>
                 </Table.Header>
@@ -398,11 +387,41 @@
                         </Table.Row>
                     {/each}
                 </Table.Body>
+                <Table.Footer class="border-none bg-background">
+                    <Table.Row class="border-t border-dashed border-b-0 hover:bg-background">
+                        <Table.Head
+                            class="border-r border-dashed pl-3 lg:pl-6 w-[1px]"
+                        ></Table.Head>
+                        <Table.Head class="border-r border-dashed lg:pl-4 2xl:pl-6 w-3/12">
+                        </Table.Head>
+                        <Table.Head
+                            class="border-r border-dashed w-5/12 px-2 lg:pl-4 2xl:pl-6"
+                        >
+                        </Table.Head>
+                        <Table.Head
+                            class="border-r border-dashed w-1/6 md:w-1/6 px-2 lg:pl-4 2xl:pl-6"
+                        >
+                        </Table.Head>
+                        <Table.Head
+                            class="hidden lg:table-cell border-r border-dashed w-2/12 px-2 lg:pl-4 2xl:pl-6"
+                        >
+                        </Table.Head>
+                        <Table.Head
+                            class="hidden lg:table-cell border-r border-dashed w-2/12 px-2 lg:pl-4 2xl:pl-6"
+                        >
+                        </Table.Head>
+                        <Table.Head class="w-1/6 md:w-1/12 border-r border-dashed">
+                        </Table.Head>
+                        <Table.Head
+                            class="border-r border-dashed pl-3 lg:pl-6 w-[1px]"
+                        ></Table.Head>
+                    </Table.Row>
+                </Table.Footer>
             </Table.Root>
         {:else}
-            <!-- Grid View -->
+            <!-- grid view -->
             <div
-                class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 px-6 sm:px-8"
+                class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4 px-6 sm:px-8"
             >
                 {#each data.postings as posting, i (i)}
                     <div

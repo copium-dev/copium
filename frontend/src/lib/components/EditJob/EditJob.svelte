@@ -198,11 +198,11 @@
                         Save
                     </AlertDialog.Action>
 
-                    <div class="flex gap-2">
-                        <AlertDialog.Cancel class="w-full">Cancel</AlertDialog.Cancel>
+                    <div class="flex w-full justify-between">
+                        <AlertDialog.Cancel class="w-full mr-2">Cancel</AlertDialog.Cancel>
                         <AlertDialog.Root>
                             <AlertDialog.Trigger asChild let:builder>
-                                <Button builders={[builder]} variant="outline" class="w-full sm:hidden text-red-500 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm h-9 px-4 py-2 mt-2 sm:mt-0">
+                                <Button builders={[builder]} variant="outline" class="w-full sm:hidden text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-300 dark:hover:text-red-700 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background border shadow-sm h-9 px-4 py-2 mt-2 sm:mt-0">
                                     Delete
                                 </Button>
                             </AlertDialog.Trigger>

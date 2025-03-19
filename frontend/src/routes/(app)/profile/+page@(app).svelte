@@ -4,6 +4,9 @@
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
     import * as Card from "$lib/components/ui/card/index.js";
 
+    import { Moon } from "lucide-svelte";
+    import { SunMedium } from "lucide-svelte";
+
     import Chart from "chart.js/auto";
 
     import { ModeWatcher } from "mode-watcher";
@@ -151,7 +154,7 @@
     <div
         class="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-start w-full"
     >
-        <div class="flex flex-col items-baseline justify-between mb-2">
+        <div class="w-full sm:w-fit flex flex-col items-baseline justify-between mb-2">
             <h2 class="text-2xl font-bold tracking-tight mb-4">Manage</h2>
             <Card.Root class="w-full">
                 <Card.Header>
@@ -177,6 +180,8 @@
                                 class="w-full"
                                 on:click={toggleMode}
                             >
+                                <SunMedium class="dark:hidden mr-2 h-6 w-6" />
+                                <Moon class="hidden dark:block mr-2 h-6 w-6" />
                                 Toggle theme
                             </Button>
                         </div>
@@ -187,7 +192,7 @@
                                 <Button
                                     builders={[builder]}
                                     variant="outline"
-                                    class="text-red-500 hover:text-red-500"
+                                    class="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-300 dark:hover:text-red-700"
                                 >
                                     Delete account
                                 </Button>
@@ -221,11 +226,11 @@
         </div>
 
         <section class="flex flex-col gap-4 items-stretch w-full sm:w-3/4 mb-4">
-            <div class="flex items-center justify-between">
+            <div class="flex flex-col sm:flex-row items-left gap-2 sm:gap-0 sm:items-center justify-between">
                 <h2 class="text-2xl font-bold tracking-tight">
                     Application Analytics
                 </h2>
-                <Badge variant="outline">
+                <Badge class="w-fit" variant="outline">
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
                         width="24"

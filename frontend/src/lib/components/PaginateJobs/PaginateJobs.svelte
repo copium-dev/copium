@@ -19,33 +19,6 @@
 
     const siblingCount = 1;
 
-    let currentPageFromURL = parseInt(
-        pageStore.url.searchParams.get("page") || "1"
-    );
-
-    $: dashboardPaginationStore.update((state) => ({
-        ...state,
-        currentPage: currentPageFromURL ? currentPageFromURL : 1,
-    }));
-
-    afterNavigate(() => {
-        currentPageFromURL = parseInt(
-            pageStore.url.searchParams.get("page") || "1"
-        );
-    });
-
-    function nextPage() {
-        const params = changePage("next");
-        goto(`?${params.toString()}`);
-    }
-
-    function prevPage() {
-        const params = changePage("prev");
-        goto(`?${params.toString()}`);
-    }
-
-    let pageValue = "";
-
     function goToPage(event: Event) {
         event.preventDefault();
 
@@ -67,6 +40,28 @@
             goToPage(event);
         }
     }
+
+    function nextPage() {
+        const params = changePage("next");
+        goto(`?${params.toString()}`);
+    }
+
+    function prevPage() {
+        const params = changePage("prev");
+        goto(`?${params.toString()}`);
+    }
+
+    let currentPageFromURL = parseInt(
+        pageStore.url.searchParams.get("page") || "1"
+    );
+
+    afterNavigate(() => {
+        currentPageFromURL = parseInt(
+            pageStore.url.searchParams.get("page") || "1"
+        );
+    });
+
+    let pageValue = "";
 </script>
 
 <Pagination.Root

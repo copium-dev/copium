@@ -219,12 +219,10 @@
                     class="px-0 sm:px-5 h-full flex items-start items-center w-full"
                 >
                     <div class="flex w-full relative">
-                        <!-- Progress bar in background -->
                         <div class="absolute w-full top-[13px]">
                             <Progress {value} max={100} class="w-full h-0.5" />
                         </div>
 
-                        <!-- Buttons overlaid on top -->
                         <div
                             class="flex w-full justify-evenly gap-3 p-2 relative"
                         >
@@ -271,7 +269,7 @@
                     <AlertDialog.Trigger asChild let:builder>
                         <Button
                             builders={[builder]}
-                            class="text-red-500 hover:text-red-600 hover:bg-red-50 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none"
+                            class="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-300 dark:hover:text-red-700 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background border shadow-sm h-9 px-4 py-2 text-xs flex-grow sm:border-0 sm:shadow-none"
                         >
                             Delete
                         </Button>

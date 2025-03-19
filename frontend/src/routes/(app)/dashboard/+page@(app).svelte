@@ -23,36 +23,6 @@
     export let data: PageData;
     export let form; // for eager loading
 
-    // reactive block to add new job to the top of the list for optimistic UI
-    $: if (form?.type === "success" && form?.data) {
-        // in svelte, reactive updates triggered by assignments not mutations
-        // so we gotta do all this below instead of an unshift
-        const newJob = {
-            objectID: form.data.objectID,
-            company: form.data.company,
-            role: form.data.role,
-            appliedDate: form.data.appliedDate,
-            location: form.data.location,
-            status: form.data.status,
-            link: form.data.link,
-        };
-
-        let updated = [newJob, ...data.applications];
-
-        data = { ...data, applications: updated };
-
-        form = null;
-    }
-
-    // reactive block to update pagination count
-    //  - onMount does not work here since page data is updated but
-    //    component is not rerendered when goto() is called
-    $: dashboardPaginationStore.update((current) => ({
-        ...current,
-        count: isGridView ? 18 * data.totalPages : 10 * data.totalPages,
-        perPage: isGridView ? 18 : 10,
-    }));
-
     function updateInput(e: Event) {
         const value = (e.currentTarget as HTMLInputElement).value;
         jobsFilterStore.update((current) => ({ ...current, query: value }));
@@ -83,10 +53,6 @@
         }
     }
 
-    // list - grid style toggle
-    let isViewPreferenceLoaded = false;
-    let isGridView: boolean | undefined = undefined;
-
     function updateURL() {
         const { query, company, role, location, startDate, endDate, status } =
             $jobsFilterStore;
@@ -111,11 +77,51 @@
         goto(`?${params.toString()}`);
     }
 
+    // reactive block to add new job to the top of the list for optimistic UI
+    $: if (form?.type === "success" && form?.data) {
+        // in svelte, reactive updates triggered by assignments not mutations
+        // so we gotta do all this below instead of an unshift
+        const newJob = {
+            objectID: form.data.objectID,
+            company: form.data.company,
+            role: form.data.role,
+            appliedDate: form.data.appliedDate,
+            location: form.data.location,
+            status: form.data.status,
+            link: form.data.link,
+        };
+
+        let updated = [newJob, ...data.applications];
+
+        data = { ...data, applications: updated };
+
+        form = null;
+    }
+    
+    // list - grid style toggle
+    let isViewPreferenceLoaded = false;
+    let isGridView: boolean | undefined = undefined;
+
+    // reactive block to update pagination count
+    //  - onMount does not work here since page data is updated but
+    //    component is not rerendered when goto() is called
+    $: dashboardPaginationStore.update((current) => ({
+        ...current,
+        count: isGridView ? 18 * data.totalPages : 10 * data.totalPages,
+        perPage: isGridView ? 18 : 10,
+    }));
+
     // Use a reactive statement that runs as soon as possible client-side
     $: if (browser && isGridView === undefined) {
         const savedView = localStorage.getItem("view_preference_dashboard");
         isGridView = savedView === "true";
         isViewPreferenceLoaded = true;
+    }
+    
+    // save view preference
+    $: if (browser && isViewPreferenceLoaded && isGridView !== undefined) {
+        localStorage.setItem("view_preference_dashboard", isGridView.toString())
+        updateURL();    // must reload with saved view preference because of hitsPerPage
     }
 
     onMount(() => {
@@ -131,12 +137,6 @@
             window.removeEventListener("keydown", handleGlobalKeydown);
         }
     });
-
-    // save view preference
-    $: if (browser && isViewPreferenceLoaded && isGridView !== undefined) {
-        localStorage.setItem("view_preference_dashboard", isGridView.toString())
-        updateURL();    // must reload with saved view preference because of hitsPerPage
-    }
 </script>
 
 <div class="flex flex-col justify-start gap-4 items-stretch w-full my-12">

@@ -55,6 +55,7 @@ func main() {
 
     defer firestoreClient.Close()
 
+	// cloud run will provide PORT 8080 by default in env
     port := os.Getenv("PORT")
     if port == "" {
         port = "8000"

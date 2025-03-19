@@ -1,7 +1,5 @@
 package main
 
-// simple consumer; for now just receive and print
-// later, use worker pools (goroutines) to handle messages to index algolia
 import (
 	"context"
 	"fmt"
@@ -41,13 +39,13 @@ func main() {
     // create bigquery client (shared across workers)
     bigQueryClient, err := inits.InitializeBigQueryClient()
     if err != nil {
-        log.Fatalf("Error initializing algolia client: %v", err)
+        log.Fatalf("Error initializing BigQuery client: %v", err)
     }
 
 	// create firestore client (shared across workers)
 	firestoreClient, err := inits.InitializeFirestoreClient()
 	if err != nil {
-		log.Fatalf("Error initializing firestore client: %v", err)
+		log.Fatalf("Error initializing Firestore client: %v", err)
 	}
 	defer firestoreClient.Close()
 

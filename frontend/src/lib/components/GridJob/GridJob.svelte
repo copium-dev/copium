@@ -243,7 +243,6 @@
                             </Button>
                         </AlertDialog.Trigger>
                         <AlertDialog.Content>
-                            <!-- Keep your existing Alert Dialog content -->
                             <AlertDialog.Header>
                                 <AlertDialog.Title
                                     >Are you absolutely sure?</AlertDialog.Title
