@@ -3,6 +3,7 @@ package main
 import (
     "log"
     "context"
+	"strings"
 	"fmt"
     "os"
 
@@ -10,7 +11,6 @@ import (
     "github.com/copium-dev/copium/go/utils"
 
 	"cloud.google.com/go/pubsub"
-
     firebase "firebase.google.com/go"
     "google.golang.org/api/option"
 
@@ -18,12 +18,12 @@ import (
 )
 
 func main() {
-    // initialize firestore; requires a credentials json file 
-    opt := option.WithCredentialsFile("jtracker-backend-credentials.json")
+
+    // initialize firestore; use service account credentials so nothing to do
     ctx := context.Background()
     
     conf := &firebase.Config{
-        ProjectID: "jtrackerkimpark-90318",
+        ProjectID: "jtrackerkimpark",
     }       
     
     // create firestore emulator connection (in prod we can literally just delete this if statement and it
@@ -43,7 +43,7 @@ func main() {
         log.Println("FIRESTORE_EMULATOR_HOST not set")
     }
 
-    app, err := firebase.NewApp(ctx, conf, opt)
+    app, err := firebase.NewApp(ctx, conf)
     if err != nil {
         log.Fatal(err)
     }
@@ -86,7 +86,7 @@ func main() {
 		log.Fatal("Failed to initialize Algolia client: ", err)
 	}
 
-	pubSubOrderingKey := "a_random_key_haha"
+	pubSubOrderingKey := os.Getenv("PUBSUB_ORDERING_KEY")
 
     // temp: firestore emulator is on 8080 so use 8000 for API server
     // in prod, use Google Cloud Run's default PORT env variable
@@ -113,36 +113,38 @@ func initializePubSubClient() (*pubsub.Client, *pubsub.Topic, error) {
     ctx := context.Background()
     projectID := "jtrackerkimpark" // in prod, use env vars
 
+	var opts []option.ClientOption
+
 	// if PUBSUB_EMULATOR_HOST is set, use it; otherwise use credentials file
 	// if credentials file is used WE ARE WORKING IN PROD so be careful
-    var opts []option.ClientOption
     if pubsubEmulatorHost := os.Getenv("PUBSUB_EMULATOR_HOST"); pubsubEmulatorHost != "" {
         log.Printf("Connecting to Pub/Sub emulator at %s", pubsubEmulatorHost)
-        // Use both the endpoint option and disable authentication.
+        // use both the endpoint option and disable authentication.
         opts = append(opts, 
             option.WithEndpoint(pubsubEmulatorHost),
             option.WithoutAuthentication(),
         )
     } else {
-        log.Println("PUBSUB_EMULATOR_HOST not set; using credentials")
-        opts = append(opts, option.WithCredentialsFile("pubsub-credentials.json"))
+        log.Println("PUBSUB_EMULATOR_HOST not set; using service account credentials, nothing to pass in")
     }
 
-    pubsubClient, err := pubsub.NewClient(ctx, projectID, opts...)
+    pubsubClient, err := pubsub.NewClient(ctx, projectID)
     if err != nil {
         return nil, nil, err
     }
 
-    // create topic (algolia and bigquery both subscribe to this topic)
-    applicationsTopic, err := pubsubClient.CreateTopic(ctx, "applications")
-    if err != nil {
-        if err.Error() == "rpc error: code = AlreadyExists desc = Topic already exists" {
-            applicationsTopic = pubsubClient.Topic("applications")
-            fmt.Println("applications topic already exists, connecting to it")
-        } else {
-            return nil, nil,  err
-        }
-    }
+	var applicationsTopic *pubsub.Topic
+
+	// create topic (algolia and bigquery both subscribe to this topic)
+	applicationsTopic, err = pubsubClient.CreateTopic(ctx, "applications")
+	if err != nil {
+		if strings.Contains(err.Error(), "AlreadyExists") {
+			applicationsTopic = pubsubClient.Topic("applications")
+			fmt.Println("applications topic already exists, connecting to it")
+		} else {
+			return nil, nil,  err
+		}
+	}
 
 	applicationsTopic.EnableMessageOrdering = true
 

@@ -5,6 +5,7 @@ import (
 	"os"
 	"log"
 	"context"
+	"strings"
 	"fmt"
 
 	"cloud.google.com/go/bigquery"
@@ -16,14 +17,11 @@ import (
 )
 
 func InitializeBigQueryClient() (*bigquery.Client, error) {
-	// we can reuse pubsub credentials since they're both in the same Google Cloud project
-	// note that Firebase != Google Cloud, so we can't reuse Firebase credentials
-	// there's also no emulator for this so we gotta directly go to prod lol
-	opt := option.WithCredentialsFile("pubsub-credentials.json")
+	// use service account credentials, no need to pass in anything
 	ctx := context.Background()
 	projectID := "jtrackerkimpark" // in prod, retrieve from env vars
 
-	client, err := bigquery.NewClient(ctx, projectID, opt)
+	client, err := bigquery.NewClient(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -31,21 +29,20 @@ func InitializeBigQueryClient() (*bigquery.Client, error) {
 }
 
 func InitializeFirestoreClient() (*firestore.Client, error) {
-	opt := option.WithCredentialsFile("jtracker-backend-credentials.json")
     ctx := context.Background()
 	    
     conf := &firebase.Config{
-        ProjectID: "jtrackerkimpark-90318",
+        ProjectID: "jtrackerkimpark",
     }       
     
 	if firestoreEmulatorHost := os.Getenv("FIRESTORE_EMULATOR_HOST"); firestoreEmulatorHost != "" {
         log.Printf("[*] BIGQUERY [*] Connecting to Firestore emulator at %s", firestoreEmulatorHost)
         conf.DatabaseURL = "http://" + firestoreEmulatorHost
     } else {
-        log.Println("[*] BIGQUERY [*] FIRESTORE_EMULATOR_HOST not set")
+        log.Println("[*] BIGQUERY [*] FIRESTORE_EMULATOR_HOST not set; using service account credentials, nothing to pass in")
     }
 
-	app, err := firebase.NewApp(ctx, conf, opt)
+	app, err := firebase.NewApp(ctx, conf)
     if err != nil {
        return nil, err
     }
@@ -70,8 +67,7 @@ func InitializeConsumerSubscription() (*pubsub.Subscription, *pubsub.Client, err
             option.WithoutAuthentication(),
         )
     } else {
-        log.Println("PUBSUB_EMULATOR_HOST not set; using credentials")
-        opts = append(opts, option.WithCredentialsFile("pubsub-credentials.json"))
+        log.Println("PUBSUB_EMULATOR_HOST not set; using service account credentials, nothing to pass in")
     }
     
     client, err := pubsub.NewClient(ctx, projectID, opts...)
@@ -86,7 +82,7 @@ func InitializeConsumerSubscription() (*pubsub.Subscription, *pubsub.Client, err
 		EnableMessageOrdering: true,
 	})
 	if err != nil {
-		if err.Error() == "rpc error: code = AlreadyExists desc = Subscription already exists" {
+		if strings.Contains(err.Error(), "AlreadyExists") {
 			log.Printf("Subscription already exists, connecting to it")
 			sub = client.Subscription(subName)
 			return sub, client, nil
