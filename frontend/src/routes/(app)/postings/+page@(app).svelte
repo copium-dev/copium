@@ -116,9 +116,17 @@
 
     // Use a reactive statement that runs as soon as possible client-side
     $: if (browser && isGridView === undefined) {
-        const savedView = localStorage.getItem("view_preference_postings");
-        isGridView = savedView === "true";
+        if (isSmallScreen()) {
+            isGridView = true;
+        } else {
+            const savedView = localStorage.getItem("view_preference_postings");
+            isGridView = savedView === "true";
+        }
         isViewPreferenceLoaded = true;
+    }
+
+    function isSmallScreen() {
+        return browser && window.innerWidth < 640;
     }
 
     onMount(() => {
@@ -160,7 +168,7 @@
 <div class="flex flex-col justify-start gap-4 items-stretch w-full my-12">
     <!-- sticky controls wrapper -->
     <div
-        class="px-8 sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50"
+        class="px-6 sm:px-8 sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50"
     >
         <div
             class="bg-background flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full py-2"
@@ -181,9 +189,9 @@
                 </div>
                 {#if isViewPreferenceLoaded}
                     <div
-                        class="flex flex-row gap-4 justify-between items-center w-full sm:w-auto"
+                        class="flex flex-row gap-4 justify-center sm:justify-between items-center w-full sm:w-auto"
                     >
-                        <div class="flex gap-2 items-center justify-center">
+                        <div class="hidden sm:flex flex gap-2 items-center justify-center">
                             <div
                                 class={!isGridView
                                     ? "flex items-center gap-1 text-sm font-medium"
@@ -213,10 +221,13 @@
 
     {#if isViewPreferenceLoaded}
         {#if !isGridView}
-            <Table.Root class="overflow-hidden table-fixed">
+            <Table.Root class="overflow-collapse table-fixed">
                 <Table.Header>
-                    <Table.Row class="border-b border-dashed">
-                        <Table.Head class="border-r border-dashed pl-8 w-3/12">
+                    <Table.Row class="">
+                        <Table.Head
+                            class="border-r border-dashed pl-3 lg:pl-6 w-[1px]"
+                        ></Table.Head>
+                        <Table.Head class="border-r border-dashed lg:pl-4 2xl:pl-6 w-3/12">
                             <span class="inline-flex items-center gap-2">
                                 <Building2
                                     class="w-[15px] h-[17px] stroke-[1.5]"
@@ -224,7 +235,9 @@
                                 Company
                             </span>
                         </Table.Head>
-                        <Table.Head class="border-r border-dashed w-5/12">
+                        <Table.Head
+                            class="border-r border-dashed w-5/12 px-2 lg:pl-4 2xl:pl-6"
+                        >
                             <span class="inline-flex items-center gap-2">
                                 <BriefcaseBusiness
                                     class="w-[15px] h-[17px] stroke-[1.5]"
@@ -232,13 +245,17 @@
                                 Role
                             </span>
                         </Table.Head>
-                        <Table.Head class="border-r border-dashed w-2/12">
+                        <Table.Head
+                            class="border-r border-dashed w-1/6 md:w-1/6 px-2 lg:pl-4 2xl:pl-6"
+                        >
                             <span class="inline-flex items-center gap-2">
                                 <Map class="w-[15px] h-[17px] stroke-[1.5]" />
                                 Locations
                             </span>
                         </Table.Head>
-                        <Table.Head class="border-r border-dashed w-2/12">
+                        <Table.Head
+                            class="hidden lg:table-cell border-r border-dashed w-2/12 px-2 lg:pl-4 2xl:pl-6"
+                        >
                             <span class="inline-flex items-center gap-2">
                                 <Calendar
                                     class="w-[15px] h-[17px] stroke-[1.5]"
@@ -246,7 +263,9 @@
                                 Posted
                             </span>
                         </Table.Head>
-                        <Table.Head class="border-r border-dashed w-2/12">
+                        <Table.Head
+                            class="hidden lg:table-cell border-r border-dashed w-2/12 px-2 lg:pl-4 2xl:pl-6"
+                        >
                             <span class="inline-flex items-center gap-2">
                                 <Calendar
                                     class="w-[15px] h-[17px] stroke-[1.5]"
@@ -254,44 +273,51 @@
                                 Updated
                             </span>
                         </Table.Head>
-                        <Table.Head class="pr-8 w-1/12">
-                            <span class="inline-flex items-center gap-2">
+                        <Table.Head class="w-1/6 md:w-1/12">
+                            <span class="w-full inline-flex items-center justify-center gap-2">
                                 <Link class="w-[15px] h-[17px] stroke-[1.5]" />
                                 Link
                             </span>
                         </Table.Head>
+                        <Table.Head
+                            class="w-[0.1px] pr-3 lg:pr-6 border-l border-dashed"
+                        ></Table.Head>
                     </Table.Row>
                 </Table.Header>
                 <Table.Body>
                     {#each data.postings as posting, i (i)}
                         <Table.Row
-                            class="border-b border-dashed dark:brightness-[0.9]"
+                            class="w-border-b border-dashed dark:brightness-[0.9]"
                         >
+                            <Table.Cell class="border-r border-dashed w-[1px]"
+                            ></Table.Cell>
                             <Table.Cell
-                                class="border-r border-dashed w-full inline-flex items-center gap-2 h-12 pl-8"
+                                class="border-r border-dashed w-3/12 px-2 lg:pl-4 2xl:pl-6"
                             >
-                                <img
-                                    src={data.companyLogos[
-                                        posting.company_name
-                                    ] || placeholder}
-                                    alt={posting.company_name}
-                                    class="w-6 h-6 rounded-lg object-cover"
-                                />
-                                <p class="truncate">
-                                    {posting.company_name}
-                                </p>
+                                <div class="flex items-center gap-2">
+                                    <img
+                                        src={data.companyLogos[
+                                            posting.company_name
+                                        ] || placeholder}
+                                        alt={posting.company_name}
+                                        class="w-6 h-6 rounded-lg object-cover"
+                                    />
+                                    <p class="truncate">
+                                        {posting.company_name}
+                                    </p>
+                                </div>
                             </Table.Cell>
-                            <Table.Cell class="border-r border-dashed">
-                                <p class="truncate">
+                            <Table.Cell class="px-0 border-r border-dashed">
+                                <p class="truncate px-2 lg:pl-4 2xl:pl-6">
                                     {posting.title}
                                 </p>
                             </Table.Cell>
-                            <Table.Cell class="border-r border-dashed">
+                            <Table.Cell class="px-0 border-r border-dashed">
                                 <HoverCard.Root>
                                     <HoverCard.Trigger
                                         class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-black"
                                     >
-                                        <p class="truncate">
+                                        <p class="truncate px-2 lg:pl-4 2xl:pl-6">
                                             {#if posting.locations.length > 1}
                                                 {posting.locations[0]}
                                                 <span class="font-semibold"
@@ -318,18 +344,18 @@
                                     </HoverCard.Content>
                                 </HoverCard.Root>
                             </Table.Cell>
-                            <Table.Cell class="border-r border-dashed"
-                                ><p class="truncate">
+                            <Table.Cell class="hidden lg:table-cell px-0 border-r border-dashed"
+                                ><p class="truncate px-2 lg:pl-4 2xl:pl-6">
                                     {formatDateForDisplay(posting.date_posted)}
                                 </p></Table.Cell
                             >
-                            <Table.Cell class="border-r border-dashed"
-                                ><p class="truncate">
+                            <Table.Cell class="hidden lg:table-cell px-0 border-r border-dashed"
+                                ><p class="truncate px-2 lg:pl-4 2xl:pl-6">
                                     {formatDateForDisplay(posting.date_updated)}
                                 </p></Table.Cell
                             >
                             <Table.Cell
-                                class="flex items-center justify-center pr-8"
+                                class="flex items-center justify-center w-full"
                             >
                                 <AlertDialog.Root>
                                     <AlertDialog.Trigger asChild let:builder>
@@ -367,6 +393,8 @@
                                     </AlertDialog.Content>
                                 </AlertDialog.Root>
                             </Table.Cell>
+                            <Table.Cell class="border-l border-dashed w-[0.1px]"
+                            ></Table.Cell>
                         </Table.Row>
                     {/each}
                 </Table.Body>
@@ -374,7 +402,7 @@
         {:else}
             <!-- Grid View -->
             <div
-                class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 px-8"
+                class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 px-6 sm:px-8"
             >
                 {#each data.postings as posting, i (i)}
                     <div
@@ -408,12 +436,11 @@
                         <div
                             class="text-xs text-muted-foreground flex flex-col items-start"
                         >
-                            
                             <HoverCard.Root>
                                 <HoverCard.Trigger
                                     class="flex gap-1 items-center rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-black"
                                 >
-                                <Map class="w-3 h-3 inline" />
+                                    <Map class="w-3 h-3 inline" />
                                     <p class="truncate">
                                         {#if posting.locations.length > 1}
                                             {posting.locations[0]}
@@ -455,7 +482,7 @@
         {/if}
     {/if}
 
-    <div class="container flex justify-end gap-4">
+    <div class="container flex flex-col md:flex-row justify-end md:gap-4">
         <p class="text-muted-foreground text-xs">*Only shows active postings</p>
         <!-- <p class="text-muted-foreground text-xs">*Updated every 3 hours</p> -->
         <div class="flex space-x-1">

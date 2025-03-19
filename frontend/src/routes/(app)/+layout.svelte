@@ -54,7 +54,7 @@
     <div
         class="w-full h-14 top-0 z-50 border-b border-dashed bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
     >
-        <header class="container border-x border-dashed">
+        <header class="px-6 md:container border-x border-dashed">
             <div class="mx-auto flex items-center justify-between py-2">
                 <div class="flex flex-row items-center">
                     <div>
