@@ -4,9 +4,11 @@ import { redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 
 // load function 
-export const load: PageServerLoad = async ({ fetch }) => {
+export const load: PageServerLoad = async ({ fetch, locals }) => {
     const response = await fetch(`${BACKEND_URL}/user/profile`, {
-        credentials: 'include'  // every protected route needs to include credentials
+        headers: {
+        'Authorization': `Bearer ${locals.authToken}`
+        }
     });
     
     if (!response.ok) {
@@ -40,12 +42,13 @@ export const load: PageServerLoad = async ({ fetch }) => {
 };
 
 export const actions = {
-    delete: async ({ fetch }) => {
+    delete: async ({ fetch, locals }) => {
         const response = await fetch(`${BACKEND_URL}/user/deleteUser`, {
             method: 'POST',
             credentials: 'include',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${locals.authToken}`
             },
             body: JSON.stringify({}),
         });

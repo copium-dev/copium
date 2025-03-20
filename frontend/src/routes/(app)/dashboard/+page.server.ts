@@ -15,7 +15,7 @@ interface Job {
 }
 
 // load function 
-export const load: PageServerLoad = async ({ fetch, url }) => {
+export const load: PageServerLoad = async ({ fetch, url, locals }) => {
     const page = url.searchParams.get('page');
     const query = url.searchParams.get('q');
     const company = url.searchParams.get('company');
@@ -40,7 +40,9 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
     const dashboardURL = `${BACKEND_URL}/user/dashboard?${params.toString()}`;
 
     const response = await fetch(dashboardURL, {
-        credentials: 'include'  // every protected route needs to include credentials
+        headers: {
+            'Authorization': `Bearer ${locals.authToken}`
+        }
     });
     
     if (!response.ok) {
@@ -70,7 +72,7 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
 };
 
 export const actions = {
-    add: async ({ request, fetch }) => {
+    add: async ({ request, fetch, locals }) => {
         const formData = await request.formData();
         const data = {
             role: formData.get('role'),
@@ -84,9 +86,9 @@ export const actions = {
         const response = await fetch(`${BACKEND_URL}/user/addApplication`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${locals.authToken}`
             },
-            credentials: 'include',
             body: JSON.stringify(data)
         });
 
@@ -119,7 +121,7 @@ export const actions = {
             }
         };
     },
-    delete: async ({ request, fetch }) => {
+    delete: async ({ request, fetch, locals }) => {
         const formData = await request.formData();
         const body = {
             id: formData.get('id'),
@@ -135,9 +137,9 @@ export const actions = {
         const response = await fetch(`${BACKEND_URL}/user/deleteApplication`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${locals.authToken}`
             },
-            credentials: 'include',
             body: JSON.stringify(body)
         });
 
@@ -151,7 +153,7 @@ export const actions = {
             type: 'success',
         };
     },
-    editstatus: async ({ request, fetch }) => {
+    editstatus: async ({ request, fetch, locals }) => {
         const formData = await request.formData();
         const body = {
             id: formData.get('id'),
@@ -166,9 +168,9 @@ export const actions = {
         const response = await fetch(`${BACKEND_URL}/user/editStatus`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${locals.authToken}`
             },
-            credentials: 'include',
             body: JSON.stringify(body)
         });
 
@@ -182,7 +184,7 @@ export const actions = {
             type: 'success',
         };
     },
-    editapplication: async({ request, fetch }) => {
+    editapplication: async({ request, fetch, locals }) => {
         const formData = await request.formData();
         const body = {
             id: formData.get('id'),
@@ -204,9 +206,9 @@ export const actions = {
         const response = await fetch(`${BACKEND_URL}/user/editApplication`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${locals.authToken}`
             },
-            credentials: 'include',
             body: JSON.stringify(body)
         });
 

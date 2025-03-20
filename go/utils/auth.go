@@ -45,13 +45,21 @@ func NewAuthHandler() *AuthHandler {
         callbackUrl := os.Getenv("CALLBACK_URL")
         jwtSecret := os.Getenv("JWT_SECRET")
 
+		isProd := os.Getenv("ENVIRONMENT") == "prod"
+		var sameSite http.SameSite
+		if isProd {
+			sameSite = http.SameSiteNoneMode
+		} else {
+			sameSite = http.SameSiteLaxMode
+		}
+
         store = sessions.NewCookieStore([]byte(jwtSecret))
         store.Options = &sessions.Options{
             Path:     "/",
             MaxAge:   86400 * 30,
             HttpOnly: true,
-            Secure:   false,
-            SameSite: http.SameSiteLaxMode,
+            Secure:   isProd,
+            SameSite: sameSite,
         }
 
         gothic.Store = store

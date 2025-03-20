@@ -3,8 +3,7 @@ package api
 import (
     "log"
     "net/http"
-	"os"
-    
+	
 	"github.com/copium-dev/copium/go/service/user"
     "github.com/copium-dev/copium/go/service/auth"
 	"github.com/copium-dev/copium/go/service/postings"
@@ -59,12 +58,13 @@ func (s *APIServer) Run() error {
 	postingsHandler.RegisterRoutes(router)
 
     // create new CORS handler
-    c := cors.New(cors.Options{
-        AllowedOrigins:   []string{os.Getenv("FRONTEND_URL"), "http://localhost:5173"},
-        AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-        AllowedHeaders:   []string{"*"},
-        AllowCredentials: true,
-    })
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"https://www.copium.dev", "https://copium.dev", "http://localhost:5173"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: true, 
+		MaxAge:           86400,
+	})
 
     // wrap router with the CORS handler
     handler := c.Handler(router)

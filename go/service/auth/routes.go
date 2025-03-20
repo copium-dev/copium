@@ -6,12 +6,15 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/copium-dev/copium/go/utils"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gorilla/mux"
 	"github.com/markbates/goth/gothic"
+	"github.com/golang-jwt/jwt/v5"
 	
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -45,7 +48,8 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/auth/{provider}/logout", h.Logout).Methods("GET").Name("logout")
 }
 
-// note: gothic uses a global Store variable so we can just directly call gothic
+// gothic is JUST to handle oauth flow, since cross-domain cookies are a pain to deal with
+// technically, we could just set up a custom domain but Cloud Run custom domains are in preview mode, so not ideal
 func (h *Handler) Auth(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] Auth [*]")
 	log.Println("-----------------")
@@ -87,16 +91,21 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// for some reason CompleteUserAuth isn't properly setting session values so we have to do it manually
-	// this is to guarantee that the user receives a session
-	session, _ := h.AuthHandler.Store.Get(r, "session")
-	session.Values["user_id"] = user.UserID
-	session.Values["email"] = user.Email
-	err = session.Save(r, w)
+	// this sucks but in prod we can't send cookies across domains, and Cloud Run custom domains
+	// are only in preview mode, so we have to make and sign a JWT and send to frontend
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"email": user.Email,
+		"exp":   time.Now().Add(time.Hour * 24 * 30).Unix(),
+	})
+	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// at this point, user is verified to be authed and we have
+	// 1. made a session (locally with gothic)
+	// 2. made a JWT (to send to frontend)
 
 	// check if user exists in Firestore
 	userExists, err := checkUserExists(user.Email, h.firestoreClient, r.Context())
@@ -126,7 +135,7 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 		frontendURL = "http://localhost:5173"
 	}
 
-	http.Redirect(w, r, frontendURL + "/dashboard", http.StatusFound)
+	http.Redirect(w, r, frontendURL + "/auth-complete?token=" + tokenString, http.StatusFound)
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -141,56 +150,63 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	r = r.WithContext(context.WithValue(r.Context(), "provider", provider))
 
-	// same as AuthProviderCallback, for some reason gothic's logout function isn't properly clearing session
-	// so let's just do it manually. atp why wouldnt i just not use a library lmfao
-	session, err := h.AuthHandler.Store.Get(r, "session")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	session.Options.MaxAge = -1
-	session.Values = make(map[interface{}]interface{})
-
-	err = session.Save(r, w)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
 		frontendURL = "http://localhost:5173"
 	}
-	http.Redirect(w, r, frontendURL, http.StatusTemporaryRedirect)
+	
+	http.Redirect(w, r, frontendURL + "/logout-complete", http.StatusTemporaryRedirect)
 }
 
-// use the request and gothic.Store.Get to see if user is authed
-// once again, something's wrong with gothic session handling so we have to
-// manually get the session from Store and check if email exists
-// it would be nice to implement this as a middleware but for now just call it directly within each route
+// check for authentication using JWT
+// the key change here vs. the original is that we don't use gothic for auth verification or session management
+// since we create our own JWTs. so, gothic is JUST to handle the oauth flow
 func IsAuthenticated(r *http.Request) (string, error) {
 	log.Println("[*] IsAuthenticated [*]")
 	log.Println("-----------------")
 
-	session, err := gothic.Store.Get(r, "session")
-	if err != nil {
-		return "", err
-	}
-
-	emailValue, ok := session.Values["email"]
-	if !ok {
-		return "", fmt.Errorf("email not found in session")
-	}
-
-	email, ok := emailValue.(string)
-	if !ok {
-		return "", fmt.Errorf("email is not a string")
-	}
-
-	log.Println("Authenticated")
-	log.Println("-----------------")
-
-	return email, nil
+    // get token from Authorization header
+    authHeader := r.Header.Get("Authorization")
+    if !strings.HasPrefix(authHeader, "Bearer ") {
+        return "", fmt.Errorf("no token provided")
+    }
+    
+    // extract token value
+    tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+    
+    // parse and validate token
+    token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+        if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+            return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+        }
+        return []byte(os.Getenv("JWT_SECRET")), nil
+    })
+    
+    if err != nil {
+        return "", fmt.Errorf("invalid token: %v", err)
+    }
+    
+	// checks if token was signed w/ secret key and not tampered
+	// also checks if not expired
+    if !token.Valid {
+        return "", fmt.Errorf("token is not valid")
+    }
+    
+	// get claims so we can extract email
+    claims, ok := token.Claims.(jwt.MapClaims)
+    if !ok {
+        return "", fmt.Errorf("invalid token claims")
+    }
+    
+    email, ok := claims["email"].(string)
+    if !ok || email == "" {
+        return "", fmt.Errorf("email not found in token")
+    }
+    
+    log.Println("Authenticated via JWT")
+    log.Println("-----------------")
+    
+    return email, nil
 }
 
 func checkUserExists(userEmail string, firestoreClient *firestore.Client, ctx context.Context) (bool, error) {

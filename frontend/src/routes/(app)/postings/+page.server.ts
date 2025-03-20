@@ -13,7 +13,7 @@ interface Posting {
     url: string;
 }
 
-export const load: PageServerLoad = async ({ fetch, url }) => {
+export const load: PageServerLoad = async ({ fetch, url, locals }) => {
     const page = url.searchParams.get('page');
     const query = url.searchParams.get('q');
     const company = url.searchParams.get('company');
@@ -36,7 +36,9 @@ export const load: PageServerLoad = async ({ fetch, url }) => {
     const dashboardURL = `${BACKEND_URL}/postings?${params.toString()}`;
 
     const response = await fetch(dashboardURL, {
-        credentials: 'include'  // every protected route needs to include credentials
+        headers: {
+            'Authorization': `Bearer ${locals.authToken}`
+        }
     });
     
     if (!response.ok) {
