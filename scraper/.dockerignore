@@ -1,2 +1,11 @@
 venv/
+.venv/
 Summer2025-Internships/
+scraper/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.git/
+.github/
+.pytest_cache/

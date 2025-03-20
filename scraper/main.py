@@ -4,20 +4,33 @@ from dotenv import load_dotenv
 import json
 import os
 import time
+import datetime
 import git
 import schedule
 import asyncio
 
 """
-special thanks to cvrve for the code. changes are made to work w/ current project
-instead of sending msg to discord...
-- update algolia, no need to assign unique id (user just searching by attributes not by id)
+special thanks to cvrve for the main logic. changes are made to update algolia
+instead of sending messages to discord.
 """
 
-# Constants
+# constants; in new seasons we update repo url. but this is assuming cvrve stays active lol
+# if not, we need a new source for scraping... will be a pain 
 REPO_URL = "https://github.com/cvrve/Summer2025-Internships"
-LOCAL_REPO_PATH = "scraper/Summer2025-Internships"
+# if we're in prod we aren't running this from the root project directory so dont have to
+# specify the scraper/ prefix
+env = os.getenv("ENVRIONMENT")
+if env == "prod":
+    LOCAL_REPO_PATH = "Summer2025-Internships"
+else:
+    LOCAL_REPO_PATH = "scraper/Summer2025-Internships"
 JSON_FILE_PATH = os.path.join(LOCAL_REPO_PATH, ".github", "scripts", "listings.json")
+
+load_dotenv()
+ALGOLIA_APP_ID = os.getenv("ALGOLIA_APP_ID")
+ALGOLIA_API_KEY = os.getenv("ALGOLIA_API_KEY")
+ALGOLIA_WRITE_API_KEY = os.getenv("ALGOLIA_WRITE_API_KEY")
+ALGOLIA_INDEX_NAME = os.getenv("ALGOLIA_INDEX_NAME")
 
 def clone_or_update_repo():
     print("Cloning or updating repository...")
@@ -34,7 +47,6 @@ def clone_or_update_repo():
         git.Repo.clone_from(REPO_URL, LOCAL_REPO_PATH)
         print("Repository cloned fresh.")
 
-
 def read_json():
     print(f"Reading JSON file from {JSON_FILE_PATH}...")
     with open(JSON_FILE_PATH, "r") as file:
@@ -42,18 +54,9 @@ def read_json():
     print(f"JSON file read successfully, {len(data)} items loaded.")
     return data
 
-
-# proposed change for algolia indexing. this not need to go thru rabbitmq since there's no real 'load' just a single
-# script called like idk every 15 minutes or something.
-load_dotenv()
-ALGOLIA_APP_ID = os.getenv("ALGOLIA_APP_ID")
-ALGOLIA_API_KEY = os.getenv("ALGOLIA_API_KEY")
-ALGOLIA_WRITE_API_KEY = os.getenv("ALGOLIA_WRITE_API_KEY")
-ALGOLIA_INDEX_NAME = os.getenv("ALGOLIA_INDEX_NAME")
-
-
-async def AlgoliaClient(role):
-    print("Sending data to Algolia...")
+# add role; actually is not capable of updating roles but that's fine
+async def send_message(message, role):
+    print(f"Sending message: {message}")
 
     try:
         role['objectID'] = role['id']
@@ -63,12 +66,7 @@ async def AlgoliaClient(role):
     except Exception as e:
         print(f"Error sending data to Algolia: {e}")
 
-
-async def send_message(message, role):
-    print(f"Sending message: {message}")
-    await AlgoliaClient(role)
-
-
+# delete inactive roles
 async def send_delete(message, role):
     print(f"Deleting role: {message}")
     try:
@@ -80,7 +78,6 @@ async def send_delete(message, role):
         print(f"Successfully deleted role: {role['title']} at {role['company_name']}")
     except Exception as e:
         print(f"Error deleting role: {e}")
-
 
 def check_for_new_roles():
     print("Checking for new roles...")
@@ -124,16 +121,25 @@ def check_for_new_roles():
 
     with open("scraper/previous_data.json", "w") as file:
         json.dump(new_data, file)
+    
     print("Updated previous data with new data.")
 
     if not new_roles and not deactivated_roles:
         print("No updates found.")
 
-
-# IMPORTANT: On the VM we should run this on a cron job as to not waste precious memory!!!!!!
+# actually this is run in a separate VM from everything else so we can safely keep this long-running instead of
+# scheduling with cron or smth
 def main():
-    print("Starting process...")
-    check_for_new_roles
+    print("Running: ", datetime.datetime.now())
+    check_for_new_roles()
 
 if __name__ == "__main__":
+    # run once 
+    print("Scraper started: ", datetime.datetime.now())
     main()
+
+    schedule.every().hour.do(main)
+
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
