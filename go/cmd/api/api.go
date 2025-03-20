@@ -3,6 +3,7 @@ package api
 import (
     "log"
     "net/http"
+	"os"
     
 	"github.com/copium-dev/copium/go/service/user"
     "github.com/copium-dev/copium/go/service/auth"
@@ -59,7 +60,7 @@ func (s *APIServer) Run() error {
 
     // create new CORS handler
     c := cors.New(cors.Options{
-        AllowedOrigins:   []string{"http://localhost:5173"},
+        AllowedOrigins:   []string{os.Getenv("FRONTEND_URL"), "http://localhost:5173"},
         AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
         AllowedHeaders:   []string{"*"},
         AllowCredentials: true,

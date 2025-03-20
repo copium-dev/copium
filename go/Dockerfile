@@ -1,5 +1,5 @@
 # build stage; use debian for better compatibility
-FROM --platform=linux/amd64 golang:bullseye AS builder
+FROM golang:bullseye AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -11,6 +11,7 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/main .
-
+ENV ENVIRONMENT=prod
+ENV FRONTEND_URL=https://www.copium.dev
 EXPOSE 8080
 CMD ["./main"]

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/copium-dev/copium/go/utils"
 
@@ -52,10 +53,15 @@ func (h *Handler) Auth(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(context.WithValue(r.Context(), "provider", provider))
 
 	// if the user is already authenticated, redirect them to their dashboard
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173"
+	}
+
 	user, err := IsAuthenticated(r)
 	if err == nil {
 		fmt.Println("user already authenticated", user)
-		http.Redirect(w, r, "http://localhost:5173/dashboard", http.StatusFound)
+		http.Redirect(w, r, frontendURL + "/dashboard", http.StatusFound)
 		return
 	}
 
@@ -115,7 +121,12 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	http.Redirect(w, r, "http://localhost:5173/dashboard", http.StatusFound)
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173"
+	}
+
+	http.Redirect(w, r, frontendURL + "/dashboard", http.StatusFound)
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +157,11 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "http://localhost:5173", http.StatusTemporaryRedirect)
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173"
+	}
+	http.Redirect(w, r, frontendURL, http.StatusTemporaryRedirect)
 }
 
 // use the request and gothic.Store.Get to see if user is authed

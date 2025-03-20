@@ -62,6 +62,7 @@ env_go = os.environ.copy()
 env_go["FIRESTORE_EMULATOR_HOST"] = "localhost:8080"
 env_go["PUBSUB_EMULATOR_HOST"] = "localhost:8085"
 env_go["PUBSUB_ORDERING_KEY"] = "insecure_local_key"
+env_go["FRONTEND_URL"] = "http://localhost:5173"
 go_main = subprocess.Popen("go run cmd/main.go", cwd="go", shell=True, env=env_go)
 child_procs.append(go_main)
 time.sleep(3)

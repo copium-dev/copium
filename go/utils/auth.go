@@ -33,10 +33,12 @@ var (
 // and overwrite the global gothic.Store (we want to use the same store for all requests)
 func NewAuthHandler() *AuthHandler {
     once.Do(func() {
-        err := godotenv.Load()
-        if err != nil {
-            log.Fatal("Error loading .env file")
-        }
+		if os.Getenv("ENVIRONMENT") != "prod" {
+			err := godotenv.Load()
+			if err != nil {
+				log.Fatal("Error loading .env file")
+			}
+		}
 
         googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
         googleClientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")

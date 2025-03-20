@@ -28,7 +28,6 @@ JSON_FILE_PATH = os.path.join(LOCAL_REPO_PATH, ".github", "scripts", "listings.j
 
 load_dotenv()
 ALGOLIA_APP_ID = os.getenv("ALGOLIA_APP_ID")
-ALGOLIA_API_KEY = os.getenv("ALGOLIA_API_KEY")
 ALGOLIA_WRITE_API_KEY = os.getenv("ALGOLIA_WRITE_API_KEY")
 ALGOLIA_INDEX_NAME = os.getenv("ALGOLIA_INDEX_NAME")
 
