@@ -221,7 +221,7 @@
             </div>
         {:else}
             <div
-                class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 px-6 sm:px-8"
+                class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 px-6 sm:px-8"
             >
                 {#each data.applications as job (job.objectID)}
                     <GridJob
