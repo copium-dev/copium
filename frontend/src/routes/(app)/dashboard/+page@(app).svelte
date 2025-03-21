@@ -129,7 +129,7 @@
 
     onMount(() => {
         window.addEventListener("keydown", handleGlobalKeydown);
-
+        
         isGridView = browser && window.innerWidth < 640;
 
         return () => {
