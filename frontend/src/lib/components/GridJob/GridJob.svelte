@@ -136,7 +136,7 @@
 </script>
 
 {#if visible}
-    <div class="w-1/3 gap-2">
+    <div class="w-full gap-2">
         <div
             class="bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow m-2 dark:brightness-[0.9]"
         >
@@ -209,7 +209,7 @@
                                         }}
                                         aria-label={`Set status to ${status}`}
                                     ></Button>
-                                    <span class="text-xs text-muted-foreground"
+                                    <span class="text-[.5rem] sm:text-xs text-muted-foreground"
                                         >{status}</span
                                     >
                                 </div>
@@ -237,7 +237,7 @@
                                 builders={[builder]}
                                 variant="ghost"
                                 size="sm"
-                                class="text-red-500 hover:text-red-600 hover:bg-red-50 p-2 h-8 w-1/2"
+                                class="ml-2 text-red-500 hover:text-red-600 hover:bg-red-50 h-9 px-4 py-2 w-full border sm:border-0"
                             >
                                 Delete
                             </Button>

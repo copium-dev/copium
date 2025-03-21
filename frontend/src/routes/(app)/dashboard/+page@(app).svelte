@@ -97,7 +97,7 @@
 
         form = null;
     }
-    
+
     // list - grid style toggle
     let isViewPreferenceLoaded = false;
     let isGridView: boolean | undefined = undefined;
@@ -117,15 +117,20 @@
         isGridView = savedView === "true";
         isViewPreferenceLoaded = true;
     }
-    
+
     // save view preference
     $: if (browser && isViewPreferenceLoaded && isGridView !== undefined) {
-        localStorage.setItem("view_preference_dashboard", isGridView.toString())
-        updateURL();    // must reload with saved view preference because of hitsPerPage
+        localStorage.setItem(
+            "view_preference_dashboard",
+            isGridView.toString()
+        );
+        updateURL(); // must reload with saved view preference because of hitsPerPage
     }
 
     onMount(() => {
         window.addEventListener("keydown", handleGlobalKeydown);
+
+        isGridView = browser && window.innerWidth < 640;
 
         return () => {
             window.removeEventListener("keydown", handleGlobalKeydown);
@@ -166,9 +171,9 @@
                 </div>
                 {#if isViewPreferenceLoaded}
                     <div
-                        class="flex flex-row gap-4 justify-between items-center w-full sm:w-auto"
+                        class="flex flex-row gap-4 justify-center sm:justify-between items-center w-full sm:w-auto"
                     >
-                        <div class="flex gap-2 items-center justify-center">
+                        <div class="hidden sm:flex gap-2 items-center justify-center">
                             <div
                                 class={!isGridView
                                     ? "flex items-center gap-1 text-sm font-medium"
@@ -215,7 +220,9 @@
                 {/each}
             </div>
         {:else}
-            <div class="flex flex-wrap items-center justify-start grid-rows-auto px-6 mb-4">
+            <div
+                class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 px-6 sm:px-8"
+            >
                 {#each data.applications as job (job.objectID)}
                     <GridJob
                         objectID={job.objectID}
@@ -231,6 +238,4 @@
             </div>
         {/if}
     {/if}
-
-    
 </div>

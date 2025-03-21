@@ -72,7 +72,7 @@
     page={currentPageFromURL}
     class="flex flex-row w-fit mx-0"
 >
-    <div class="flex flex-row items-center gap-2">
+    <div class="hidden sm:flex flex-row items-center gap-2">
         <div class="text-sm">Go to page:</div>
             <form on:submit={goToPage} class="flex items-center">
                 <Input
