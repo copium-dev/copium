@@ -85,10 +85,9 @@
                                 role: formData.get("role") || role,
                                 location: formData.get("location") || location,
                                 link: formData.get("link") || link,
+                                // if appliedDate not set, use current value. else, convert to timestamp
                                 appliedDate: formData.get("appliedDate")
-                                    ? convertLocalDateToTimestamp(
-                                          formData.get("appliedDate") as string
-                                      )
+                                    ? convertLocalDateToTimestamp(formData.get("appliedDate") as string)
                                     : appliedDate,
                                 status: formData.get("status") || status,
                             }

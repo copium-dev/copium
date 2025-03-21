@@ -1,18 +1,3 @@
-export function offsetTimezone(timestamp: number) {
-    if (!timestamp) return 0;
-
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) return 0;
-
-    // adjust for timezone
-    const adjustedDate = new Date(
-        date.getTime() + date.getTimezoneOffset() * 60 * 1000
-    );
-
-    // return as unix timestamp in seconds
-    return Math.floor(adjustedDate.getTime() / 1000); 
-}
-
 // for input type="date"
 export function formatDateForInput(timestamp: number): string {
     if (!timestamp) return "";
@@ -60,6 +45,7 @@ export function formatDateWithSeconds(timestamp: number): string {
 }
 
 // convert to unix seconds for backend
+// no need to adjust for timezone 
 export function convertLocalDateToTimestamp(dateString: string): number {
     // dateString comes as yyyy-mm-dd
     const [year, month, day] = dateString.split('-').map(Number);

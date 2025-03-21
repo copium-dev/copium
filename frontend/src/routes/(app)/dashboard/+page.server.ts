@@ -2,7 +2,7 @@ import type { PageServerLoad } from './$types';
 import { BACKEND_URL } from '$env/static/private';
 import { redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import { offsetTimezone } from '$lib/utils/date';
+import { convertLocalDateToTimestamp } from '$lib/utils/date';
 
 interface Job {
     objectID: string;
@@ -78,7 +78,7 @@ export const actions = {
             role: formData.get('role'),
             company: formData.get('company'),
             location: formData.get('location'),
-            appliedDate: offsetTimezone(Date.parse(formData.get('appliedDate') as string)),
+            appliedDate: convertLocalDateToTimestamp(formData.get('appliedDate') as string),
             link: formData.get('link'),
             status: 'Applied'
         }
@@ -95,7 +95,7 @@ export const actions = {
         const json = await response.json();
 
         const objectID = json.objectID;
-        const appliedDate = offsetTimezone(Date.parse(formData.get('appliedDate') as string))
+        const appliedDate = convertLocalDateToTimestamp(formData.get('appliedDate') as string)
         const company = formData.get('company') as string;
         const link = formData.get('link') as string;
         const location = formData.get('location') as string;
@@ -192,7 +192,7 @@ export const actions = {
             company: formData.get('company'),
             location: formData.get('location'),
             // this is sent as mm-dd-yyyy so parse into unix timestamp
-            appliedDate: offsetTimezone(Date.parse(formData.get('appliedDate') as string)),
+            appliedDate: convertLocalDateToTimestamp(formData.get('appliedDate') as string),
             link: formData.get('link'),
             oldRole: formData.get('oldRole'),
             oldCompany: formData.get('oldCompany'),
