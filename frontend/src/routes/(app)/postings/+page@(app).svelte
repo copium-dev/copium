@@ -139,7 +139,9 @@
     onMount(() => {
         window.addEventListener("keydown", handleGlobalKeydown);
         
-        isGridView = browser && window.innerWidth < 640;
+        if (browser && window.innerWidth < 640) {
+            isGridView = true;
+        }
 
         return () => {
             window.removeEventListener("keydown", handleGlobalKeydown);
