@@ -149,7 +149,7 @@
 <div class="flex flex-col justify-start gap-4 items-stretch w-full my-12">
     <!-- sticky controls wrapper -->
     <div
-        class="px-8 sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50"
+        class="px-6 sm:px-8 sticky bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50"
     >
         <div
             class="bg-background flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-center w-full py-2"
@@ -223,7 +223,7 @@
             </div>
         {:else}
             <div
-                class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 px-6 sm:px-8"
+                class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 px-4 sm:px-8"
             >
                 {#each data.applications as job (job.objectID)}
                     <GridJob
