@@ -325,7 +325,7 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 						THEN days_to_response
 						ELSE NULL
 					END)
-				) AS current_30day_avg_response_time,
+			FROM ResponseMetrics) AS current_30day_avg_response_time,
 			(SELECT
 				AVG(CASE
 						WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
@@ -333,17 +333,19 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 						THEN days_to_response
 						ELSE NULL
 					END)
-				) AS previous_30day_avg_response_time,
+			FROM ResponseMetrics) AS previous_30day_avg_response_time,
 			(SELECT
 				AVG(CASE
-					WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-					THEN days_to_response
-					ELSE NULL
-				END) - 
-				AVG(CASE
-					WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
-					AND latest_applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-					THEN days_to_response ELSE NULL END) FROM ResponseMetrics) AS response_time_trend,
+						WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+						THEN days_to_response
+						ELSE NULL
+					END) - 
+				AVG(CASE WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+						AND latest_applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+						THEN days_to_response
+						ELSE NULL 
+					END)
+			FROM ResponseMetrics) AS response_time_trend,
 			
 			-- monthly trends (gets as a subquery, avoids unnecessary JOIN since does not use UserApplications)
 			(SELECT
@@ -377,7 +379,7 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 		return nil, fmt.Errorf("failed to read analytics data: %w", err)
 	}
 
-	// use a pointer for nullable fields
+	// rows may be null so we use an int pointer
 	var row struct {
 		Current30DayCount       int `bigquery:"current_30day_count"`
 		Previous30DayCount      int `bigquery:"previous_30day_count"`
@@ -388,9 +390,9 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 		Previous30DayOffers 	int `bigquery:"previous_30day_offers"`
 		InterviewEffectivenessTrend int `bigquery:"interview_effectiveness_trend"`
 		ResumeEffectivenessTrend int `bigquery:"resume_effectiveness_trend"`
-		Current30DayAvgResponseTime *float64 `bigquery:"current_30day_avg_response_time"`
-		Previous30DayAvgResponseTime *float64 `bigquery:"previous_30day_avg_response_time"`
-		ResponseTimeTrend *float64 `bigquery:"response_time_trend"`
+		Current30DayAvgResponseTime bigquery.NullFloat64 `bigquery:"current_30day_avg_response_time"`
+		Previous30DayAvgResponseTime bigquery.NullFloat64 `bigquery:"previous_30day_avg_response_time"`
+		ResponseTimeTrend bigquery.NullFloat64 `bigquery:"response_time_trend"`
 		MonthlyTrends           []MonthlyTrend `bigquery:"monthly_trends"`
 	}
 
@@ -407,21 +409,20 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 	analytics["resume_effectiveness"] = row.Current30DayInterviews
 	analytics["resume_effectiveness_trend"] = row.ResumeEffectivenessTrend
 	analytics["monthly_trends"] = row.MonthlyTrends
-	analytics["interview_effectiveness"] = row.Current30DayOffers
-	analytics["interview_effectiveness_trend"] = row.InterviewEffectivenessTrend
-	analytics["last_updated"] = time.Now().Unix()
-
-	// response time nullable so need to check for nil
-	if row.Current30DayAvgResponseTime != nil {
-		analytics["avg_response_time"] = *row.Current30DayAvgResponseTime
+	if row.Current30DayAvgResponseTime.Valid {
+		analytics["avg_response_time"] = row.Current30DayAvgResponseTime.Float64
 	} else {
-		analytics["avg_response_time"] = nil
+		analytics["avg_response_time"] = nil 
 	}
-	if row.ResponseTimeTrend != nil {
-		analytics["avg_response_time_trend"] = *row.ResponseTimeTrend
+	
+	if row.ResponseTimeTrend.Valid {
+		analytics["avg_response_time_trend"] = row.ResponseTimeTrend.Float64
 	} else {
 		analytics["avg_response_time_trend"] = nil
 	}
+	analytics["interview_effectiveness"] = row.Current30DayOffers
+	analytics["interview_effectiveness_trend"] = row.InterviewEffectivenessTrend
+	analytics["last_updated"] = time.Now().Unix()
 
 	return analytics, nil
 }

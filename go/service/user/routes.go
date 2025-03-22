@@ -376,7 +376,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 		"location":    addApplicationRequest.Location,
 		"role":        addApplicationRequest.Role,
 		"status":      addApplicationRequest.Status,
-		"timestamp":   time.Now().Unix(),
+		"timestamp":   time.Now().Add(12 * time.Hour).Truncate(24 * time.Hour).Unix(),
 		"objectID":    doc.ID,
 	}
 
@@ -545,7 +545,13 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		"objectID":    applicationID,
 		"status":      newStatus,
 		"appliedDate": appliedDate,
-		"timestamp":   time.Now().Unix(),
+		// since appliedDate is always using noon as the time, we need to ensure
+		// that the timestamp sent to PubSub is always at or after noon. this is because
+		// a user can edit status of an application at 11:59 AM and the appliedDate is 12:00 PM
+		// so this will cause response time metrics to be incorrect
+		// so, simply add 12 hours to guarantee it's always at or after noon
+		// truncate is used to round down to nearest day just in case the +12 overshoots
+		"timestamp": time.Now().Add(12 * time.Hour).Truncate(24 * time.Hour).Unix(),
 	}
 
 	err = h.publishMessage(message)
@@ -635,7 +641,7 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		"role":        editApplicationRequest.Role,
 		"status":      editApplicationRequest.Status, // status is only sent to satisfy bigquery schema
 		"objectID":    applicationID,
-		"timestamp":   time.Now().Unix(),
+		"timestamp":   time.Now().Add(12 * time.Hour).Truncate(24 * time.Hour).Unix(),
 	}
 
 	err = h.publishMessage(message)
