@@ -149,7 +149,7 @@
 
 <ModeWatcher />
 <div
-    class="px-8 flex flex-col justify-start gap-4 items-stretch w-full mx-auto h-full my-12"
+    class="px-8 flex flex-col justify-start gap-4 items-stretch w-full mx-auto h-full my-12 dark:brightness-[0.9]"
 >
     <div
         class="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 items-start w-full"

@@ -27,7 +27,7 @@
 
     const statusValues: Record<string, number> = {
         Rejected: 10.75,
-        Ghosted: 28,
+        Ghosted: 27,
         Applied: 43,
         Screen: 58,
         Interviewing: 74,
@@ -148,23 +148,23 @@
             <div
                 class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-full"
             >
-                <div class="flex flex-row items-center">
+                <div class="flex flex-row items-center max-w-[2fr]">
                     <img
                         src={imgSrc}
                         alt={company}
                         class="w-10 h-10 rounded-lg object-cover"
                     />
                     <div
-                        class="flex flex-col items-baseline sm:gap-1 px-5 w-full"
+                        class="flex flex-col items-baseline sm:gap-1 px-5 w-full truncate"
                     >
                         <p
-                            class="flex flex-row items-end font-bold gap-1 h-full truncate"
+                            class="flex flex-row items-end font-bold gap-1 h-full w-full truncate"
                         >
-                            {company}
+                        <span class="truncate overflow-hidden">{company}</span>
                         </p>
-                        <p class="flex flex-row items-end gap-1 text-xs h-full truncate">
+                        <p class="flex flex-row items-end text-xs gap-1 h-full w-full truncate">
                             <Map class="w-[15px] h-[15px] stroke-[1.5]" />
-                            {location}
+                            <span class="truncate overflow-hidden">{location}</span>
                         </p>
                     </div>
                     <div class="sm:hidden flex flex-row items-center gap-4">
