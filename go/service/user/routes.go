@@ -532,8 +532,8 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 	if err != nil {
-		fmt.Printf("Error adding application: %v\n", err)
-		http.Error(w, "Error adding application", http.StatusInternalServerError)
+		fmt.Printf("Error editing application: %v\n", err)
+		http.Error(w, "Error editing application", http.StatusInternalServerError)
 		return
 	}
 

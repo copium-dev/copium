@@ -4,7 +4,7 @@
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
     import * as Card from "$lib/components/ui/card/index.js";
 
-    import { Moon } from "lucide-svelte";
+    import { Moon, X } from "lucide-svelte";
     import { SunMedium } from "lucide-svelte";
 
     import Chart from "chart.js/auto";
@@ -525,7 +525,12 @@
                     <Card.Content>
                         <div class="flex items-center justify-between">
                             <div class="text-2xl font-bold">
-                                {data.analytics?.avg_response_time?.toFixed(1) || 0} days
+                                <!-- if nil then X.X -->
+                                {data.analytics?.avg_response_time != null
+                                    ? data.analytics.avg_response_time.toFixed(1)
+                                    : "X.X"
+                                } 
+                                days
                             </div>
                             <div
                                 class={`flex items-center ${data.analytics?.avg_response_time_trend < 0
@@ -595,9 +600,10 @@
                                 Slower
                             {:else}
                                 Same response time
-                            {/if} than previous 30 day period ({Math.abs(
-                                data.analytics?.avg_response_time_trend || 0,
-                            ).toFixed(1)} days)
+                            {/if} than previous 30 day period ({data.analytics?.avg_response_time_trend != null 
+                                    ? Math.abs(data.analytics.avg_response_time_trend).toFixed(1)
+                                    : 'X.X'}
+                                days)
                         </p>
                     </Card.Content>
                 </Card.Root>

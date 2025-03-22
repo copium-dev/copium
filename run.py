@@ -3,14 +3,23 @@ import subprocess
 import os
 import signal
 import atexit
+import platform
 
 child_procs = []
+is_windows = platform.system() == "Windows"
 
 def kill_processes_by_keyword(keyword, cwd=None):
-    try:
-        subprocess.run(f"pkill -f '{keyword}'", shell=True, check=True, cwd=cwd)
-    except subprocess.CalledProcessError:
-        pass
+    if is_windows:
+        try:
+            subprocess.run(f'taskkill /F /FI "WINDOWTITLE eq *{keyword}*" /T', shell=True, check=False, cwd=cwd)
+            subprocess.run(f'taskkill /F /FI "IMAGENAME eq {keyword}*" /T', shell=True, check=False, cwd=cwd)
+        except subprocess.CalledProcessError:
+            pass
+    else:
+        try:
+            subprocess.run(f"pkill -f '{keyword}'", shell=True, check=True, cwd=cwd)
+        except subprocess.CalledProcessError:
+            pass
 
 def cleanup():
     print("Cleaning up child processes...")
@@ -36,8 +45,29 @@ kill_processes_by_keyword("go run cmd/main.go", cwd="go")
 kill_processes_by_keyword("go run main.go", cwd="algolia-consumer")
 kill_processes_by_keyword("go run main.go", cwd="bigquery-consumer")
 kill_processes_by_keyword("gcloud beta emulators pubsub start")
-subprocess.run("lsof -t -i:8080 -i:8085 -i:9000 -i:9099 -i:9199 | xargs kill -9", shell=True)
 
+if is_windows:
+    ports = ["8080", "8085", "9000", "9099", "9199"]
+    for port in ports:
+        # Fixed command with proper % escaping and error handling
+        try:
+            # Find PID using port
+            result = subprocess.run(f"netstat -ano | findstr :{port}", shell=True, capture_output=True, text=True)
+            if result.stdout:
+                # Parse each line of output to get PIDs
+                for line in result.stdout.splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 5:  # Make sure we have enough parts
+                        pid = parts[-1]  # Last element should be the PID
+                        if pid.isdigit():
+                            # Kill the process
+                            subprocess.run(f"taskkill /F /PID {pid}", shell=True, check=False)
+                            print(f"Killed process with PID {pid} on port {port}")
+        except Exception as e:
+            print(f"Error killing process on port {port}: {e}")
+else:
+    subprocess.run("lsof -t -i:8080 -i:8085 -i:9000 -i:9099 -i:9199 | xargs kill -9", shell=True)
+    
 # 1. Start Firebase emulator in go/ directory.
 firebase_proc = subprocess.Popen("firebase emulators:start", cwd="go", shell=True)
 child_procs.append(firebase_proc)
@@ -51,7 +81,11 @@ time.sleep(3)
 env = os.environ.copy()
 env["PUBSUB_EMULATOR_HOST"] = "localhost:8085"
 env["PUBSUB_PROJECT_ID"] = "jtrackerkimpark"
-subprocess.Popen("gcloud beta emulators pubsub env-init", shell=True, env=env)
+if is_windows:
+    # for some reason if windows we don't run env-init. but this obviously means you should have run it before manually
+    pass
+else:
+    subprocess.Popen("gcloud beta emulators pubsub env-init", shell=True, env=env)
 pubsub_emulator_proc = subprocess.Popen("gcloud beta emulators pubsub start --project=jtrackerkimpark", shell=True, env=env)
 child_procs.append(pubsub_emulator_proc)
 time.sleep(3)
