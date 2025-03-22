@@ -27,7 +27,7 @@
 
     const statusValues: Record<string, number> = {
         Rejected: 10.75,
-        Ghosted: 27,
+        Ghosted: 26,
         Applied: 43,
         Screen: 58,
         Interviewing: 74,
@@ -146,9 +146,9 @@
             class="gap-4 sm:gap-0 w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center dark:brightness-[0.9]"
         >
             <div
-                class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-full"
+                class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-64"
             >
-                <div class="flex flex-row items-center max-w-[2fr]">
+                <div class="flex flex-row items-center">
                     <img
                         src={imgSrc}
                         alt={company}
@@ -158,12 +158,12 @@
                         class="flex flex-col items-baseline sm:gap-1 px-5 w-full truncate"
                     >
                         <p
-                            class="flex flex-row items-end font-bold gap-1 h-full w-full truncate"
+                            class="flex flex-row items-end text-md font-bold gap-1 h-full w-full truncate"
                         >
                         <span class="truncate overflow-hidden">{company}</span>
                         </p>
                         <p class="flex flex-row items-end text-xs gap-1 h-full w-full truncate">
-                            <Map class="w-[15px] h-[15px] stroke-[1.5]" />
+                            <Map class="w-[15px] h-[15px] stroke-[1.5] flex-shrink-0" />
                             <span class="truncate overflow-hidden">{location}</span>
                         </p>
                     </div>
@@ -196,15 +196,15 @@
                                     href={link}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    class="hover:underline truncate">{role}</a
+                                    class="hover:underline truncate text-md font-medium">{role}</a
                                 >
                             {:else}
-                                <span class="truncate">{role}</span>
+                                <span class="truncate text-md font-medium">{role}</span>
                             {/if}
                         </p>
-                        <p class="flex flex-row items-end gap-1 text-xs h-full">
+                        <p class="flex flex-row items-end text-xs gap-1 h-full w-full">
                             <Calendar
-                                class="w-[15px] h-[15px] stroke-[1.5] ml-4 sm:ml-0"
+                                class="w-[15px] h-[15px] stroke-[1.5]"
                             />
                             {formatDateForDisplay(appliedDate)}
                         </p>

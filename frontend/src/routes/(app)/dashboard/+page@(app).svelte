@@ -130,7 +130,8 @@
     onMount(() => {
         window.addEventListener("keydown", handleGlobalKeydown);
         
-        if (browser && window.innerWidth < 640) {
+        if (browser && window.innerWidth < 1024) {
+            // if screen is <lg, default to grid view
             isGridView = true;
         }
 
@@ -173,9 +174,9 @@
                 </div>
                 {#if isViewPreferenceLoaded}
                     <div
-                        class="flex flex-row gap-4 justify-center sm:justify-between items-center w-full sm:w-auto"
+                        class="flex flex-row gap-4 justify-center md:justify-between items-center w-full sm:w-auto"
                     >
-                        <div class="hidden sm:flex gap-2 items-center justify-center">
+                        <div class="hidden md:flex gap-2 items-center justify-center">
                             <div
                                 class={!isGridView
                                     ? "flex items-center gap-1 text-sm font-medium"
