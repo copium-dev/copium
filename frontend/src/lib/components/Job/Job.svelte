@@ -13,7 +13,7 @@
 
     import { formatDateForDisplay } from "$lib/utils/date";
 
-    import placeholder from "$lib/images/placeholder.png";
+    import { BriefcaseBusiness } from "lucide-svelte";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
 
     export let objectID: string;
@@ -89,13 +89,13 @@
 
             if (res.ok) {
                 const data = await res.json();
-                imgSrc = data.length > 0 ? data[0].icon : placeholder;
+                imgSrc = data.length > 0 ? data[0].icon : null;
             } else {
-                imgSrc = placeholder;
+                imgSrc = null;
             }
         } catch (error) {
             console.error("Error fetching logo:", error);
-            imgSrc = placeholder;
+            imgSrc = null;
         }
     }
 
@@ -111,7 +111,7 @@
 
         // if company changed then we refetch logo
         const companyChanged = company !== updatedJob.company;
-        
+
         company = updatedJob.company;
         role = updatedJob.role;
         location = updatedJob.location;
@@ -133,7 +133,7 @@
     });
 
     let value = statusValues[status];
-    let imgSrc: string;
+    let imgSrc: string | null = null;
 </script>
 
 {#if visible}
@@ -146,25 +146,39 @@
             class="gap-4 sm:gap-0 w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center dark:brightness-[0.9]"
         >
             <div
-                class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-64"
+                class="sm:h-16 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-64"
             >
                 <div class="flex flex-row items-center">
-                    <img
-                        src={imgSrc}
-                        alt={company}
-                        class="w-10 h-10 rounded-lg object-cover"
-                    />
+                    {#if imgSrc}
+                        <img
+                            src={imgSrc}
+                            alt={company}
+                            class="w-10 h-10 rounded-lg object-cover"
+                        />
+                    {:else}
+                        <div class="w-10 h-10 p-2 rounded-lg flex items-center justify-center border border-zinc-400 border-opacity-50 dark:border-opacity-40">
+                            <BriefcaseBusiness class="stroke-[1.5] text-zinc-400 opacity-70 dark:opacity-50" />
+                        </div>
+                    {/if}
                     <div
                         class="flex flex-col items-baseline sm:gap-1 px-5 w-full truncate"
                     >
                         <p
                             class="flex flex-row items-end text-md font-bold gap-1 h-full w-full truncate"
                         >
-                        <span class="truncate overflow-hidden">{company}</span>
+                            <span class="truncate overflow-hidden"
+                                >{company}</span
+                            >
                         </p>
-                        <p class="flex flex-row items-end text-xs gap-1 h-full w-full truncate">
-                            <Map class="w-[15px] h-[15px] stroke-[1.5] flex-shrink-0" />
-                            <span class="truncate overflow-hidden">{location}</span>
+                        <p
+                            class="flex flex-row items-end text-xs gap-1 h-full w-full truncate"
+                        >
+                            <Map
+                                class="w-[15px] h-[15px] stroke-[1.5] flex-shrink-0"
+                            />
+                            <span class="truncate overflow-hidden"
+                                >{location}</span
+                            >
                         </p>
                     </div>
                     <div class="sm:hidden flex flex-row items-center gap-4">
@@ -177,14 +191,14 @@
                             {status}
                             {link}
                             onUpdateSuccess={handleJobUpdate}
-                            onDeleteSuccess={() => visible = false}
+                            onDeleteSuccess={() => (visible = false)}
                         />
                     </div>
                 </div>
             </div>
 
             <div
-                class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-full"
+                class="sm:h-10 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-full"
             >
                 <div class="flex flex-row items-center w-full">
                     <div
@@ -196,16 +210,19 @@
                                     href={link}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    class="hover:underline truncate text-md font-medium">{role}</a
+                                    class="hover:underline truncate text-md font-medium"
+                                    >{role}</a
                                 >
                             {:else}
-                                <span class="truncate text-md font-medium">{role}</span>
+                                <span class="truncate text-md font-medium"
+                                    >{role}</span
+                                >
                             {/if}
                         </p>
-                        <p class="flex flex-row items-end text-xs gap-1 h-full w-full">
-                            <Calendar
-                                class="w-[15px] h-[15px] stroke-[1.5]"
-                            />
+                        <p
+                            class="flex flex-row items-end text-xs gap-1 h-full w-full"
+                        >
+                            <Calendar class="w-[15px] h-[15px] stroke-[1.5]" />
                             {formatDateForDisplay(appliedDate)}
                         </p>
                     </div>
@@ -213,7 +230,7 @@
             </div>
 
             <div
-                class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row items-center w-full"
+                class="sm:h-10 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row items-center w-full"
             >
                 <div
                     class="px-0 sm:px-5 h-full flex items-start items-center w-full"
@@ -232,7 +249,8 @@
                                 >
                                     <Button
                                         size="icon"
-                                        class="w-3 h-3 border dark:border-stone-500 {value === progressValue
+                                        class="w-3 h-3 border dark:border-stone-500 {value ===
+                                        progressValue
                                             ? 'bg-primary dark:bg-secondary-foreground'
                                             : 'bg-secondary dark:bg-primary-foreground'}"
                                         on:click={() => {
@@ -262,7 +280,7 @@
                     {status}
                     {link}
                     onUpdateSuccess={handleJobUpdate}
-                    onDeleteSuccess={() => visible = false}
+                    onDeleteSuccess={() => (visible = false)}
                 />
 
                 <AlertDialog.Root>

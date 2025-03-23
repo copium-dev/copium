@@ -5,12 +5,12 @@
 
     import { Map } from "lucide-svelte";
     import { Calendar } from "lucide-svelte";
+    import { BriefcaseBusiness } from "lucide-svelte";
 
     import { Button } from "$lib/components/ui/button";
     import { Progress } from "$lib/components/ui/progress/index.js";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
 
-    import placeholder from "$lib/images/placeholder.png";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
 
     import { formatDateForDisplay } from "$lib/utils/date";
@@ -88,13 +88,13 @@
 
             if (res.ok) {
                 const data = await res.json();
-                imgSrc = data.length > 0 ? data[0].icon : placeholder;
+                imgSrc = data.length > 0 ? data[0].icon : null;
             } else {
-                imgSrc = placeholder;
+                imgSrc = null;
             }
         } catch (error) {
             console.error("Error fetching logo:", error);
-            imgSrc = placeholder;
+            imgSrc = null;
         }
     }
 
@@ -132,7 +132,7 @@
     });
 
     let value = statusValues[status];
-    let imgSrc: string;
+    let imgSrc: string | null = null;
 </script>
 
 {#if visible}
@@ -141,13 +141,19 @@
             class="bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow m-2 dark:brightness-[0.9]"
         >
             <div class="px-4 pt-3 pb-2">
-                <div class="flex items-start justify-between mb-2">
+                <div class="flex items-start justify-between mb-3">
                     <div class="flex gap-3 items-center">
-                        <img
-                            src={imgSrc}
-                            alt={company}
-                            class="w-8 h-8 rounded-lg object-cover"
-                        />
+                        {#if imgSrc}
+                            <img
+                                src={imgSrc}
+                                alt={company}
+                                class="w-10 h-10 rounded-lg object-cover"
+                            />
+                        {:else}
+                            <div class="w-10 h-10 p-2 rounded-lg flex items-center justify-center border border-zinc-400 border-opacity-40 dark:border-opacity-40">
+                                <BriefcaseBusiness class="stroke-[1.2] text-zinc-400 opacity-70 dark:opacity-50" />
+                            </div>
+                        {/if}
                         <div>
                             <h3 class="font-medium">{company}</h3>
                             <div

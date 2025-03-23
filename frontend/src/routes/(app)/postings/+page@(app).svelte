@@ -17,8 +17,6 @@
         LayoutGrid,
     } from "lucide-svelte";
 
-    import placeholder from "$lib/images/placeholder.png";
-
     import { formatDateForDisplay, formatDateForInput } from "$lib/utils/date";
 
     import { buildParamsFromFilters } from "$lib/utils/filter";
@@ -286,13 +284,17 @@
                                 class="border-r border-dashed w-3/12 px-2 lg:pl-4 2xl:pl-6"
                             >
                                 <div class="flex items-center gap-2">
-                                    <img
-                                        src={data.companyLogos[
-                                            posting.company_name
-                                        ] || placeholder}
-                                        alt={posting.company_name}
-                                        class="w-6 h-6 rounded-lg object-cover"
-                                    />
+                                    {#if data.companyLogos[posting.company_name]}
+                                        <img
+                                            src={data.companyLogos[posting.company_name]}
+                                            alt={posting.company_name}
+                                            class="w-6 h-6 rounded-lg object-cover"
+                                        />
+                                    {:else}
+                                        <div class="w-6 h-6 p-1 rounded-lg flex items-center justify-center border border-zinc-400 border-opacity-50 dark:border-opacity-40">
+                                            <BriefcaseBusiness class="stroke-[1.5] text-zinc-400 opacity-70 dark:opacity-50" />
+                                        </div>
+                                    {/if}
                                     <p class="truncate">
                                         {posting.company_name}
                                     </p>
@@ -430,12 +432,17 @@
                         class="border rounded-lg p-4 flex flex-col gap-1 h-full dark:brightness-[0.9]"
                     >
                         <div class="flex items-center gap-2 mb-2">
-                            <img
-                                src={data.companyLogos[posting.company_name] ||
-                                    placeholder}
-                                alt={posting.company_name}
-                                class="w-8 h-8 rounded-lg object-cover"
-                            />
+                            {#if data.companyLogos[posting.company_name]}
+                                        <img
+                                            src={data.companyLogos[posting.company_name]}
+                                            alt={posting.company_name}
+                                            class="w-8 h-8 rounded-lg object-cover"
+                                        />
+                                    {:else}
+                                    <div class="w-8 h-8 p-1 rounded-lg flex items-center justify-center border border-zinc-400 border-opacity-50 dark:border-opacity-40">
+                                        <BriefcaseBusiness class="stroke-[1.5] text-zinc-400 opacity-70 dark:opacity-50" />
+                                    </div>
+                                    {/if}
                             <h3 class="font-medium truncate flex-1">
                                 {posting.company_name}
                             </h3>
@@ -445,7 +452,7 @@
                                     href={posting.url}
                                     target="_blank"
                                     size="sm"
-                                    class="w-full px-2">Apply</Button
+                                    class="w-full px-2 text-xs">Apply</Button
                                 >
                             </div>
                         </div>

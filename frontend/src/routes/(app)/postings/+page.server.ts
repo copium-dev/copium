@@ -2,7 +2,6 @@ import type { PageServerLoad } from './$types';
 import { BACKEND_URL } from '$env/static/private';
 import { redirect } from '@sveltejs/kit';
 import { PUBLIC_LOGO_KEY } from '$env/static/public';
-import placeholder from '$lib/images/placeholder.png';
     
 interface Posting {
     company_name: string;
@@ -61,14 +60,14 @@ export const load: PageServerLoad = async ({ fetch, url, locals }) => {
             
             if (res.ok) {
                 const data = await res.json();
-                const logo = data.length > 0 ? data[0].icon : placeholder;
+                const logo = data.length > 0 ? data[0].icon : null;
                 logoMap.set(company, logo);
             } else {
-                logoMap.set(company, placeholder);
+                logoMap.set(company, null);
             }
         } catch (error) {
             console.error(`Error fetching logo for ${company}:`, error);
-            logoMap.set(company, placeholder);
+            logoMap.set(company, null);
         }
     });
 
