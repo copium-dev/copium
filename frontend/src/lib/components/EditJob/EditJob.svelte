@@ -6,16 +6,19 @@
     import { Label } from "$lib/components/ui/label";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
 
-    import { formatDateForInput, convertLocalDateToTimestamp } from "$lib/utils/date";
+    import {
+        formatDateForInput,
+        convertLocalDateToTimestamp,
+    } from "$lib/utils/date";
 
     export let objectID: string;
     export let company: string;
     export let role: string;
-    export let appliedDate: number; // raw unix timestamp 
+    export let appliedDate: number; // raw unix timestamp
     export let location: string;
     export let status: string;
     export let link: string | undefined | null;
-    
+
     // same delete function as parent Job component
     export let onDeleteSuccess: () => void = () => {};
 
@@ -39,7 +42,7 @@
 
         const res = await response.json();
 
-        if (res.type === 'failure') {
+        if (res.type === "failure") {
             console.error("Failed to delete application");
         } else {
             console.log("Application deleted successfully");
@@ -62,8 +65,8 @@
         <AlertDialog.Header class="text-left">
             <AlertDialog.Title>Edit Application</AlertDialog.Title>
             <AlertDialog.Description>
-                Update your application. Unmodified fields will
-                remain unchanged.
+                Update your application. Unmodified fields will remain
+                unchanged.
             </AlertDialog.Description>
             <form
                 action="/dashboard?/editapplication"
@@ -87,23 +90,30 @@
                                 link: formData.get("link") || link,
                                 // if appliedDate not set, use current value. else, convert to timestamp
                                 appliedDate: formData.get("appliedDate")
-                                    ? convertLocalDateToTimestamp(formData.get("appliedDate") as string)
+                                    ? convertLocalDateToTimestamp(
+                                          formData.get("appliedDate") as string
+                                      )
                                     : appliedDate,
                                 status: formData.get("status") || status,
-                            }
+                            };
 
                             onUpdateSuccess(updatedJob);
 
                             // close dialog
-                            const dialogElement = document.querySelector('[data-state="open"]');
+                            const dialogElement = document.querySelector(
+                                '[data-state="open"]'
+                            );
                             if (dialogElement) {
-                                const cancelButton = dialogElement.querySelector('[data-dialog-close]');
+                                const cancelButton =
+                                    dialogElement.querySelector(
+                                        "[data-dialog-close]"
+                                    );
                                 if (cancelButton instanceof HTMLElement) {
                                     cancelButton.click();
                                 }
                             }
                         }
-                    }
+                    };
                 }}
             >
                 <!-- if any field is left empty, value will be set to the current value else overridden by the new value -->
@@ -112,7 +122,11 @@
                 <input type="hidden" name="oldCompany" value={company} />
                 <input type="hidden" name="oldRole" value={role} />
                 <input type="hidden" name="oldLocation" value={location} />
-                <input type="hidden" name="oldAppliedDate" value={appliedDate} />
+                <input
+                    type="hidden"
+                    name="oldAppliedDate"
+                    value={appliedDate}
+                />
                 <input type="hidden" name="oldLink" value={link} />
                 <input type="hidden" name="status" value={status} />
 
@@ -121,8 +135,7 @@
                 >
                     <Label
                         for="company"
-                        class="text-sm text-gray-500 font-light"
-                        >Company</Label
+                        class="text-sm text-gray-500 font-light">Company</Label
                     >
                     <Input
                         type="text"
@@ -134,9 +147,7 @@
                 <div
                     class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_4fr] w-full items-center gap-1.5"
                 >
-                    <Label
-                        for="role"
-                        class="text-sm text-gray-500 font-light"
+                    <Label for="role" class="text-sm text-gray-500 font-light"
                         >Role</Label
                     >
                     <Input
@@ -145,14 +156,13 @@
                         placeholder="Role"
                         value={role}
                     />
-            </div>
+                </div>
                 <div
                     class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_4fr] w-full items-center gap-1.5"
                 >
                     <Label
                         for="location"
-                        class="text-sm text-gray-500 font-light"
-                        >Location</Label
+                        class="text-sm text-gray-500 font-light">Location</Label
                     >
                     <Input
                         type="text"
@@ -164,9 +174,7 @@
                 <div
                     class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_4fr] w-full items-center gap-1.5"
                 >
-                    <Label
-                        for="link"
-                        class="text-sm text-gray-500 font-light"
+                    <Label for="link" class="text-sm text-gray-500 font-light"
                         >Link</Label
                     >
                     <Input
@@ -193,24 +201,40 @@
                 </div>
 
                 <AlertDialog.Footer>
-                    <AlertDialog.Action type="submit" class="w-full h-9 px-4 py-2 mt-2 sm:mt-0">
-                        Save
-                    </AlertDialog.Action>
+                    <div
+                        class="flex flex-col-reverse sm:flex-row w-full justify-between sm:justify-end"
+                    >
+                        <AlertDialog.Action
+                            type="submit"
+                            class="w-full sm:w-fit h-9 px-4 py-2 mt-2 sm:mr-2 sm:mt-0"
+                        >
+                            Save
+                        </AlertDialog.Action>
 
-                    <div class="flex w-full justify-between">
-                        <AlertDialog.Cancel class="w-full mr-2">Cancel</AlertDialog.Cancel>
-                        <AlertDialog.Root>
-                            <AlertDialog.Trigger asChild let:builder>
-                                <Button builders={[builder]} variant="outline" class="w-full sm:hidden text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-300 dark:hover:text-red-700 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background border shadow-sm h-9 px-4 py-2 mt-2 sm:mt-0">
-                                    Delete
-                                </Button>
-                            </AlertDialog.Trigger>
-                            <AlertDialog.Content>
+                        <div class="flex">
+                            <AlertDialog.Cancel
+                                class="w-full mr-2 sm:w-fit sm:mr-0"
+                                >Cancel</AlertDialog.Cancel
+                            >
+                            <AlertDialog.Root>
+                                <AlertDialog.Trigger asChild let:builder>
+                                    <Button
+                                        builders={[builder]}
+                                        variant="outline"
+                                        class="w-full sm:hidden text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-300 dark:hover:text-red-700 focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 border-input bg-background border shadow-sm h-9 px-4 py-2 mt-2 sm:mt-0"
+                                    >
+                                        Delete
+                                    </Button>
+                                </AlertDialog.Trigger>
+                                <AlertDialog.Content>
                                     <AlertDialog.Header>
-                                        <AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
+                                        <AlertDialog.Title
+                                            >Are you absolutely sure?</AlertDialog.Title
+                                        >
                                         <AlertDialog.Description>
-                                            This action cannot be undone. This will permanently delete this application
-                                            data from our servers.
+                                            This action cannot be undone. This
+                                            will permanently delete this
+                                            application data from our servers.
                                         </AlertDialog.Description>
                                     </AlertDialog.Header>
                                     <AlertDialog.Footer>
@@ -219,10 +243,13 @@
                                         >
                                             Continue
                                         </AlertDialog.Action>
-                                        <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+                                        <AlertDialog.Cancel
+                                            >Cancel</AlertDialog.Cancel
+                                        >
                                     </AlertDialog.Footer>
-                              </AlertDialog.Content>
-                        </AlertDialog.Root>
+                                </AlertDialog.Content>
+                            </AlertDialog.Root>
+                        </div>
                     </div>
                 </AlertDialog.Footer>
             </form>

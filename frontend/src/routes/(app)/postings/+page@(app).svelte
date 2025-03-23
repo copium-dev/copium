@@ -519,7 +519,7 @@
             </p>
             <a
                 href="https://github.com/cvrve/Summer2025-Internships"
-                class="text-muted-foreground text-xs">[cvrve]</a
+                class="text-muted-foreground text-xs hover:text-foreground/50">[cvrve]</a
             >
         </div>
     </div>
