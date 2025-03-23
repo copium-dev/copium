@@ -117,7 +117,7 @@
                 <input type="hidden" name="status" value={status} />
 
                 <div
-                    class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                    class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_4fr] w-full items-center gap-1.5"
                 >
                     <Label
                         for="company"
@@ -132,7 +132,7 @@
                     />
                 </div>
                 <div
-                    class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                    class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_4fr] w-full items-center gap-1.5"
                 >
                     <Label
                         for="role"
@@ -147,7 +147,7 @@
                     />
             </div>
                 <div
-                    class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                    class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_4fr] w-full items-center gap-1.5"
                 >
                     <Label
                         for="location"
@@ -162,7 +162,7 @@
                     />
                 </div>
                 <div
-                    class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                    class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_4fr] w-full items-center gap-1.5"
                 >
                     <Label
                         for="link"
@@ -177,7 +177,7 @@
                     />
                 </div>
                 <div
-                    class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_5fr] w-full items-center gap-1.5"
+                    class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_4fr] w-full items-center gap-1.5"
                 >
                     <Label
                         for="appliedDate"
@@ -193,7 +193,7 @@
                 </div>
 
                 <AlertDialog.Footer>
-                    <AlertDialog.Action type="submit" class="w-full sm:w-auto h-9 px-4 py-2 mt-2 sm:mt-0">
+                    <AlertDialog.Action type="submit" class="w-full h-9 px-4 py-2 mt-2 sm:mt-0">
                         Save
                     </AlertDialog.Action>
 

@@ -146,7 +146,7 @@
             class="gap-4 sm:gap-0 w-full grid grid-rows-[auto_auto_auto_auto] sm:grid-cols-[2fr_2fr_6fr_1fr] justify-center sm:justify-start items-center dark:brightness-[0.9]"
         >
             <div
-                class="sm:h-16 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-64"
+                class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-64"
             >
                 <div class="flex flex-row items-center">
                     {#if imgSrc}
@@ -198,7 +198,7 @@
             </div>
 
             <div
-                class="sm:h-10 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-full"
+                class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row w-full"
             >
                 <div class="flex flex-row items-center w-full">
                     <div
@@ -230,7 +230,7 @@
             </div>
 
             <div
-                class="sm:h-10 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row items-center w-full"
+                class="sm:h-20 border-none sm:border-r sm:border-dashed flex flex-col sm:flex-row items-center w-full"
             >
                 <div
                     class="px-0 sm:px-5 h-full flex items-start items-center w-full"
