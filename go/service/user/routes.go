@@ -622,33 +622,46 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 
 	applicationID := editApplicationRequest.ID
 
-	// just check if we need to update at all use a big ugly switch statement
-	// no loops or function calls to reduce memory overhead
-	switch {
-	case editApplicationRequest.Role != editApplicationRequest.OldRole:
-		break
-	case editApplicationRequest.Company != editApplicationRequest.OldCompany:
-		break
-	case editApplicationRequest.Location != editApplicationRequest.OldLocation:
-		break
-	case editApplicationRequest.Link != editApplicationRequest.OldLink:
-		break
-	case editApplicationRequest.AppliedDate != editApplicationRequest.OldAppliedDate:
-		break
-	default:
+	// 1. check if we need to update at all but also
+	// 2. populate a changedFields map so that we only update what we have to in Firestore
+	// unfortunately though Algolia **does** require all fields to be sent regardless
+	// so this is just a little optimization on the Firestore side
+	// NOTE: the EditApplicationRequest struct's fields are still required for the publish message
+	// and possible rollbacks, so frontend cannot make the optimization of what to send
+	changedFields := make(map[string]interface{}, 0)
+	
+	// no loops or function calls to reduce memory overhead, big ugly if statements
+	if editApplicationRequest.Role != editApplicationRequest.OldRole {
+		changedFields["role"] = editApplicationRequest.Role
+	}
+	if editApplicationRequest.Company != editApplicationRequest.OldCompany {
+		changedFields["company"] = editApplicationRequest.Company
+	}
+	if editApplicationRequest.Location != editApplicationRequest.OldLocation {
+		changedFields["location"] = editApplicationRequest.Location
+	}
+	if editApplicationRequest.Link != editApplicationRequest.OldLink {
+		changedFields["link"] = editApplicationRequest.Link
+	}
+	if editApplicationRequest.AppliedDate != editApplicationRequest.OldAppliedDate {
+		changedFields["appliedDate"] = editApplicationRequest.AppliedDate
+	}
+	
+	if len(changedFields) == 0 {
 		log.Println("No application change, returning success")
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
-	// frontend will send all fields, so we need to update all fields
-	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
-		{Path: "role", Value: editApplicationRequest.Role},
-		{Path: "company", Value: editApplicationRequest.Company},
-		{Path: "location", Value: editApplicationRequest.Location},
-		{Path: "link", Value: editApplicationRequest.Link},
-		{Path: "appliedDate", Value: editApplicationRequest.AppliedDate},
-	})
+	// create updates array for Firestore
+	updates := make([]firestore.Update, len(changedFields))
+	i := 0
+	for key, value := range changedFields {
+		updates[i] = firestore.Update{Path: key, Value: value}
+		i++
+	}
+
+	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), updates)
 	if err != nil {
 		fmt.Printf("Error editing application: %v\n", err)
 		http.Error(w, "Error editing application", http.StatusInternalServerError)
