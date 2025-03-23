@@ -525,6 +525,13 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	newStatus := EditApplicationStatusRequest.Status
 	appliedDate := EditApplicationStatusRequest.AppliedDate
 
+	// before doing DB updates check if we even need to update
+	if newStatus == EditApplicationStatusRequest.OldStatus {
+		log.Println("No status change, returning success")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
 		{
 			Path:  "status",
@@ -614,6 +621,25 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	applicationID := editApplicationRequest.ID
+
+	// just check if we need to update at all use a big ugly switch statement
+	// no loops or function calls to reduce memory overhead
+	switch {
+	case editApplicationRequest.Role != editApplicationRequest.OldRole:
+		break
+	case editApplicationRequest.Company != editApplicationRequest.OldCompany:
+		break
+	case editApplicationRequest.Location != editApplicationRequest.OldLocation:
+		break
+	case editApplicationRequest.Link != editApplicationRequest.OldLink:
+		break
+	case editApplicationRequest.AppliedDate != editApplicationRequest.OldAppliedDate:
+		break
+	default:
+		log.Println("No application change, returning success")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 
 	// frontend will send all fields, so we need to update all fields
 	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
