@@ -2,7 +2,7 @@
     class="container flex flex-col justify-center mx-auto px-8 border-x border-dashed h-full"
 >
     <p class="text-sm text-gray-600 mt-8 mb-4">
-        Last updated: {new Date().toLocaleDateString()}
+        Last updated: March 20, 2025
     </p>
     <h1 class="text-2xl font-bold mb-6">copium.dev Privacy Policy</h1>
 

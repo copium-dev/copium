@@ -94,7 +94,17 @@
         <div class="container border-x border-dashed py-4 flex justify-between">
             <p class="text-muted-foreground text-xs">&copy; 2025 copium.dev</p>
             <div class="flex gap-2">
-                <a href="/privacy" class="text-muted-foreground text-xs hover:text-foreground/50">[Privacy]</a>
+                <a
+                    href="/privacy"
+                    class="text-muted-foreground text-xs hover:text-foreground/50"
+                    >[Privacy]</a
+                >
+                <Separator orientation="vertical" class="h-4" />
+                <a
+                    href="/update"
+                    class="text-muted-foreground text-xs hover:text-foreground/50"
+                    >[Update]</a
+                >
                 <Separator orientation="vertical" class="h-4" />
                 <a
                     href="https://github.com/copium-dev/copium"
