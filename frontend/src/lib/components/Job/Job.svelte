@@ -43,6 +43,11 @@
 
         if (res.type === "failure") {
             console.error("Failed to revert status");
+
+            setTimeout(() => {
+                toast.error("Could not revert status");
+            }, 10);
+
         } else {
             console.log("Status reverted successfully");
 
@@ -105,7 +110,7 @@
 
             // slight delay to ensure that this renders
             setTimeout(() => {
-                toast.success("Status updated successfully", {
+                toast.success(`${role} at ${company} status updated to ${newStatus}, click below to undo`, {
                     action: {
                         label: "Undo",
                         onClick: revertStatus,
