@@ -59,6 +59,8 @@ func (j *Job) Process(ctx context.Context) error {
 		return j.deleteApplication(ctx)
 	case "userDelete":
 		return j.userDelete(ctx)
+	case "revert":
+		return j.revert(ctx)
     default:
         return fmt.Errorf("unknown operation: %s", j.Operation)
     }
@@ -190,5 +192,46 @@ func (j *Job) userDelete(ctx context.Context) error {
 	}
 
 	log.Printf("Deleted objects: %s", res)
+	return nil
+}
+
+// revert to old status 
+func (j *Job) revert(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	data := j.Data
+
+	objectID, ok := data["objectID"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get objectID from data")
+	}
+
+	status, ok := data["status"].(string)
+	if !ok {
+		return fmt.Errorf("failed to get status from data")
+	}
+
+    updateRes, err := j.AlgoliaClient.PartialUpdateObject(
+        j.AlgoliaClient.NewApiPartialUpdateObjectRequest(
+            "users",
+            objectID,
+            map[string]any{"status": status},
+        ),
+    )
+    if err != nil {
+        log.Printf("Failed to update object: %s", err)
+        return err 
+    }
+
+	// wait for task to finish before exiting function
+	_, err = j.AlgoliaClient.WaitForTask("users", *updateRes.TaskID)
+	if err != nil {
+		log.Printf("Error waiting for task to finish: %s", err)
+		return err
+	}
+
+	log.Printf("Reverted object: %v", updateRes)
 	return nil
 }

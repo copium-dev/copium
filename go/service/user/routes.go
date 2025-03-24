@@ -12,9 +12,7 @@ package user
 // this file contains the following utility functions:
 // - deleteUserFromFirestore: deletes a user from Firestore, including all applications
 // - publishMessage: publishes a message to PubSub with publish and connection retries
-//     (relies on utils.PublishWithRetry and retryRabbitConnectionAndRetryPublish)
-// - retryRabbitConnectionAndRetryPublish: re-establishes connection to PubSub and retries publishing a message
-//	   (relies on utils.RetryRabbitConnection and utils.PublishWithRetry)
+//     (relies on utils.PublishWithRetry)
 // NOTE: all CRUD operations (AddApplication, DeleteApplication, EditStatus, EditApplication, DeleteUser) are idempotent
 //       and can be retried without side effects. This is why there is no timestamping or versioning.
 // NOTE: all CRUD operations are NOT commutative. We rely on an optimistic but strong consistency model. So,
@@ -51,12 +49,14 @@ import (
 	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
 )
 
+type ApplicationStatus = userutils.ApplicationStatus
+
 type AddApplicationRequest struct {
 	Role        string `json:"role"`
 	Company     string `json:"company"`
 	Location    string `json:"location"`
 	AppliedDate int64  `json:"appliedDate"`
-	Status      string `json:"status"`
+	Status      ApplicationStatus `json:"status"`
 	Link        string `json:"link"`
 }
 
@@ -66,7 +66,7 @@ type Application struct {
 	Company     string `json:"company"`
 	Location    string `json:"location"`
 	AppliedDate int64  `json:"appliedDate"`
-	Status      string `json:"status"`
+	Status      ApplicationStatus `json:"status"`
 	Link        string `json:"link"`
 }
 
@@ -82,7 +82,7 @@ type AlgoliaResponse struct {
 	Company     string `json:"company"`
 	Location    string `json:"location"`
 	AppliedDate int64  `json:"appliedDate"`
-	Status      string `json:"status"`
+	Status      ApplicationStatus `json:"status"`
 	Link        string `json:"link"`
 }
 
@@ -92,14 +92,14 @@ type DeleteApplicationRequest struct {
 	Company     string `json:"company"`
 	Location    string `json:"location"`
 	AppliedDate int64  `json:"appliedDate"`
-	Status      string `json:"status"`
+	Status      ApplicationStatus `json:"status"`
 	Link        string `json:"link"`
 }
 
 type EditApplicationStatusRequest struct {
 	ID          string `json:"id"`
-	Status      string `json:"status"`
-	OldStatus   string `json:"oldStatus"`
+	Status      ApplicationStatus `json:"status"`
+	OldStatus   ApplicationStatus `json:"oldStatus"`
 	AppliedDate int64  `json:"appliedDate"`
 }
 
@@ -116,7 +116,11 @@ type EditApplicationRequest struct {
 	OldLocation    string `json:"oldLocation"`
 	OldLink        string `json:"oldLink"`
 	OldAppliedDate int64  `json:"oldAppliedDate"`
-	Status         string `json:status`
+	Status         ApplicationStatus `json:status`
+}
+
+type RevertApplicationStatusRequest struct {
+	ID string `json:"id"`
 }
 
 type Handler struct {
@@ -148,6 +152,7 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/user/editStatus", h.EditStatus).Methods("POST").Name("editStatus")
 	router.HandleFunc("/user/editApplication", h.EditApplication).Methods("POST").Name("editApplication")
 	router.HandleFunc("/user/deleteUser", h.DeleteUser).Methods("POST").Name("deleteUser")
+	router.HandleFunc("/user/revertStatus", h.RevertStatus).Methods("POST").Name("revertStatus")
 }
 
 func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
@@ -376,14 +381,17 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 		"location":    addApplicationRequest.Location,
 		"role":        addApplicationRequest.Role,
 		"status":      addApplicationRequest.Status,
-		"timestamp":   time.Now().Add(12 * time.Hour).Truncate(24 * time.Hour).Unix(),
+		"timestamp":   time.Now().Add(12 * time.Hour).Unix(),
 		"objectID":    doc.ID,
 	}
 
 	err = h.publishMessage(message)
 	if err != nil {
 		// delete added application if publish fails
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(doc.ID).Delete(r.Context())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(doc.ID).Delete(ctx)
 		if err != nil {
 			fmt.Printf("Error deleting application: %v\n", err)
 			http.Error(w, "Error reverting application add", http.StatusInternalServerError)
@@ -397,7 +405,7 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 	// this means we don't have to revert applicationCount on top of reverting the add operation. this DOES
 	// introduce small window of inconsistency but this is reducing costs and reducing complexity
 	userDoc := h.FirestoreClient.Collection("users").Doc(email)
-	_, err = userDoc.Update(context.Background(), []firestore.Update{
+	_, err = userDoc.Update(r.Context(), []firestore.Update{
 		{Path: "applicationsCount", Value: firestore.Increment(1)},
 		{Path: "applied_count", Value: firestore.Increment(1)},
 	})
@@ -443,7 +451,7 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	applicationID := deleteApplicationRequest.ID
 
 	// delete application from Firestore
-	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Delete(context.Background())
+	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Delete(r.Context())
 	if err != nil {
 		fmt.Printf("Error deleting application: %v\n", err)
 		http.Error(w, "Error deleting application", http.StatusInternalServerError)
@@ -461,7 +469,10 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	err = h.publishMessage(message)
 	if err != nil {
 		// revert status if publish fails
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Set(context.Background(), map[string]interface{}{
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Set(ctx, map[string]interface{}{
 			"role":        deleteApplicationRequest.Role,
 			"company":     deleteApplicationRequest.Company,
 			"location":    deleteApplicationRequest.Location,
@@ -483,9 +494,9 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	// this means we don't have to revert applicationCount on top of reverting the delete operation. this DOES
 	// introduce small window of inconsistency but this is reducing costs and reducing complexity
 	userDoc := h.FirestoreClient.Collection("users").Doc(email)
-	_, err = userDoc.Update(context.Background(), []firestore.Update{
+	_, err = userDoc.Update(r.Context(), []firestore.Update{
 		{Path: "applicationsCount", Value: firestore.Increment(-1)},
-		{Path: fmt.Sprintf("%s_count", strings.ToLower(deleteApplicationRequest.Status)), Value: firestore.Increment(-1)},
+		{Path: fmt.Sprintf("%s_count", strings.ToLower(string(deleteApplicationRequest.Status))), Value: firestore.Increment(-1)},
 	})
 	if err != nil {
 		fmt.Printf("Error updating applications count: %v\n", err)
@@ -537,6 +548,11 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 			Path:  "status",
 			Value: newStatus,
 		},
+		// save previous status for revert operation
+		{
+			Path: "prevStatus",
+			Value: EditApplicationStatusRequest.OldStatus,
+		},
 	})
 	if err != nil {
 		fmt.Printf("Error editing application: %v\n", err)
@@ -557,14 +573,16 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		// a user can edit status of an application at 11:59 AM and the appliedDate is 12:00 PM
 		// so this will cause response time metrics to be incorrect
 		// so, simply add 12 hours to guarantee it's always at or after noon
-		// truncate is used to round down to nearest day just in case the +12 overshoots
-		"timestamp": time.Now().Add(12 * time.Hour).Truncate(24 * time.Hour).Unix(),
+		"timestamp": time.Now().Add(12 * time.Hour).Unix(),
 	}
 
 	err = h.publishMessage(message)
 	if err != nil {
 		// revert status if publish fails
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(context.Background(), []firestore.Update{
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(ctx, []firestore.Update{
 			{
 				Path:  "status",
 				Value: EditApplicationStatusRequest.OldStatus,
@@ -586,9 +604,9 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	// this means we don't have to revert status count on top of reverting the edit operation. this DOES
 	// introduce small window of inconsistency but this is reducing costs and reducing complexity
 	userDoc := h.FirestoreClient.Collection("users").Doc(email)
-	_, err = userDoc.Update(context.Background(), []firestore.Update{
-		{Path: fmt.Sprintf("%s_count", strings.ToLower(newStatus)), Value: firestore.Increment(1)},
-		{Path: fmt.Sprintf("%s_count", strings.ToLower(EditApplicationStatusRequest.OldStatus)), Value: firestore.Increment(-1)},
+	_, err = userDoc.Update(r.Context(), []firestore.Update{
+		{Path: fmt.Sprintf("%s_count", strings.ToLower(string(newStatus))), Value: firestore.Increment(1)},
+		{Path: fmt.Sprintf("%s_count", strings.ToLower(string(EditApplicationStatusRequest.OldStatus))), Value: firestore.Increment(-1)},
 	})
 	if err != nil {
 		fmt.Printf("Error updating status count: %v\n", err)
@@ -680,13 +698,16 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		"role":        editApplicationRequest.Role,
 		"status":      editApplicationRequest.Status, // status is only sent to satisfy bigquery schema
 		"objectID":    applicationID,
-		"timestamp":   time.Now().Add(12 * time.Hour).Truncate(24 * time.Hour).Unix(),
+		"timestamp":   time.Now().Add(12 * time.Hour).Unix(),
 	}
 
 	err = h.publishMessage(message)
 	if err != nil {
 		// revert status if publish fails
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(context.Background(), []firestore.Update{
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(ctx, []firestore.Update{
 			{Path: "role", Value: editApplicationRequest.OldRole},
 			{Path: "company", Value: editApplicationRequest.OldCompany},
 			{Path: "location", Value: editApplicationRequest.OldLocation},
@@ -706,6 +727,105 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("Application edited")
 	log.Println("DB and PubSub operations success, returning success for eager loading")
 
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] RevertStatus [*]")
+	log.Println("-----------------")
+
+	email, err := auth.IsAuthenticated(r)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	log.Println("User authenticated")
+
+	// extract the jobID requested to revert, revert it in database and send to PubSub
+	// NOTE: BigQuery is not optimized for single-row deletes, so we should simply set a 
+	// "reverted" flag to the most recent event and ensure analytics only reads non-flagged events
+	// DeleteApplication and DeleteUser are okay because they are multi-row deletes and much less frequent
+	var revertApplicationStatusRequest RevertApplicationStatusRequest
+	err = json.NewDecoder(r.Body).Decode(&revertApplicationStatusRequest)
+	if err != nil {
+		http.Error(w, "Error decoding request body", http.StatusBadRequest)
+		return
+	}
+
+	jobID := revertApplicationStatusRequest.ID
+
+	// extract status and prevStatus from Firestore. We need current status for compensating transaction
+	docSnapshot, err := h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Get(r.Context())
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
+		return
+	}
+
+	doc := docSnapshot.Data()
+
+	prevStatus, exists := doc["prevStatus"]
+	if !exists {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Error reverting status", http.StatusInternalServerError)
+		return
+	}
+	
+	status, exists := doc["status"]
+	if !exists {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Error reverting status", http.StatusInternalServerError)
+		return
+	}
+
+	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Update(r.Context(), []firestore.Update{
+		{Path: "status", Value: prevStatus},
+		// remove old status to prevent infinite revert loops
+		{Path: "prevStatus", Value: firestore.Delete},
+	})
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Error reverting status", http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("Status reverted")
+
+	// timestamp not needed because it will set the most recent event to "reverted"
+	// since we already prevent duplicate status updates and have a safeguard against double reverts,
+	// simply editing the most recent timestamp is perfectly fine
+	message := map[string]interface{}{
+		"operation": "revert",
+		"email":     email,
+		"objectID":  jobID,
+		"status":    prevStatus,
+	}
+
+	err = h.publishMessage(message)
+	if err != nil {
+		// revert status if publish fails
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Update(ctx, []firestore.Update{
+			{Path: "status", Value: status},
+			{Path: "prevStatus", Value: prevStatus},
+		})
+		if err != nil {
+			fmt.Printf("Error reverting application: %v\n", err)
+			http.Error(w, "Error reverting application edit", http.StatusInternalServerError)
+			return
+		}
+		log.Println("RevertStatus reverted because of publish failure")
+		http.Error(w, "Error publishing message", http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("RevertStatus success")
+	// note: frontend has no way to access previous state
+	// so, when user clicks revert we need to refresh on ok instead of optimistic UI
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -750,6 +870,11 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 // publishes to both algolia and bigquery topics
 func (h *Handler) publishMessage(message map[string]interface{}) error {
+	// new context here -- message should be published regardless of context cancellation
+	// for consistency enforcement. use 10 second timeout to prevent indefinite blocking
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	messageBody, err := json.Marshal(message)
 	if err != nil {
 		fmt.Printf("Error marshaling message: %v\n", err)
@@ -761,14 +886,14 @@ func (h *Handler) publishMessage(message map[string]interface{}) error {
 	var result *pubsub.PublishResult
 
 	// attempt to publish message (algolia and bigquery both subscribe to this topic)
-	r := h.pubsubTopic.Publish(context.Background(), &pubsub.Message{
+	r := h.pubsubTopic.Publish(ctx, &pubsub.Message{
 		Data:        messageBody,
 		OrderingKey: h.orderingKey,
 	})
 
 	// if message publish fails, propagate an error to revert Firestore operation
 	result = r
-	id, err := result.Get(context.Background())
+	id, err := result.Get(ctx)
 	if err != nil {
 		fmt.Printf("Error publishing message: %v\n", err)
 		return err
@@ -783,6 +908,8 @@ func (h *Handler) publishMessage(message map[string]interface{}) error {
 // so, delete all documents in users/{email}/applications
 // then, delete users/{email}
 func (h *Handler) deleteUserFromFirestore(email string, batchSize int) error {
+	// a user might just close the tab after running delete, so we need to ensure
+	// that the context is not cancelled and the delete still goes through
 	ctx := context.Background()
 
 	// delete subcollection FIRST (just applications)

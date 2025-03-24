@@ -78,6 +78,8 @@ func (j *Job) Process(ctx context.Context) error {
 		err = j.deleteJob(ctx)
 	case "userDelete":
 		err = j.deleteUser(ctx)
+	case "revert": 
+		err = j.revert(ctx)
 	default:
 		err = fmt.Errorf("unknown operation: %s", j.Operation)
 	}
@@ -213,6 +215,47 @@ func (j *Job) deleteUser(ctx context.Context) error {
 	return nil
 }
 
+
+// reverts only the most recent operation for a given job ID. Algolia and Firestore do not know the UUIDs made in BigQuery
+// so we have to rely on event_time. However, Go enforces (1) no duplicate status updates and (2) no duplicate reverts
+// so this is actually safe to do
+func (j *Job) revert(ctx context.Context) error {
+	q := j.BigQueryClient.Query(`
+		UPDATE applications_data.applications
+		SET operation = 'revert'
+		WHERE email = @email
+		AND jobID = @jobID
+		AND event_time = (
+			SELECT MAX(event_time) 
+			FROM applications_data.applications
+			WHERE email = @email
+			AND jobID = @jobID
+		)
+	`)
+	q.Parameters = []bigquery.QueryParameter{
+		{Name: "email", Value: j.Data["email"]},
+		{Name: "jobID", Value: j.Data["objectID"]},
+	}
+
+	job, err := q.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to revert record: %w", err)
+	}
+
+	status, err := job.Wait(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to wait for job: %w", err)
+	}
+
+	if err := status.Err(); err != nil {
+		return fmt.Errorf("job completed with error: %w", err)
+	}
+
+	log.Printf("Job [%v] reverted successfully for email [%v]", j.Data["objectID"], j.Data["email"])
+
+	return nil
+}
+
 // each key in the map is the name of the analytic (identical to Firestore field name)
 // this is so that we can easily add more analytics in the future if we want
 // let's batch run all queries instead of running them one by one
@@ -242,6 +285,7 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 				FORMAT_TIMESTAMP('%Y-%m', applied_date) AS month
 			FROM applications_data.applications
 			WHERE email = @email
+			AND operation != 'revert'
 		),
 
 		-- latest applied date must be separate from JobMetrics (window functions cannot be nested within aggregate functions)
