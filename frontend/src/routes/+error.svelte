@@ -1,6 +1,5 @@
 <script lang="ts">
-    import "../../app.css";
-    let { children } = $props();
+    import "../app.css";
     import { ModeWatcher } from "mode-watcher";
     import { toggleMode } from "mode-watcher";
 
@@ -88,7 +87,9 @@
         </div>
     </header>
     <main class="bg-background overflow-auto">
-        {@render children()}
+        <div class="container h-full border-x border-dashed py-4 flex justify-center">
+            bro... we get it you're hunting around for hidden pages... stop coping and start grinding 💀
+        </div>
     </main>
     <footer class="border-t border-dashed">
         <div class="container border-x border-dashed py-4 flex justify-between">

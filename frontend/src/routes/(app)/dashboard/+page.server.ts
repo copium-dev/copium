@@ -221,5 +221,30 @@ export const actions = {
         return {
             type: 'success',
         }
+    },
+    revert: async({ request, fetch, locals }) => {
+        const formData = await request.formData();
+        const body = {
+            id: formData.get('id')
+        }
+
+        const response = await fetch(`${BACKEND_URL}/user/revertStatus`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${locals.authToken}`
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            return {
+                type: 'failure',
+            };
+        }
+
+        return {
+            type: 'success'
+        }
     }
 } satisfies Actions;

@@ -10,8 +10,11 @@
     import { Separator } from "$lib/components/ui/separator";
     import { Progress } from "$lib/components/ui/progress/index.js";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
+    import { toast } from "svelte-sonner";
+    import { Toaster } from "$lib/components/ui/sonner/index.js";
 
     import { formatDateForDisplay } from "$lib/utils/date";
+    import { statusUpdateStore } from "$lib/stores/statusUpdateStore"
 
     import { BriefcaseBusiness } from "lucide-svelte";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
@@ -25,6 +28,39 @@
     export let link: string | undefined | null;
     export let visible: boolean;
 
+    // use in parent component to update status of application
+    export async function revertStatus() {
+        const formData = new FormData();
+        formData.append("id", objectID);
+
+        // if revert returns ok, do optimistic UI from the store
+        const response = await fetch(`/dashboard?/revert`, {
+            method: "POST",
+            body: formData,
+        });
+
+        const res = await response.json();
+
+        if (res.type === "failure") {
+            console.error("Failed to revert status");
+        } else {
+            console.log("Status reverted successfully");
+
+            // optimistic UI
+            status = $statusUpdateStore.prevStatus;
+            value = statusValues[status];
+
+            statusUpdateStore.set({
+                ok: false,
+                jobID: '',
+                status: '',
+                prevStatus: '',
+                role: '',
+                company: '',
+            });
+        }
+    }
+
     const statusValues: Record<string, number> = {
         Rejected: 10.75,
         Ghosted: 26,
@@ -35,7 +71,9 @@
     };
 
     async function updateStatus(newStatus: keyof typeof statusValues) {
+        // for better UX, update value before fetch
         value = statusValues[newStatus];
+
         const formData = new FormData();
         formData.append("id", objectID);
         formData.append("appliedDate", String(appliedDate));
@@ -53,6 +91,27 @@
             console.error("Failed to update application");
         } else {
             console.log("Application updated successfully");
+
+            // store used to display toast notification
+            // '{role} at {company} status updated from {prevStatus} to {status}, click to undo'
+            statusUpdateStore.set({
+                ok: true,
+                jobID: objectID,
+                status: newStatus,
+                prevStatus: status, 
+                role: role,
+                company: company,
+            });
+
+            // slight delay to ensure that this renders
+            setTimeout(() => {
+                toast.success("Status updated successfully", {
+                    action: {
+                        label: "Undo",
+                        onClick: revertStatus,
+                    },
+                });
+            }, 10);
         }
     }
 
@@ -137,6 +196,7 @@
 </script>
 
 {#if visible}
+    <Toaster />
     <Separator
         orientation="horizontal"
         class="mx-auto w-full border-t border-dashed bg-transparent"
