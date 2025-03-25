@@ -448,12 +448,41 @@
                             </h3>
 
                             <div class="mt-auto">
-                                <Button
-                                    href={posting.url}
-                                    target="_blank"
-                                    size="sm"
-                                    class="w-full px-2 text-xs">Apply</Button
-                                >
+                                <AlertDialog.Root>
+                                    <AlertDialog.Trigger asChild let:builder>
+                                        <Button
+                                            builders={[builder]}
+                                            href={posting.url}
+                                            target="_blank"
+                                            size="sm"
+                                        >
+                                            Apply
+                                        </Button>
+                                    </AlertDialog.Trigger>
+                                    <AlertDialog.Content>
+                                        <AlertDialog.Header>
+                                            <AlertDialog.Title>
+                                                Did you apply for this job?
+                                            </AlertDialog.Title>
+                                            <AlertDialog.Description>
+                                                Click "Yes" below to
+                                                automatically add this to your
+                                                dashboard.
+                                            </AlertDialog.Description>
+                                        </AlertDialog.Header>
+                                        <AlertDialog.Footer>
+                                            <AlertDialog.Cancel
+                                                >No</AlertDialog.Cancel
+                                            >
+                                            <AlertDialog.Action
+                                                on:click={() =>
+                                                    addApplication(posting)}
+                                            >
+                                                Yes
+                                            </AlertDialog.Action>
+                                        </AlertDialog.Footer>
+                                    </AlertDialog.Content>
+                                </AlertDialog.Root>
                             </div>
                         </div>
 
