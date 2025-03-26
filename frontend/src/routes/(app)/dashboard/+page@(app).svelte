@@ -78,7 +78,7 @@
     }
 
     // reactive block to add new job to the top of the list for optimistic UI
-    $: if (form?.type === "success" && form?.data && 'objectID' in form.data) {
+    $: if (form?.type === "success" && form?.data) {
         // in svelte, reactive updates triggered by assignments not mutations
         // so we gotta do all this below instead of an unshift
         const newJob = {

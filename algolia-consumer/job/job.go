@@ -53,14 +53,17 @@ func (j *Job) Process(ctx context.Context) error {
     switch j.Operation {
 	case "add":
 		return j.addApplication(ctx)
-	case "edit":
+	case "editStatus", "editApplication":
 		return j.editApplication(ctx)
 	case "delete":
 		return j.deleteApplication(ctx)
 	case "userDelete":
 		return j.userDelete(ctx)
+	case "revertLatest":
+		return j.revertLatest(ctx)
 	case "revert":
-		return j.revert(ctx)
+		log.Println("Algolia does not support revert, doing nothing")
+		return nil
     default:
         return fmt.Errorf("unknown operation: %s", j.Operation)
     }
@@ -195,8 +198,8 @@ func (j *Job) userDelete(ctx context.Context) error {
 	return nil
 }
 
-// revert to old status 
-func (j *Job) revert(ctx context.Context) error {
+// change status based on what was sent from PubSub
+func (j *Job) revertLatest(ctx context.Context) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}

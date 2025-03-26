@@ -28,6 +28,9 @@
         const response = await fetch("?/delete", {
             method: "POST",
             body: formData,
+            headers: {
+		        'x-sveltekit-action': 'true'
+	        }
         });
 
         if (!response.ok) {

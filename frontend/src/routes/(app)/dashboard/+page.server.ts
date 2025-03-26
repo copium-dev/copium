@@ -14,13 +14,6 @@ interface Job {
     status: string;
 }
 
-interface Timeline {
-    operationID: string;
-    operation: string;
-    status: string;
-    event_time: number;
-}
-
 // load function 
 export const load: PageServerLoad = async ({ fetch, url, locals }) => {
     const page = url.searchParams.get('page');
@@ -99,6 +92,12 @@ export const actions = {
             body: JSON.stringify(data)
         });
 
+        if (!response.ok) {
+            return {
+                type: 'failure',
+            };
+        }
+
         const json = await response.json();
 
         const objectID = json.objectID;
@@ -108,12 +107,6 @@ export const actions = {
         const location = formData.get('location') as string;
         const role = formData.get('role') as string;
         const status = 'Applied';
-
-        if (!response.ok) {
-            return {
-                type: 'failure',
-            };
-        }
 
         return {
             type: 'success',
@@ -166,7 +159,9 @@ export const actions = {
             id: formData.get('id'),
             status: formData.get('status'),
             oldStatus: formData.get('oldStatus'),
-            // already unix timestamp so no need to parse
+            // already unix timestamp so no need to parse, only sent to satisfy BigQuery schema which requires
+            // the appliedDate for some of the analytics. user is not allowed to edit this field whatsoever because
+            // of the absolute pain it brings to everything by having to check if this is the latest appliedDate or not
             appliedDate: Number(formData.get('appliedDate')),
         }
 
@@ -232,7 +227,8 @@ export const actions = {
     revert: async({ request, fetch, locals }) => {
         const formData = await request.formData();
         const body = {
-            id: formData.get('id')
+            id: formData.get('id'),
+            operationID: formData.get('operationID')
         }
 
         const response = await fetch(`${BACKEND_URL}/user/revertStatus`, {
@@ -259,7 +255,7 @@ export const actions = {
         const body = {
             id: formData.get('id'),
         }
-
+    
         const response = await fetch(`${BACKEND_URL}/user/getApplicationTimeline`, {
             method: 'POST',
             headers: {
@@ -268,23 +264,19 @@ export const actions = {
             },
             body: JSON.stringify(body)
         });
-
+    
         if (!response.ok) {
             return {
                 type: 'failure',
             }
         }
 
-        const rawData = await response.json();
-
-        const timeline = rawData as Timeline[] || [];
-        
-
+        const timeline = await response.json();
         console.log(timeline)
-
+    
         return {
             type: 'success',
-            data: {timeline}
+            data: timeline
         }
     }
 } satisfies Actions;

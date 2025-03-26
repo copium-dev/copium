@@ -117,18 +117,20 @@ type EditApplicationRequest struct {
 	Role           string `json:"role"`
 	Company        string `json:"company"`
 	Location       string `json:"location"`
-	AppliedDate    int64  `json:"appliedDate"`
 	Link           string `json:"link"`
 	OldRole        string `json:"oldRole"`
 	OldCompany     string `json:"oldCompany"`
 	OldLocation    string `json:"oldLocation"`
 	OldLink        string `json:"oldLink"`
-	OldAppliedDate int64  `json:"oldAppliedDate"`
 	Status         ApplicationStatus `json:status`
 }
 
-// duplicate with get appliation timeline
 type RevertApplicationStatusRequest struct {
+	OperationID string `json:"operationID"`
+	ID       string `json:"id"`
+}
+
+type ApplicationTimelineRequest struct {
 	ID string `json:"id"`
 }
 
@@ -561,11 +563,6 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 			Path:  "status",
 			Value: newStatus,
 		},
-		// save previous status for revert operation
-		{
-			Path: "prevStatus",
-			Value: EditApplicationStatusRequest.OldStatus,
-		},
 	})
 	if err != nil {
 		fmt.Printf("Error editing application: %v\n", err)
@@ -576,11 +573,11 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	log.Println("Application status edited")
 
 	message := map[string]interface{}{
-		"operation":   "edit",
+		"operation":   "editStatus",
 		"email":       email,
 		"objectID":    applicationID,
 		"status":      newStatus,
-		"appliedDate": appliedDate,
+		"appliedDate": appliedDate,	// just to satisfy BigQuery schema
 		// since appliedDate is always using noon as the time, we need to ensure
 		// that the timestamp sent to PubSub is always at or after noon. this is because
 		// a user can edit status of an application at 11:59 AM and the appliedDate is 12:00 PM
@@ -660,7 +657,7 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	// NOTE: the EditApplicationRequest struct's fields are still required for the publish message
 	// and possible rollbacks, so frontend cannot make the optimization of what to send
 	changedFields := make(map[string]interface{}, 0)
-	
+
 	// no loops or function calls to reduce memory overhead, big ugly if statements
 	if editApplicationRequest.Role != editApplicationRequest.OldRole {
 		changedFields["role"] = editApplicationRequest.Role
@@ -673,9 +670,6 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	}
 	if editApplicationRequest.Link != editApplicationRequest.OldLink {
 		changedFields["link"] = editApplicationRequest.Link
-	}
-	if editApplicationRequest.AppliedDate != editApplicationRequest.OldAppliedDate {
-		changedFields["appliedDate"] = editApplicationRequest.AppliedDate
 	}
 	
 	if len(changedFields) == 0 {
@@ -701,15 +695,17 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Application edited")
 
+	// bigquery does nothing on application edits, only status changes
+	// this is why we need a diffentiating operation for application edits
+	// is this wasted data transfer? yea... but its not a lot of data and
+	// not worth setting up different messaging pipeline when just one operation is not supported by BigQuery
 	message := map[string]interface{}{
-		"operation":   "edit",
+		"operation":   "editApplication",
 		"email":       email,
-		"appliedDate": editApplicationRequest.AppliedDate,
 		"company":     editApplicationRequest.Company,
 		"link":        editApplicationRequest.Link,
 		"location":    editApplicationRequest.Location,
 		"role":        editApplicationRequest.Role,
-		"status":      editApplicationRequest.Status, // status is only sent to satisfy bigquery schema
 		"objectID":    applicationID,
 		"timestamp":   time.Now().Add(12 * time.Hour).Unix(),
 	}
@@ -725,7 +721,6 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 			{Path: "company", Value: editApplicationRequest.OldCompany},
 			{Path: "location", Value: editApplicationRequest.OldLocation},
 			{Path: "link", Value: editApplicationRequest.OldLink},
-			{Path: "appliedDate", Value: editApplicationRequest.OldAppliedDate},
 		})
 		if err != nil {
 			fmt.Printf("Error reverting application: %v\n", err)
@@ -767,36 +762,111 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// two cases:
+	// 1: operation is most recent (get from BigQuery); we have to update Algolia and Firestore to the previous status
+	//	  compensating transaction is needed here because latest state may have changed
+	// 2: operation not most recent; simply flag the operation as "reverted" in BigQuery. Algolia and Firestore still have most recent status
+	//	  compensating transaction is not needed here because latest state never changed
+	operationID := revertApplicationStatusRequest.OperationID
 	jobID := revertApplicationStatusRequest.ID
 
-	// extract status and prevStatus from Firestore. We need current status for compensating transaction
-	docSnapshot, err := h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Get(r.Context())
+	// get the two max event times; the first is to determine if case 2, the second is to revert if case 1
+	q := h.bigQueryClient.Query(`
+		SELECT operationID, status, event_time  
+		FROM applications_data.applications
+		WHERE email = @email
+		AND jobID = @jobID
+		AND operation != 'revert'  -- skip any previously reverted operations
+		ORDER BY event_time DESC
+		LIMIT 2
+	`)
+	q.Parameters = []bigquery.QueryParameter{
+		{Name: "email", Value: email},
+		{Name: "jobID", Value: jobID},
+	}
+
+	job, err := q.Run(r.Context())
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
-		return
-	}
-
-	doc := docSnapshot.Data()
-
-	prevStatus, exists := doc["prevStatus"]
-	if !exists {
-		fmt.Printf("Error: %v\n", err)
+		fmt.Printf("Error getting max event time: %v\n", err)
 		http.Error(w, "Error reverting status", http.StatusInternalServerError)
 		return
 	}
-	
-	status, exists := doc["status"]
-	if !exists {
-		fmt.Printf("Error: %v\n", err)
+
+	_, err = job.Wait(r.Context())
+	if err != nil {
+		fmt.Printf("Error getting max event time: %v\n", err)
 		http.Error(w, "Error reverting status", http.StatusInternalServerError)
 		return
+	}
+
+	it, err := job.Read(r.Context())
+	if err != nil {
+		fmt.Printf("Error reading query results: %v\n", err)
+		http.Error(w, "Error reverting status", http.StatusInternalServerError)
+		return
+	}
+
+	var latestOperationID string
+	var currStatus string	// just in case we need to rollback
+	var secondLatestOperationID string
+	var prevStatus string
+	rowCount := 0
+
+	for {
+		var row []bigquery.Value
+		err := it.Next(&row)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			fmt.Printf("Error getting max event time: %v\n", err)
+			http.Error(w, "Error reverting status", http.StatusInternalServerError)
+			return
+		}
+
+		if rowCount == 0 {
+			latestOperationID = row[0].(string)    
+			currStatus = row[1].(string)           
+		} else if rowCount == 1 {
+			secondLatestOperationID = row[0].(string)   
+			prevStatus = row[1].(string)          
+		}
+
+		rowCount++
+	}
+
+	// if there's only one operation (or none), there's nothing to revert to
+	if rowCount < 2 {
+
+		http.Error(w, "Not enough operations to revert", http.StatusBadRequest)
+		return
+	}
+
+	// ensure operationID is valid
+	operationExists := false
+	if latestOperationID == operationID || secondLatestOperationID == operationID {
+		operationExists = true
+	}
+
+	if !operationExists {
+		http.Error(w, "Operation not found", http.StatusNotFound)
+		return
+	}
+
+	var operation string
+
+	if latestOperationID != operationID {
+		// case 2: flag as reverted in BQ. Algolia and Firestore are already up to date
+		operation = "revert"
+		fmt.Println("Case 2: Reverting deeper in history -- only BigQuery needs to be updated")
+	} else {
+		// case 1: Firestore and Algolia need to be updated to previous status (secondLatestOperation)
+		operation = "revertLatest"
+		fmt.Println("Case 1: Reverting most recent operation -- Firestore and Algolia need to be updated as well")
 	}
 
 	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Update(r.Context(), []firestore.Update{
 		{Path: "status", Value: prevStatus},
-		// remove old status to prevent infinite revert loops
-		{Path: "prevStatus", Value: firestore.Delete},
 	})
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
@@ -810,21 +880,22 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 	// since we already prevent duplicate status updates and have a safeguard against double reverts,
 	// simply editing the most recent timestamp is perfectly fine
 	message := map[string]interface{}{
-		"operation": "revert",
+		"operation": operation,
 		"email":     email,
 		"objectID":  jobID,
+		"operationID": operationID,
 		"status":    prevStatus,
 	}
 
 	err = h.publishMessage(message)
-	if err != nil {
+	// revertLatest is a special case -- need to revert Firestore status if publish fails
+	if err != nil && operation == "revertLatest" {
 		// revert status if publish fails
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Update(ctx, []firestore.Update{
-			{Path: "status", Value: status},
-			{Path: "prevStatus", Value: prevStatus},
+			{Path: "status", Value: currStatus},
 		})
 		if err != nil {
 			fmt.Printf("Error reverting application: %v\n", err)
@@ -881,7 +952,6 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-
 func (h *Handler) GetApplicationTimeline(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] GetApplicationTimeline [*]")
 	log.Println("-----------------")
@@ -895,9 +965,8 @@ func (h *Handler) GetApplicationTimeline(w http.ResponseWriter, r *http.Request)
 
 	log.Println("User authenticated")
 
-	// duplicate request data as RevertApplicationStatusRequest
-	// because we only need the jobID
-	var getApplicationTimelineRequest RevertApplicationStatusRequest
+
+	var getApplicationTimelineRequest ApplicationTimelineRequest
 	err = json.NewDecoder(r.Body).Decode(&getApplicationTimelineRequest)
 	if err != nil {
 		http.Error(w, "Error decoding request body", http.StatusBadRequest)
@@ -911,6 +980,7 @@ func (h *Handler) GetApplicationTimeline(w http.ResponseWriter, r *http.Request)
 		FROM applications_data.applications
 		WHERE email = @email
 		AND jobID = @jobID
+		AND operation != 'revert'
 		ORDER BY event_time DESC
 	`)
 	q.Parameters = []bigquery.QueryParameter{
