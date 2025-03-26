@@ -868,7 +868,6 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 
 	var latestOperationID string
 	var currStatus string	// just in case we need to rollback
-	var secondLatestOperationID string
 	var prevStatus string
 	rowCount := 0
 
@@ -888,7 +887,6 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 			latestOperationID = row[0].(string)    
 			currStatus = row[1].(string)           
 		} else if rowCount == 1 {
-			secondLatestOperationID = row[0].(string)   
 			prevStatus = row[1].(string)          
 		}
 
@@ -899,17 +897,6 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 	if rowCount <= 0 {
 		fmt.Printf("Error: Not enough operations to revert: %v\n", rowCount)
 		http.Error(w, "Not enough operations to revert", http.StatusBadRequest)
-		return
-	}
-
-	// ensure operationID is valid
-	operationExists := false
-	if latestOperationID == operationID || secondLatestOperationID == operationID {
-		operationExists = true
-	}
-
-	if !operationExists {
-		http.Error(w, "Operation not found", http.StatusNotFound)
 		return
 	}
 
