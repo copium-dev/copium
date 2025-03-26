@@ -508,10 +508,44 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	// to reduce amount of reads in this single request, decrement applicationCount AFTER verifying publish success
 	// this means we don't have to revert applicationCount on top of reverting the delete operation. this DOES
 	// introduce small window of inconsistency but this is reducing costs and reducing complexity
-	userDoc := h.FirestoreClient.Collection("users").Doc(email)
-	_, err = userDoc.Update(r.Context(), []firestore.Update{
-		{Path: "applicationsCount", Value: firestore.Increment(-1)},
-		{Path: fmt.Sprintf("%s_count", strings.ToLower(string(deleteApplicationRequest.Status))), Value: firestore.Increment(-1)},
+	// transaction is used to ensure that if an increment fails, decrement wont happen and vice versa
+	err = h.FirestoreClient.RunTransaction(r.Context(), func(ctx context.Context, tx *firestore.Transaction) error {
+		userDoc := h.FirestoreClient.Collection("users").Doc(email)
+		doc, err := tx.Get(userDoc)
+		if err != nil {
+			return err
+		}
+		
+		statusCount := 0
+		countKey := fmt.Sprintf("%s_count", strings.ToLower(string(deleteApplicationRequest.Status)))
+		if val, exists := doc.Data()[countKey]; exists {
+			if count, ok := val.(int64); ok {
+				statusCount = int(count)
+			}
+		}
+
+		applicationsCount := 0
+		if val, exists := doc.Data()["applicationsCount"]; exists {
+			if count, ok := val.(int64); ok {
+				applicationsCount = int(count)
+			}
+		}
+
+		var updates []firestore.Update
+
+		if applicationsCount > 0 {
+			updates = append(updates, firestore.Update{
+				Path: "applicationsCount", Value: firestore.Increment(-1),
+			})
+		}
+		
+		if statusCount > 0 {
+			updates = append(updates, firestore.Update{
+				Path: countKey, Value: firestore.Increment(-1),
+			})
+		}
+		
+		return tx.Update(userDoc, updates)
 	})
 	if err != nil {
 		fmt.Printf("Error updating applications count: %v\n", err)
@@ -613,10 +647,36 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	// to reduce amount of reads in this single request, update status count AFTER verifying publish success
 	// this means we don't have to revert status count on top of reverting the edit operation. this DOES
 	// introduce small window of inconsistency but this is reducing costs and reducing complexity
-	userDoc := h.FirestoreClient.Collection("users").Doc(email)
-	_, err = userDoc.Update(r.Context(), []firestore.Update{
-		{Path: fmt.Sprintf("%s_count", strings.ToLower(string(newStatus))), Value: firestore.Increment(1)},
-		{Path: fmt.Sprintf("%s_count", strings.ToLower(string(EditApplicationStatusRequest.OldStatus))), Value: firestore.Increment(-1)},
+	// transaction is used to ensure that if an increment fails, decrement wont happen and vice versa
+	err = h.FirestoreClient.RunTransaction(r.Context(), func(ctx context.Context, tx *firestore.Transaction) error {
+		userDoc := h.FirestoreClient.Collection("users").Doc(email)
+		doc, err := tx.Get(userDoc)
+		if err != nil {
+			return err
+		}
+		
+		// get old status count
+		oldStatusCount := 0
+		countKey := fmt.Sprintf("%s_count", strings.ToLower(string(EditApplicationStatusRequest.OldStatus)))
+		if val, exists := doc.Data()[countKey]; exists {
+			if count, ok := val.(int64); ok {
+				oldStatusCount = int(count)
+			}
+		}
+
+		// no block for new status count because it will always be incremented
+		updates := []firestore.Update{
+			{Path: fmt.Sprintf("%s_count", strings.ToLower(string(newStatus))), Value: firestore.Increment(1)},
+		}
+		
+		// only decrement old status count if it was greater than 0
+		if oldStatusCount > 0 {
+			updates = append(updates, firestore.Update{
+				Path: countKey, Value: firestore.Increment(-1),
+			})
+		}
+		
+		return tx.Update(userDoc, updates)
 	})
 	if err != nil {
 		fmt.Printf("Error updating status count: %v\n", err)
@@ -772,11 +832,11 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 
 	// get the two max event times; the first is to determine if case 2, the second is to revert if case 1
 	q := h.bigQueryClient.Query(`
-		SELECT operationID, status, event_time  
+		SELECT operationID, status, event_time, operation
 		FROM applications_data.applications
 		WHERE email = @email
 		AND jobID = @jobID
-		AND operation != 'revert'  -- skip any previously reverted operations
+		AND operation NOT IN ('revert', 'add') -- cannot revert a revert or an add
 		ORDER BY event_time DESC
 		LIMIT 2
 	`)
@@ -822,9 +882,9 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("Error getting max event time: %v\n", err)
 			http.Error(w, "Error reverting status", http.StatusInternalServerError)
 			return
-		}
+		}	
 
-		if rowCount == 0 {
+		if rowCount == 0{
 			latestOperationID = row[0].(string)    
 			currStatus = row[1].(string)           
 		} else if rowCount == 1 {
@@ -835,9 +895,9 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 		rowCount++
 	}
 
-	// if there's only one operation (or none), there's nothing to revert to
-	if rowCount < 2 {
-
+	// if there's no non-revert/add operations, can't revert
+	if rowCount <= 0 {
+		fmt.Printf("Error: Not enough operations to revert: %v\n", rowCount)
 		http.Error(w, "Not enough operations to revert", http.StatusBadRequest)
 		return
 	}
@@ -865,20 +925,22 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Case 1: Reverting most recent operation -- Firestore and Algolia need to be updated as well")
 	}
 
-	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Update(r.Context(), []firestore.Update{
-		{Path: "status", Value: prevStatus},
-	})
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		http.Error(w, "Error reverting status", http.StatusInternalServerError)
-		return
+	if operation == "revertLatest" {
+		// try to revert status in Firestore
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Update(r.Context(), []firestore.Update{
+			{Path: "status", Value: prevStatus},
+		})
+		// failed to revert, don't send message. at this point we haven't done anything
+		// to other services so we can just return an error
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			http.Error(w, "Error reverting status", http.StatusInternalServerError)
+			return
+		}
 	}
 
-	log.Println("Status reverted")
+	log.Println("Status reverted in Firestore, continuing to publish message")
 
-	// timestamp not needed because it will set the most recent event to "reverted"
-	// since we already prevent duplicate status updates and have a safeguard against double reverts,
-	// simply editing the most recent timestamp is perfectly fine
 	message := map[string]interface{}{
 		"operation": operation,
 		"email":     email,
@@ -908,8 +970,56 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("RevertStatus success")
-	// note: frontend has no way to access previous state
-	// so, when user clicks revert we need to refresh on ok instead of optimistic UI
+	// finally, we can decrement status counts (only if we're reverting latest operation
+	// remember: we store latest status in Firestore. so, if we're reverting latest operation,
+	// we need to increment the number of prevStatus and decrement the number of currStatus
+	// if reverting deep, nothing to do because Firestore only stores latest state
+	if operation == "revertLatest" {
+		log.Println("Latest operation reverted, decrementing/incrementing status counts")
+		// run a transaction to ensure consistency in decrementing/incrementing status counts
+		err = h.FirestoreClient.RunTransaction(r.Context(), func(ctx context.Context, tx *firestore.Transaction) error {
+			userDoc := h.FirestoreClient.Collection("users").Doc(email)
+			doc, err := tx.Get(userDoc)
+			if err != nil {
+				return err
+			}
+			
+			currentStatusCount := 0
+			currentCountKey := fmt.Sprintf("%s_count", strings.ToLower(currStatus))
+			if val, exists := doc.Data()[currentCountKey]; exists {
+				if count, ok := val.(int64); ok {
+					currentStatusCount = int(count)
+				}
+			}
+			
+			// no blocking on incrementing previous state
+			updates := []firestore.Update{
+				{Path: fmt.Sprintf("%s_count", strings.ToLower(prevStatus)), Value: firestore.Increment(1)},
+			}
+			
+			// only decrement if current status count > 0
+			if currentStatusCount > 0 {
+				updates = append(updates, firestore.Update{
+					Path: currentCountKey, Value: firestore.Increment(-1),
+				})
+			}
+			
+			return tx.Update(userDoc, updates)
+		})
+		if err != nil {
+			fmt.Printf("Error updating status count: %v\n", err)
+			http.Error(w, "Error updating status count", http.StatusInternalServerError)
+			return
+		}
+
+		// if latest status decrement, send to frontend for optimistic ui
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": prevStatus,
+		})
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 }
 

@@ -6,7 +6,7 @@
     import { Map } from "lucide-svelte";
     import { Calendar } from "lucide-svelte";
 
-    import { Button } from "$lib/components/ui/button";
+    import { Button, buttonVariants } from "$lib/components/ui/button";
     import { Separator } from "$lib/components/ui/separator";
     import { badgeVariants } from "$lib/components/ui/badge";
     import { Progress } from "$lib/components/ui/progress/index.js";
@@ -43,12 +43,9 @@
         formData.append("id", objectID);
         formData.append("operationID", operationID);
 
-        const response = await fetch(`/dashboard?/revert`, {
+        const response = await fetch(`/dashboard/revert`, {
             method: "POST",
             body: formData,
-            headers: {
-		        'x-sveltekit-action': 'true'
-	        }
         });
 
         const res = await response.json();
@@ -64,6 +61,11 @@
             setTimeout(() => {
                 toast.success("Status reverted successfully");
             }, 10);
+            // backend sends the new status after revert for optimistic ui
+            status = res.data;
+            if (status) {
+                value = statusValues[status];
+            }
         }
     }
 
@@ -170,7 +172,7 @@
         const formData = new FormData();
         formData.append("id", objectID);
 
-        const response = await fetch(`/dashboard?/timeline`, { 
+        const response = await fetch(`/dashboard/timeline`, { 
             method: "POST",
             body: formData,
         });
@@ -183,7 +185,6 @@
             console.error("Failed to get application timeline");
         } else if (res.type === "success") {
             timeline = res.data || [];
-            console.log(timeline)
         }
     }
 
@@ -324,7 +325,9 @@
                                             <p>Fetching timeline...</p>
                                         {/if}
                                     </Dialog.Description>
-                                    <Dialog.Close>Close</Dialog.Close>
+                                    <Dialog.Close class={buttonVariants({ variant: "default" }) + " w-fit"}>
+                                       Close
+                                    </Dialog.Close>
                                 </Dialog.Content>
                             </Dialog.Root>
                         </div>

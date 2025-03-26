@@ -129,6 +129,10 @@ func (j *Job) appendJob(ctx context.Context) error {
 			@operation
 		)
 	`)
+	if j.Operation == "editStatus" {
+		j.Operation = "edit"
+	}
+	
 	q.Parameters = []bigquery.QueryParameter{
 		{Name: "operationID", Value: uuid.New().String()},
 		{Name: "email", Value: j.Data["email"]},
@@ -300,7 +304,7 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 					ELSE NULL
 				END) AS days_to_response
 			FROM UserApplications ua
-			GROUP BY ua.jobID
+			GROUP BY ua.jobID, ua.applied_date
 		),
 
 		-- get monthly trends in # apps sent, # interview, # offer

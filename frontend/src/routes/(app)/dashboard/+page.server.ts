@@ -246,37 +246,11 @@ export const actions = {
             };
         }
 
-        return {
-            type: 'success'
-        }
-    },
-    timeline: async({ request, fetch, locals }) => {
-        const formData = await request.formData();
-        const body = {
-            id: formData.get('id'),
-        }
-    
-        const response = await fetch(`${BACKEND_URL}/user/getApplicationTimeline`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${locals.authToken}`
-            },
-            body: JSON.stringify(body)
-        });
-    
-        if (!response.ok) {
-            return {
-                type: 'failure',
-            }
-        }
+        const json = await response.json();
 
-        const timeline = await response.json();
-        console.log(timeline)
-    
         return {
             type: 'success',
-            data: timeline
+            newStatus: json.status,
         }
-    }
+    },
 } satisfies Actions;

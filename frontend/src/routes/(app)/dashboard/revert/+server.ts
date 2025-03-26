@@ -5,9 +5,10 @@ export const POST: RequestHandler = async ({ request, fetch, locals }) => {
     const formData = await request.formData();
     const body = {
         id: formData.get('id'),
+        operationID: formData.get('operationID')
     }
 
-    const response = await fetch(`${BACKEND_URL}/user/getApplicationTimeline`, {
+    const response = await fetch(`${BACKEND_URL}/user/revertStatus`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -24,12 +25,12 @@ export const POST: RequestHandler = async ({ request, fetch, locals }) => {
         })
     }
 
-    const timeline = await response.json();
+    const newStatus = await response.json();
 
     return new Response(JSON.stringify({
         type: 'success',
-        data: timeline
+        data: newStatus
     }), {
         headers: { 'Content-Type': 'application/json' }
     })
-};
+}
