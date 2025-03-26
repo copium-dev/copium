@@ -6,10 +6,6 @@
     import { Label } from "$lib/components/ui/label";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
 
-    import {
-        formatDateForInput,
-    } from "$lib/utils/date";
-
     export let objectID: string;
     export let company: string;
     export let role: string;
@@ -178,21 +174,6 @@
                         name="link"
                         placeholder="Link"
                         value={link}
-                    />
-                </div>
-                <div
-                    class="grid grid-cols-[2fr_5fr] sm:grid-cols-[1fr_4fr] w-full items-center gap-1.5"
-                >
-                    <Label
-                        for="appliedDate"
-                        class="text-sm text-gray-500 font-light"
-                        >Applied Date</Label
-                    >
-                    <Input
-                        type="date"
-                        name="appliedDate"
-                        placeholder="Applied Date"
-                        value={formatDateForInput(appliedDate)}
                     />
                 </div>
 

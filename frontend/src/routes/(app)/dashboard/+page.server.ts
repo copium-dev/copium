@@ -193,14 +193,10 @@ export const actions = {
             role: formData.get('role'),
             company: formData.get('company'),
             location: formData.get('location'),
-            // this is sent as mm-dd-yyyy so parse into unix timestamp
-            appliedDate: convertLocalDateToTimestamp(formData.get('appliedDate') as string),
             link: formData.get('link'),
             oldRole: formData.get('oldRole'),
             oldCompany: formData.get('oldCompany'),
             oldLocation: formData.get('oldLocation'),
-            // this is already unix timestamp so no need to parse
-            oldAppliedDate: Number(formData.get('oldAppliedDate')),
             oldLink: formData.get('oldLink'),
             status: formData.get('status')
         }
