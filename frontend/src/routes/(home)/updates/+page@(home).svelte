@@ -35,29 +35,37 @@
             We are also working on adding new features and improving the user experience, so stay tuned for updates!",
             expectedRelease: "ASAP"
         },
-        {
-            title: "Full application timeline history",
-            description: "View the entire history of an application",
-            content: "We are working on adding a feature that allows you to view the entire history of an application, including \
-            all status changes and edits. This would complement a recent feature that allows reverting one application edit, \
-            allowing you to have deeper control on the analytics captured by copium.dev.",
-            expectedRelease: "April 1, 2025"
-        }
     ];
 
     const launched = [
         {
-            title: "copium.dev is now available!",
+            title: "[v1] copium.dev is now available!",
             description: "copium.dev is now available for anyone to use! It was released on March 20, 2025.",
             content: "We are excited to announce that copium.dev is now available for anyone to use! It was released on March 20, 2025. We are still working on adding more features and improving the user experience, so stay tuned for updates!",
-            releaseDate: "March 20, 2025"
+            releaseDate: "March 20, 2025",
+            expectedRelease: "March 20, 2025"
         },
         {
-            title: "Revert one application edit",
+            title: "[v1] Revert one application edit",
             description: "Revert one application status edit, in case you made a mistake.",
             content: "Manually reverting an application status edit by simply clicking the previous status would oftentimes disturb analytics. To address this, an actual revert feature has been added. A more concrete fix is in the works, to allow reverting any edit in the application's timeline.",
-            releaseDate: "March 24, 2025"
+            releaseDate: "March 24, 2025",
+            expectedRelease: "March 27, 2025"
         },
+        {
+            title: "[v2] Full application timeline history",
+            description: "View and revise your full application history",
+            content: "Tons of technical changes here, listed in order of importance: (1) you can now view your full application history \
+            (2) you can now revert anything in the application's timeline to patch your analytics if you made a mistake \
+            (3) previous revert by one status feature has been removed \
+            (4) you can no longer edit applied date; it's a feature 99.9% of you won't use but required a lot of SQL changes to maintain \
+            (5) transactions implemented to ensure incremented and decremented status counts are always accurate \
+            (6) guaranteed >= 0 application counts and status counts, sometimes negative counts occurred \
+            (7) some form actions migrated to +server.ts to prevent deserialization errors \
+            fun fact, we got this all done in a 5 hour caffeine-fueled craze",
+            releaseDate: "Mar 26, 2025",
+            expectedRelease: "April 1, 2025",
+        }
     ]
 </script>
 
@@ -133,7 +141,7 @@
 
         <Tabs.Content value="launched">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 my-6">
-                {#each launched as { title, description, content, releaseDate }}
+                {#each launched as { title, description, content, releaseDate, expectedRelease }}
                     <Card.Root class="flex flex-col justify-between">
                         <Card.Header>
                             <Card.Title>{title}</Card.Title>
@@ -143,6 +151,9 @@
                         <Card.Footer class="flex flex-col items-start gap-2">
                             <p class="text-muted-foreground text-sm">
                                 Released {releaseDate}
+                            </p>
+                            <p class="text-muted-foreground text-sm">
+                                Expected Release: {expectedRelease}
                             </p>
                         </Card.Footer>
                     </Card.Root>

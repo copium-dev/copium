@@ -88,7 +88,10 @@
     </main>
     <footer class="border-t border-dashed">
         <div class="container border-x border-dashed py-4 flex justify-between">
-            <p class="text-muted-foreground text-xs">&copy; 2025 copium.dev</p>
+            <div class="flex gap-2">
+                <p class="text-muted-foreground text-xs">&copy; 2025 copium.dev</p>
+                <p class="text-muted-foreground text-xs">v2.0.0</p>
+            </div>
             <div class="flex gap-2">
                 <a
                     href="/privacy"
