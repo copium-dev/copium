@@ -10,7 +10,7 @@
     }
 </script>
 
-<div class="container-wrapper grid grid-rows-2 h-full overflow-y-hidden">
+<div class="container-wrapper grid grid-rows-2 h-5/6 sm:h-full overflow-y-hidden">
     <div class="h-full w-full">
         <div
             class="container h-full w-full flex flex-col justify-end pb-8 items-center border-x border-dashed"

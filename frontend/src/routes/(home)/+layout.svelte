@@ -88,23 +88,23 @@
     </main>
     <footer class="border-t border-dashed">
         <div class="container border-x border-dashed py-4 flex justify-between">
-            <div class="flex gap-2">
+            <div class="flex flex-col items-start sm:flex-row sm:items-center gap-2">
                 <p class="text-muted-foreground text-xs">&copy; 2025 copium.dev</p>
                 <p class="text-muted-foreground text-xs">v2.0.0</p>
             </div>
-            <div class="flex gap-2">
+            <div class="flex items-center gap-2">
                 <a
                     href="/privacy"
                     class="text-muted-foreground text-xs hover:text-foreground/50"
                     >[Privacy]</a
                 >
-                <Separator orientation="vertical" class="h-4" />
+                <Separator orientation="vertical" class="hidden sm:visible h-4" />
                 <a
                     href="/updates"
                     class="text-muted-foreground text-xs hover:text-foreground/50"
                     >[Updates]</a
                 >
-                <Separator orientation="vertical" class="h-4" />
+                <Separator orientation="vertical" class="hidden sm:visible h-4" />
                 <a
                     href="https://github.com/copium-dev/copium"
                     class="text-muted-foreground text-xs hover:text-foreground/50"
