@@ -14,6 +14,13 @@ interface Job {
     status: string;
 }
 
+interface Timeline {
+    operationID: string;
+    operation: string;
+    status: string;
+    event_time: number;
+}
+
 // load function 
 export const load: PageServerLoad = async ({ fetch, url, locals }) => {
     const page = url.searchParams.get('page');
@@ -245,6 +252,39 @@ export const actions = {
 
         return {
             type: 'success'
+        }
+    },
+    timeline: async({ request, fetch, locals }) => {
+        const formData = await request.formData();
+        const body = {
+            id: formData.get('id'),
+        }
+
+        const response = await fetch(`${BACKEND_URL}/user/getApplicationTimeline`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${locals.authToken}`
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            return {
+                type: 'failure',
+            }
+        }
+
+        const rawData = await response.json();
+
+        const timeline = rawData as Timeline[] || [];
+        
+
+        console.log(timeline)
+
+        return {
+            type: 'success',
+            data: {timeline}
         }
     }
 } satisfies Actions;

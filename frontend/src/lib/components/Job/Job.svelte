@@ -6,10 +6,11 @@
     import { Map } from "lucide-svelte";
     import { Calendar } from "lucide-svelte";
 
-    import { Button } from "$lib/components/ui/button";
+    import { Button, buttonVariants } from "$lib/components/ui/button";
     import { Separator } from "$lib/components/ui/separator";
     import { Progress } from "$lib/components/ui/progress/index.js";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
+    import * as Dialog from "$lib/components/ui/dialog";
     import { toast } from "svelte-sonner";
     import { Toaster } from "$lib/components/ui/sonner/index.js";
 
@@ -28,8 +29,7 @@
     export let link: string | undefined | null;
     export let visible: boolean;
 
-    // use in parent component to update status of application
-    export async function revertStatus() {
+    async function revertStatus() {
         const formData = new FormData();
         formData.append("id", objectID);
 
@@ -190,6 +190,24 @@
         }
     }
 
+    async function showTimeline() {
+        const formData = new FormData();
+        formData.append("id", objectID);
+
+        const response = await fetch(`/dashboard?/timeline`, { 
+            method: "POST",
+            body: formData,
+        });
+
+        const res = await response.json();
+
+        if (res.type === "failure") {
+            console.error("Failed to get application timeline");
+        } else {
+            console.log("Timeline fetched successfully:", res.data);
+        }
+    }
+
     onMount(() => {
         // inital value setting and logo fetch
         value = statusValues[status];
@@ -198,6 +216,7 @@
 
     let value = statusValues[status];
     let imgSrc: string | null = null;
+    let timeline: any[] = []
 </script>
 
 {#if visible}
@@ -269,21 +288,42 @@
                     <div
                         class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-0 sm:px-5 w-[384px] sm:w-[300px]"
                     >
-                        <p class="flex items-end w-full truncate">
-                            {#if link}
-                                <a
-                                    href={link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="hover:underline truncate text-md font-medium"
-                                    >{role}</a
+                        <div class="flex flex-row w-full justify-stretch">
+                            <p class="flex items-end w-full truncate">
+                                {#if link}
+                                    <a
+                                        href={link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="hover:underline truncate text-md font-medium"
+                                        >{role}</a
+                                    >
+                                {:else}
+                                    <span class="truncate text-md font-medium"
+                                        >{role}</span
+                                    >
+                                {/if}
+                            </p>
+                            <Dialog.Root>
+                                <Dialog.Trigger
+                                    class={buttonVariants({ variant: "ghost" }) + "text-xs sm:text-sm"}
+                                    on:click={showTimeline}
                                 >
-                            {:else}
-                                <span class="truncate text-md font-medium"
-                                    >{role}</span
-                                >
-                            {/if}
-                        </p>
+                                    Timeline
+                                </Dialog.Trigger>
+                                <Dialog.Content>
+                                    <Dialog.Title>Timeline</Dialog.Title>
+                                    <Dialog.Description>
+                                        {#if timeline.length > 0}
+                                            <p>{timeline}</p>
+                                        {:else}
+                                            <p>No timeline data available</p>
+                                        {/if}
+                                    </Dialog.Description>
+                                    <Dialog.Close>Close</Dialog.Close>
+                                </Dialog.Content>
+                            </Dialog.Root>
+                        </div>
                         <p
                             class="flex flex-row items-end text-xs gap-1 h-full w-full"
                         >

@@ -10,6 +10,7 @@ import (
     "github.com/copium-dev/copium/go/utils"
     
 	"cloud.google.com/go/firestore"
+	"cloud.google.com/go/bigquery"
 	"github.com/gorilla/mux"
     "github.com/rs/cors"
 	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
@@ -20,6 +21,7 @@ type APIServer struct {
     addr string
     firestoreClient *firestore.Client
 	algoliaClient *search.APIClient
+	bigQueryClient *bigquery.Client
     authHandler *utils.AuthHandler
 	pubsubTopic *pubsub.Topic
 	orderingKey string
@@ -28,6 +30,7 @@ type APIServer struct {
 func NewAPIServer(addr string,
 	firestoreClient *firestore.Client,
 	algoliaClient *search.APIClient,
+	bigQueryClient *bigquery.Client,
 	authHandler *utils.AuthHandler,
 	pubsubTopic *pubsub.Topic,
 	orderingKey string,
@@ -36,6 +39,7 @@ func NewAPIServer(addr string,
         addr: addr,
         firestoreClient: firestoreClient,
 		algoliaClient: algoliaClient,
+		bigQueryClient: bigQueryClient,
         authHandler: authHandler,
 		pubsubTopic: pubsubTopic,
 		orderingKey: orderingKey,
@@ -48,7 +52,7 @@ func (s *APIServer) Run() error {
 
     log.Println("Listening on", s.addr)
 
-    userHandler := user.NewHandler(s.firestoreClient, s.algoliaClient, s.pubsubTopic, s.orderingKey)
+    userHandler := user.NewHandler(s.firestoreClient, s.algoliaClient, s.bigQueryClient, s.pubsubTopic, s.orderingKey)
     userHandler.RegisterRoutes(router)
 
     authHandler := auth.NewHandler(s.firestoreClient, s.authHandler)

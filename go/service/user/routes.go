@@ -43,6 +43,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/bigquery"
 	"github.com/gorilla/mux"
 	"google.golang.org/api/iterator"
 
@@ -68,6 +69,13 @@ type Application struct {
 	AppliedDate int64  `json:"appliedDate"`
 	Status      ApplicationStatus `json:"status"`
 	Link        string `json:"link"`
+}
+
+type Operation struct {
+	OperationID string `json:"operationID"`
+	Operation   string `json:"operation"`
+	Status      string `json:"status"`
+	EventTime   time.Time  `json:"event_time"`
 }
 
 type DashboardResponse struct {
@@ -119,6 +127,7 @@ type EditApplicationRequest struct {
 	Status         ApplicationStatus `json:status`
 }
 
+// duplicate with get appliation timeline
 type RevertApplicationStatusRequest struct {
 	ID string `json:"id"`
 }
@@ -126,6 +135,7 @@ type RevertApplicationStatusRequest struct {
 type Handler struct {
 	FirestoreClient *firestore.Client
 	algoliaClient   *search.APIClient
+	bigQueryClient *bigquery.Client
 	pubsubTopic     *pubsub.Topic
 	orderingKey     string
 }
@@ -133,12 +143,14 @@ type Handler struct {
 func NewHandler(
 	firestoreClient *firestore.Client,
 	algoliaClient *search.APIClient,
+	bigQueryClient *bigquery.Client,
 	pubsubTopic *pubsub.Topic,
 	orderingKey string,
 ) *Handler {
 	return &Handler{
 		FirestoreClient: firestoreClient,
 		algoliaClient:   algoliaClient,
+		bigQueryClient: bigQueryClient,
 		pubsubTopic:     pubsubTopic,
 		orderingKey:     orderingKey,
 	}
@@ -153,6 +165,7 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/user/editApplication", h.EditApplication).Methods("POST").Name("editApplication")
 	router.HandleFunc("/user/deleteUser", h.DeleteUser).Methods("POST").Name("deleteUser")
 	router.HandleFunc("/user/revertStatus", h.RevertStatus).Methods("POST").Name("revertStatus")
+	router.HandleFunc("/user/getApplicationTimeline", h.GetApplicationTimeline).Methods("POST").Name("getApplicationTimeline")
 }
 
 func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
@@ -866,6 +879,104 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	log.Println("User deleted")
 
 	w.WriteHeader(http.StatusOK)
+}
+
+
+func (h *Handler) GetApplicationTimeline(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] GetApplicationTimeline [*]")
+	log.Println("-----------------")
+
+	email, err := auth.IsAuthenticated(r)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	log.Println("User authenticated")
+
+	// duplicate request data as RevertApplicationStatusRequest
+	// because we only need the jobID
+	var getApplicationTimelineRequest RevertApplicationStatusRequest
+	err = json.NewDecoder(r.Body).Decode(&getApplicationTimelineRequest)
+	if err != nil {
+		http.Error(w, "Error decoding request body", http.StatusBadRequest)
+		return
+	}
+
+	jobID := getApplicationTimelineRequest.ID
+
+	q := h.bigQueryClient.Query(`
+		SELECT operationID, operation, status, event_time
+		FROM applications_data.applications
+		WHERE email = @email
+		AND jobID = @jobID
+		ORDER BY event_time DESC
+	`)
+	q.Parameters = []bigquery.QueryParameter{
+		{Name: "email", Value: email},
+		{Name: "jobID", Value: jobID},
+	}
+
+	job, err := q.Run(r.Context())
+	if err != nil {
+		fmt.Printf("Error getting timeline: %v\n", err)
+		http.Error(w, "Error getting timeline", http.StatusInternalServerError)
+		return
+	}
+
+	status, err := job.Wait(r.Context())
+	if err != nil {
+		fmt.Printf("Error getting timeline: %v\n", err)
+		http.Error(w, "Error getting timeline", http.StatusInternalServerError)
+		return
+	}
+	if err := status.Err(); err != nil {
+		fmt.Printf("Job completed with erorr: %v\n", err)
+		http.Error(w, "Job completed with error", http.StatusInternalServerError)
+		return
+	}
+
+
+	it, err := job.Read(r.Context())
+	if err != nil {
+		fmt.Printf("Error reading timeline: %v\n", err)
+		http.Error(w, "Error reading timeline", http.StatusInternalServerError)
+		return
+	}
+
+	type Row struct {
+		OperationID string `bigquery:"operationID"`
+		Operation   string `bigquery:"operation"`
+		Status      string `bigquery:"status"`
+		EventTime   time.Time `bigquery:"event_time"`
+	}
+
+	var rows []Operation
+
+	for {
+		var row Row
+		err := it.Next(&row)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			fmt.Printf("Error iterating timeline: %v\n", err)
+			http.Error(w, "Error iterating timeline", http.StatusInternalServerError)
+			return
+		}
+		rows = append(rows, Operation{
+			OperationID: row.OperationID,
+			Operation:   row.Operation,
+			Status:      row.Status,
+			EventTime:   row.EventTime,
+		})
+	}
+
+	log.Println("Timeline extracted")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(rows)
 }
 
 // publishes to both algolia and bigquery topics
