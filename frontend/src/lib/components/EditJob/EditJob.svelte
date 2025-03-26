@@ -8,7 +8,6 @@
 
     import {
         formatDateForInput,
-        convertLocalDateToTimestamp,
     } from "$lib/utils/date";
 
     export let objectID: string;
@@ -38,6 +37,9 @@
         const response = await fetch(`/dashboard?/delete`, {
             method: "POST",
             body: formData,
+            headers: {
+		        'x-sveltekit-action': 'true'
+	        }
         });
 
         const res = await response.json();
@@ -88,12 +90,6 @@
                                 role: formData.get("role") || role,
                                 location: formData.get("location") || location,
                                 link: formData.get("link") || link,
-                                // if appliedDate not set, use current value. else, convert to timestamp
-                                appliedDate: formData.get("appliedDate")
-                                    ? convertLocalDateToTimestamp(
-                                          formData.get("appliedDate") as string
-                                      )
-                                    : appliedDate,
                                 status: formData.get("status") || status,
                             };
 

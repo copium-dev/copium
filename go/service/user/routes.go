@@ -43,6 +43,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/bigquery"
 	"github.com/gorilla/mux"
 	"google.golang.org/api/iterator"
 
@@ -68,6 +69,13 @@ type Application struct {
 	AppliedDate int64  `json:"appliedDate"`
 	Status      ApplicationStatus `json:"status"`
 	Link        string `json:"link"`
+}
+
+type Operation struct {
+	OperationID string `json:"operationID"`
+	Operation   string `json:"operation"`
+	Status      string `json:"status"`
+	EventTime   time.Time  `json:"event_time"`
 }
 
 type DashboardResponse struct {
@@ -109,23 +117,27 @@ type EditApplicationRequest struct {
 	Role           string `json:"role"`
 	Company        string `json:"company"`
 	Location       string `json:"location"`
-	AppliedDate    int64  `json:"appliedDate"`
 	Link           string `json:"link"`
 	OldRole        string `json:"oldRole"`
 	OldCompany     string `json:"oldCompany"`
 	OldLocation    string `json:"oldLocation"`
 	OldLink        string `json:"oldLink"`
-	OldAppliedDate int64  `json:"oldAppliedDate"`
 	Status         ApplicationStatus `json:status`
 }
 
 type RevertApplicationStatusRequest struct {
+	OperationID string `json:"operationID"`
+	ID       string `json:"id"`
+}
+
+type ApplicationTimelineRequest struct {
 	ID string `json:"id"`
 }
 
 type Handler struct {
 	FirestoreClient *firestore.Client
 	algoliaClient   *search.APIClient
+	bigQueryClient *bigquery.Client
 	pubsubTopic     *pubsub.Topic
 	orderingKey     string
 }
@@ -133,12 +145,14 @@ type Handler struct {
 func NewHandler(
 	firestoreClient *firestore.Client,
 	algoliaClient *search.APIClient,
+	bigQueryClient *bigquery.Client,
 	pubsubTopic *pubsub.Topic,
 	orderingKey string,
 ) *Handler {
 	return &Handler{
 		FirestoreClient: firestoreClient,
 		algoliaClient:   algoliaClient,
+		bigQueryClient: bigQueryClient,
 		pubsubTopic:     pubsubTopic,
 		orderingKey:     orderingKey,
 	}
@@ -153,6 +167,7 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/user/editApplication", h.EditApplication).Methods("POST").Name("editApplication")
 	router.HandleFunc("/user/deleteUser", h.DeleteUser).Methods("POST").Name("deleteUser")
 	router.HandleFunc("/user/revertStatus", h.RevertStatus).Methods("POST").Name("revertStatus")
+	router.HandleFunc("/user/getApplicationTimeline", h.GetApplicationTimeline).Methods("POST").Name("getApplicationTimeline")
 }
 
 func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
@@ -493,10 +508,44 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	// to reduce amount of reads in this single request, decrement applicationCount AFTER verifying publish success
 	// this means we don't have to revert applicationCount on top of reverting the delete operation. this DOES
 	// introduce small window of inconsistency but this is reducing costs and reducing complexity
-	userDoc := h.FirestoreClient.Collection("users").Doc(email)
-	_, err = userDoc.Update(r.Context(), []firestore.Update{
-		{Path: "applicationsCount", Value: firestore.Increment(-1)},
-		{Path: fmt.Sprintf("%s_count", strings.ToLower(string(deleteApplicationRequest.Status))), Value: firestore.Increment(-1)},
+	// transaction is used to ensure that if an increment fails, decrement wont happen and vice versa
+	err = h.FirestoreClient.RunTransaction(r.Context(), func(ctx context.Context, tx *firestore.Transaction) error {
+		userDoc := h.FirestoreClient.Collection("users").Doc(email)
+		doc, err := tx.Get(userDoc)
+		if err != nil {
+			return err
+		}
+		
+		statusCount := 0
+		countKey := fmt.Sprintf("%s_count", strings.ToLower(string(deleteApplicationRequest.Status)))
+		if val, exists := doc.Data()[countKey]; exists {
+			if count, ok := val.(int64); ok {
+				statusCount = int(count)
+			}
+		}
+
+		applicationsCount := 0
+		if val, exists := doc.Data()["applicationsCount"]; exists {
+			if count, ok := val.(int64); ok {
+				applicationsCount = int(count)
+			}
+		}
+
+		var updates []firestore.Update
+
+		if applicationsCount > 0 {
+			updates = append(updates, firestore.Update{
+				Path: "applicationsCount", Value: firestore.Increment(-1),
+			})
+		}
+		
+		if statusCount > 0 {
+			updates = append(updates, firestore.Update{
+				Path: countKey, Value: firestore.Increment(-1),
+			})
+		}
+		
+		return tx.Update(userDoc, updates)
 	})
 	if err != nil {
 		fmt.Printf("Error updating applications count: %v\n", err)
@@ -548,11 +597,6 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 			Path:  "status",
 			Value: newStatus,
 		},
-		// save previous status for revert operation
-		{
-			Path: "prevStatus",
-			Value: EditApplicationStatusRequest.OldStatus,
-		},
 	})
 	if err != nil {
 		fmt.Printf("Error editing application: %v\n", err)
@@ -563,11 +607,11 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	log.Println("Application status edited")
 
 	message := map[string]interface{}{
-		"operation":   "edit",
+		"operation":   "editStatus",
 		"email":       email,
 		"objectID":    applicationID,
 		"status":      newStatus,
-		"appliedDate": appliedDate,
+		"appliedDate": appliedDate,	// just to satisfy BigQuery schema
 		// since appliedDate is always using noon as the time, we need to ensure
 		// that the timestamp sent to PubSub is always at or after noon. this is because
 		// a user can edit status of an application at 11:59 AM and the appliedDate is 12:00 PM
@@ -603,10 +647,36 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	// to reduce amount of reads in this single request, update status count AFTER verifying publish success
 	// this means we don't have to revert status count on top of reverting the edit operation. this DOES
 	// introduce small window of inconsistency but this is reducing costs and reducing complexity
-	userDoc := h.FirestoreClient.Collection("users").Doc(email)
-	_, err = userDoc.Update(r.Context(), []firestore.Update{
-		{Path: fmt.Sprintf("%s_count", strings.ToLower(string(newStatus))), Value: firestore.Increment(1)},
-		{Path: fmt.Sprintf("%s_count", strings.ToLower(string(EditApplicationStatusRequest.OldStatus))), Value: firestore.Increment(-1)},
+	// transaction is used to ensure that if an increment fails, decrement wont happen and vice versa
+	err = h.FirestoreClient.RunTransaction(r.Context(), func(ctx context.Context, tx *firestore.Transaction) error {
+		userDoc := h.FirestoreClient.Collection("users").Doc(email)
+		doc, err := tx.Get(userDoc)
+		if err != nil {
+			return err
+		}
+		
+		// get old status count
+		oldStatusCount := 0
+		countKey := fmt.Sprintf("%s_count", strings.ToLower(string(EditApplicationStatusRequest.OldStatus)))
+		if val, exists := doc.Data()[countKey]; exists {
+			if count, ok := val.(int64); ok {
+				oldStatusCount = int(count)
+			}
+		}
+
+		// no block for new status count because it will always be incremented
+		updates := []firestore.Update{
+			{Path: fmt.Sprintf("%s_count", strings.ToLower(string(newStatus))), Value: firestore.Increment(1)},
+		}
+		
+		// only decrement old status count if it was greater than 0
+		if oldStatusCount > 0 {
+			updates = append(updates, firestore.Update{
+				Path: countKey, Value: firestore.Increment(-1),
+			})
+		}
+		
+		return tx.Update(userDoc, updates)
 	})
 	if err != nil {
 		fmt.Printf("Error updating status count: %v\n", err)
@@ -647,7 +717,7 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	// NOTE: the EditApplicationRequest struct's fields are still required for the publish message
 	// and possible rollbacks, so frontend cannot make the optimization of what to send
 	changedFields := make(map[string]interface{}, 0)
-	
+
 	// no loops or function calls to reduce memory overhead, big ugly if statements
 	if editApplicationRequest.Role != editApplicationRequest.OldRole {
 		changedFields["role"] = editApplicationRequest.Role
@@ -660,9 +730,6 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	}
 	if editApplicationRequest.Link != editApplicationRequest.OldLink {
 		changedFields["link"] = editApplicationRequest.Link
-	}
-	if editApplicationRequest.AppliedDate != editApplicationRequest.OldAppliedDate {
-		changedFields["appliedDate"] = editApplicationRequest.AppliedDate
 	}
 	
 	if len(changedFields) == 0 {
@@ -688,15 +755,17 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Application edited")
 
+	// bigquery does nothing on application edits, only status changes
+	// this is why we need a diffentiating operation for application edits
+	// is this wasted data transfer? yea... but its not a lot of data and
+	// not worth setting up different messaging pipeline when just one operation is not supported by BigQuery
 	message := map[string]interface{}{
-		"operation":   "edit",
+		"operation":   "editApplication",
 		"email":       email,
-		"appliedDate": editApplicationRequest.AppliedDate,
 		"company":     editApplicationRequest.Company,
 		"link":        editApplicationRequest.Link,
 		"location":    editApplicationRequest.Location,
 		"role":        editApplicationRequest.Role,
-		"status":      editApplicationRequest.Status, // status is only sent to satisfy bigquery schema
 		"objectID":    applicationID,
 		"timestamp":   time.Now().Add(12 * time.Hour).Unix(),
 	}
@@ -712,7 +781,6 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 			{Path: "company", Value: editApplicationRequest.OldCompany},
 			{Path: "location", Value: editApplicationRequest.OldLocation},
 			{Path: "link", Value: editApplicationRequest.OldLink},
-			{Path: "appliedDate", Value: editApplicationRequest.OldAppliedDate},
 		})
 		if err != nil {
 			fmt.Printf("Error reverting application: %v\n", err)
@@ -754,64 +822,142 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// two cases:
+	// 1: operation is most recent (get from BigQuery); we have to update Algolia and Firestore to the previous status
+	//	  compensating transaction is needed here because latest state may have changed
+	// 2: operation not most recent; simply flag the operation as "reverted" in BigQuery. Algolia and Firestore still have most recent status
+	//	  compensating transaction is not needed here because latest state never changed
+	operationID := revertApplicationStatusRequest.OperationID
 	jobID := revertApplicationStatusRequest.ID
 
-	// extract status and prevStatus from Firestore. We need current status for compensating transaction
-	docSnapshot, err := h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Get(r.Context())
+	// get the two max event times; the first is to determine if case 2, the second is to revert if case 1
+	q := h.bigQueryClient.Query(`
+		SELECT operationID, status, event_time, operation
+		FROM applications_data.applications
+		WHERE email = @email
+		AND jobID = @jobID
+		AND operation NOT IN ('revert', 'add') -- cannot revert a revert or an add
+		ORDER BY event_time DESC
+		LIMIT 2
+	`)
+	q.Parameters = []bigquery.QueryParameter{
+		{Name: "email", Value: email},
+		{Name: "jobID", Value: jobID},
+	}
+
+	job, err := q.Run(r.Context())
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
-		return
-	}
-
-	doc := docSnapshot.Data()
-
-	prevStatus, exists := doc["prevStatus"]
-	if !exists {
-		fmt.Printf("Error: %v\n", err)
-		http.Error(w, "Error reverting status", http.StatusInternalServerError)
-		return
-	}
-	
-	status, exists := doc["status"]
-	if !exists {
-		fmt.Printf("Error: %v\n", err)
+		fmt.Printf("Error getting max event time: %v\n", err)
 		http.Error(w, "Error reverting status", http.StatusInternalServerError)
 		return
 	}
 
-	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Update(r.Context(), []firestore.Update{
-		{Path: "status", Value: prevStatus},
-		// remove old status to prevent infinite revert loops
-		{Path: "prevStatus", Value: firestore.Delete},
-	})
+	_, err = job.Wait(r.Context())
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		fmt.Printf("Error getting max event time: %v\n", err)
 		http.Error(w, "Error reverting status", http.StatusInternalServerError)
 		return
 	}
 
-	log.Println("Status reverted")
+	it, err := job.Read(r.Context())
+	if err != nil {
+		fmt.Printf("Error reading query results: %v\n", err)
+		http.Error(w, "Error reverting status", http.StatusInternalServerError)
+		return
+	}
 
-	// timestamp not needed because it will set the most recent event to "reverted"
-	// since we already prevent duplicate status updates and have a safeguard against double reverts,
-	// simply editing the most recent timestamp is perfectly fine
+	var latestOperationID string
+	var currStatus string	// just in case we need to rollback
+	var secondLatestOperationID string
+	var prevStatus string
+	rowCount := 0
+
+	for {
+		var row []bigquery.Value
+		err := it.Next(&row)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			fmt.Printf("Error getting max event time: %v\n", err)
+			http.Error(w, "Error reverting status", http.StatusInternalServerError)
+			return
+		}	
+
+		if rowCount == 0{
+			latestOperationID = row[0].(string)    
+			currStatus = row[1].(string)           
+		} else if rowCount == 1 {
+			secondLatestOperationID = row[0].(string)   
+			prevStatus = row[1].(string)          
+		}
+
+		rowCount++
+	}
+
+	// if there's no non-revert/add operations, can't revert
+	if rowCount <= 0 {
+		fmt.Printf("Error: Not enough operations to revert: %v\n", rowCount)
+		http.Error(w, "Not enough operations to revert", http.StatusBadRequest)
+		return
+	}
+
+	// ensure operationID is valid
+	operationExists := false
+	if latestOperationID == operationID || secondLatestOperationID == operationID {
+		operationExists = true
+	}
+
+	if !operationExists {
+		http.Error(w, "Operation not found", http.StatusNotFound)
+		return
+	}
+
+	var operation string
+
+	if latestOperationID != operationID {
+		// case 2: flag as reverted in BQ. Algolia and Firestore are already up to date
+		operation = "revert"
+		fmt.Println("Case 2: Reverting deeper in history -- only BigQuery needs to be updated")
+	} else {
+		// case 1: Firestore and Algolia need to be updated to previous status (secondLatestOperation)
+		operation = "revertLatest"
+		fmt.Println("Case 1: Reverting most recent operation -- Firestore and Algolia need to be updated as well")
+	}
+
+	if operation == "revertLatest" {
+		// try to revert status in Firestore
+		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Update(r.Context(), []firestore.Update{
+			{Path: "status", Value: prevStatus},
+		})
+		// failed to revert, don't send message. at this point we haven't done anything
+		// to other services so we can just return an error
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			http.Error(w, "Error reverting status", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	log.Println("Status reverted in Firestore, continuing to publish message")
+
 	message := map[string]interface{}{
-		"operation": "revert",
+		"operation": operation,
 		"email":     email,
 		"objectID":  jobID,
+		"operationID": operationID,
 		"status":    prevStatus,
 	}
 
 	err = h.publishMessage(message)
-	if err != nil {
+	// revertLatest is a special case -- need to revert Firestore status if publish fails
+	if err != nil && operation == "revertLatest" {
 		// revert status if publish fails
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Update(ctx, []firestore.Update{
-			{Path: "status", Value: status},
-			{Path: "prevStatus", Value: prevStatus},
+			{Path: "status", Value: currStatus},
 		})
 		if err != nil {
 			fmt.Printf("Error reverting application: %v\n", err)
@@ -824,8 +970,56 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("RevertStatus success")
-	// note: frontend has no way to access previous state
-	// so, when user clicks revert we need to refresh on ok instead of optimistic UI
+	// finally, we can decrement status counts (only if we're reverting latest operation
+	// remember: we store latest status in Firestore. so, if we're reverting latest operation,
+	// we need to increment the number of prevStatus and decrement the number of currStatus
+	// if reverting deep, nothing to do because Firestore only stores latest state
+	if operation == "revertLatest" {
+		log.Println("Latest operation reverted, decrementing/incrementing status counts")
+		// run a transaction to ensure consistency in decrementing/incrementing status counts
+		err = h.FirestoreClient.RunTransaction(r.Context(), func(ctx context.Context, tx *firestore.Transaction) error {
+			userDoc := h.FirestoreClient.Collection("users").Doc(email)
+			doc, err := tx.Get(userDoc)
+			if err != nil {
+				return err
+			}
+			
+			currentStatusCount := 0
+			currentCountKey := fmt.Sprintf("%s_count", strings.ToLower(currStatus))
+			if val, exists := doc.Data()[currentCountKey]; exists {
+				if count, ok := val.(int64); ok {
+					currentStatusCount = int(count)
+				}
+			}
+			
+			// no blocking on incrementing previous state
+			updates := []firestore.Update{
+				{Path: fmt.Sprintf("%s_count", strings.ToLower(prevStatus)), Value: firestore.Increment(1)},
+			}
+			
+			// only decrement if current status count > 0
+			if currentStatusCount > 0 {
+				updates = append(updates, firestore.Update{
+					Path: currentCountKey, Value: firestore.Increment(-1),
+				})
+			}
+			
+			return tx.Update(userDoc, updates)
+		})
+		if err != nil {
+			fmt.Printf("Error updating status count: %v\n", err)
+			http.Error(w, "Error updating status count", http.StatusInternalServerError)
+			return
+		}
+
+		// if latest status decrement, send to frontend for optimistic ui
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": prevStatus,
+		})
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -866,6 +1060,103 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	log.Println("User deleted")
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) GetApplicationTimeline(w http.ResponseWriter, r *http.Request) {
+	log.Println("[*] GetApplicationTimeline [*]")
+	log.Println("-----------------")
+
+	email, err := auth.IsAuthenticated(r)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	log.Println("User authenticated")
+
+
+	var getApplicationTimelineRequest ApplicationTimelineRequest
+	err = json.NewDecoder(r.Body).Decode(&getApplicationTimelineRequest)
+	if err != nil {
+		http.Error(w, "Error decoding request body", http.StatusBadRequest)
+		return
+	}
+
+	jobID := getApplicationTimelineRequest.ID
+
+	q := h.bigQueryClient.Query(`
+		SELECT operationID, operation, status, event_time
+		FROM applications_data.applications
+		WHERE email = @email
+		AND jobID = @jobID
+		AND operation != 'revert'
+		ORDER BY event_time DESC
+	`)
+	q.Parameters = []bigquery.QueryParameter{
+		{Name: "email", Value: email},
+		{Name: "jobID", Value: jobID},
+	}
+
+	job, err := q.Run(r.Context())
+	if err != nil {
+		fmt.Printf("Error getting timeline: %v\n", err)
+		http.Error(w, "Error getting timeline", http.StatusInternalServerError)
+		return
+	}
+
+	status, err := job.Wait(r.Context())
+	if err != nil {
+		fmt.Printf("Error getting timeline: %v\n", err)
+		http.Error(w, "Error getting timeline", http.StatusInternalServerError)
+		return
+	}
+	if err := status.Err(); err != nil {
+		fmt.Printf("Job completed with erorr: %v\n", err)
+		http.Error(w, "Job completed with error", http.StatusInternalServerError)
+		return
+	}
+
+
+	it, err := job.Read(r.Context())
+	if err != nil {
+		fmt.Printf("Error reading timeline: %v\n", err)
+		http.Error(w, "Error reading timeline", http.StatusInternalServerError)
+		return
+	}
+
+	type Row struct {
+		OperationID string `bigquery:"operationID"`
+		Operation   string `bigquery:"operation"`
+		Status      string `bigquery:"status"`
+		EventTime   time.Time `bigquery:"event_time"`
+	}
+
+	var rows []Operation
+
+	for {
+		var row Row
+		err := it.Next(&row)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			fmt.Printf("Error iterating timeline: %v\n", err)
+			http.Error(w, "Error iterating timeline", http.StatusInternalServerError)
+			return
+		}
+		rows = append(rows, Operation{
+			OperationID: row.OperationID,
+			Operation:   row.Operation,
+			Status:      row.Status,
+			EventTime:   row.EventTime,
+		})
+	}
+
+	log.Println("Timeline extracted")
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(rows)
 }
 
 // publishes to both algolia and bigquery topics

@@ -72,14 +72,18 @@ func (j *Job) Process(ctx context.Context) error {
 	var err error
 
 	switch j.Operation {
-	case "add", "edit":
+	case "add", "editStatus":
 		err = j.appendJob(ctx)
 	case "delete":
 		err = j.deleteJob(ctx)
 	case "userDelete":
 		err = j.deleteUser(ctx)
-	case "revert": 
+	// no need to differentiate revert & revertLatest; they both send the UUID
+	case "revert", "revertLatest":
 		err = j.revert(ctx)
+	case "editApplication":
+		log.Println("BigQuery does not support editApplication, doing nothing")
+		return nil
 	default:
 		err = fmt.Errorf("unknown operation: %s", j.Operation)
 	}
@@ -125,6 +129,10 @@ func (j *Job) appendJob(ctx context.Context) error {
 			@operation
 		)
 	`)
+	if j.Operation == "editStatus" {
+		j.Operation = "edit"
+	}
+	
 	q.Parameters = []bigquery.QueryParameter{
 		{Name: "operationID", Value: uuid.New().String()},
 		{Name: "email", Value: j.Data["email"]},
@@ -225,16 +233,12 @@ func (j *Job) revert(ctx context.Context) error {
 		SET operation = 'revert'
 		WHERE email = @email
 		AND jobID = @jobID
-		AND event_time = (
-			SELECT MAX(event_time) 
-			FROM applications_data.applications
-			WHERE email = @email
-			AND jobID = @jobID
-		)
+		AND operationID = @operationID
 	`)
 	q.Parameters = []bigquery.QueryParameter{
 		{Name: "email", Value: j.Data["email"]},
 		{Name: "jobID", Value: j.Data["objectID"]},
+		{Name: "operationID", Value: j.Data["operationID"]},
 	}
 
 	job, err := q.Run(ctx)
@@ -288,28 +292,19 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 			AND operation != 'revert'
 		),
 
-		-- latest applied date must be separate from JobMetrics (window functions cannot be nested within aggregate functions)
-		LatestAppliedDates AS (
-			SELECT
-				jobID,
-				MAX(applied_date) AS latest_applied_date
-			FROM UserApplications
-			GROUP BY jobID
-		),
-
 		-- calculate avg time to first response 
+		-- as of 2025 Mar 26, we do not allow user to edit appliedDate. No more CTE for using latest applied date
 		ResponseMetrics AS (
 			SELECT
-				l.jobID,
-				l.latest_applied_date,
+				ua.jobID,
+				ua.applied_date,
 				MIN(CASE 
-					WHEN ua.is_response AND ua.event_time > l.latest_applied_date
-					THEN TIMESTAMP_DIFF(ua.event_time, l.latest_applied_date, DAY)
+					WHEN ua.is_response AND ua.event_time > ua.applied_date
+					THEN TIMESTAMP_DIFF(ua.event_time, ua.applied_date, DAY)
 					ELSE NULL
 				END) AS days_to_response
-			FROM LatestAppliedDates l
-			JOIN UserApplications ua ON l.jobID = ua.jobID
-			GROUP BY l.jobID, l.latest_applied_date
+			FROM UserApplications ua
+			GROUP BY ua.jobID, ua.applied_date
 		),
 
 		-- get monthly trends in # apps sent, # interview, # offer
@@ -365,27 +360,27 @@ func (j *Job) recalculateAnalytics(ctx context.Context) (map[string]interface{},
 			-- scalar subqueries can only have one column so separate into multiple
 			(SELECT
 				AVG(CASE
-						WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+						WHEN applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
 						THEN days_to_response
 						ELSE NULL
 					END)
 			FROM ResponseMetrics) AS current_30day_avg_response_time,
 			(SELECT
 				AVG(CASE
-						WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
-						AND latest_applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+						WHEN applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+						AND applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
 						THEN days_to_response
 						ELSE NULL
 					END)
 			FROM ResponseMetrics) AS previous_30day_avg_response_time,
 			(SELECT
 				AVG(CASE
-						WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+						WHEN applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
 						THEN days_to_response
 						ELSE NULL
 					END) - 
-				AVG(CASE WHEN latest_applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
-						AND latest_applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+				AVG(CASE WHEN applied_date >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+						AND applied_date < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
 						THEN days_to_response
 						ELSE NULL 
 					END)

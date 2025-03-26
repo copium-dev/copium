@@ -92,6 +92,12 @@ export const actions = {
             body: JSON.stringify(data)
         });
 
+        if (!response.ok) {
+            return {
+                type: 'failure',
+            };
+        }
+
         const json = await response.json();
 
         const objectID = json.objectID;
@@ -101,12 +107,6 @@ export const actions = {
         const location = formData.get('location') as string;
         const role = formData.get('role') as string;
         const status = 'Applied';
-
-        if (!response.ok) {
-            return {
-                type: 'failure',
-            };
-        }
 
         return {
             type: 'success',
@@ -159,7 +159,9 @@ export const actions = {
             id: formData.get('id'),
             status: formData.get('status'),
             oldStatus: formData.get('oldStatus'),
-            // already unix timestamp so no need to parse
+            // already unix timestamp so no need to parse, only sent to satisfy BigQuery schema which requires
+            // the appliedDate for some of the analytics. user is not allowed to edit this field whatsoever because
+            // of the absolute pain it brings to everything by having to check if this is the latest appliedDate or not
             appliedDate: Number(formData.get('appliedDate')),
         }
 
@@ -225,7 +227,8 @@ export const actions = {
     revert: async({ request, fetch, locals }) => {
         const formData = await request.formData();
         const body = {
-            id: formData.get('id')
+            id: formData.get('id'),
+            operationID: formData.get('operationID')
         }
 
         const response = await fetch(`${BACKEND_URL}/user/revertStatus`, {
@@ -243,8 +246,11 @@ export const actions = {
             };
         }
 
+        const json = await response.json();
+
         return {
-            type: 'success'
+            type: 'success',
+            newStatus: json.status,
         }
-    }
+    },
 } satisfies Actions;

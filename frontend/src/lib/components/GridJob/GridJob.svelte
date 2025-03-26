@@ -44,6 +44,9 @@
         const response = await fetch(`/dashboard?/editstatus`, {
             method: "POST",
             body: formData,
+            headers: {
+		        'x-sveltekit-action': 'true'
+	        }
         });
 
         const res = await response.json();
@@ -68,6 +71,9 @@
         const response = await fetch(`/dashboard?/delete`, {
             method: "POST",
             body: formData,
+            headers: {
+		        'x-sveltekit-action': 'true'
+	        }
         });
 
         const res = await response.json();

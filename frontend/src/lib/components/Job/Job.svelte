@@ -6,15 +6,16 @@
     import { Map } from "lucide-svelte";
     import { Calendar } from "lucide-svelte";
 
-    import { Button } from "$lib/components/ui/button";
+    import { Button, buttonVariants } from "$lib/components/ui/button";
     import { Separator } from "$lib/components/ui/separator";
+    import { badgeVariants } from "$lib/components/ui/badge";
     import { Progress } from "$lib/components/ui/progress/index.js";
-    import * as AlertDialog from "$lib/components/ui/alert-dialog";
     import { toast } from "svelte-sonner";
     import { Toaster } from "$lib/components/ui/sonner/index.js";
+    import * as AlertDialog from "$lib/components/ui/alert-dialog";
+    import * as Dialog from "$lib/components/ui/dialog";
 
     import { formatDateForDisplay } from "$lib/utils/date";
-    import { statusUpdateStore } from "$lib/stores/statusUpdateStore"
 
     import { BriefcaseBusiness } from "lucide-svelte";
     import { PUBLIC_LOGO_KEY } from "$env/static/public";
@@ -28,44 +29,6 @@
     export let link: string | undefined | null;
     export let visible: boolean;
 
-    // use in parent component to update status of application
-    export async function revertStatus() {
-        const formData = new FormData();
-        formData.append("id", objectID);
-
-        // if revert returns ok, do optimistic UI from the store
-        const response = await fetch(`/dashboard?/revert`, {
-            method: "POST",
-            body: formData,
-        });
-
-        const res = await response.json();
-
-        if (res.type === "failure") {
-            console.error("Failed to revert status");
-
-            setTimeout(() => {
-                toast.error("Could not revert status");
-            }, 10);
-
-        } else {
-            console.log("Status reverted successfully");
-
-            // optimistic UI
-            status = $statusUpdateStore.prevStatus;
-            value = statusValues[status];
-
-            statusUpdateStore.set({
-                ok: false,
-                jobID: '',
-                status: '',
-                prevStatus: '',
-                role: '',
-                company: '',
-            });
-        }
-    }
-
     const statusValues: Record<string, number> = {
         Rejected: 10.75,
         Ghosted: 26,
@@ -74,6 +37,37 @@
         Interviewing: 74,
         Offer: 100,
     };
+
+    async function revertStatus(operationID: string) {
+        const formData = new FormData();
+        formData.append("id", objectID);
+        formData.append("operationID", operationID);
+
+        const response = await fetch(`/dashboard/revert`, {
+            method: "POST",
+            body: formData,
+        });
+
+        const res = await response.json();
+
+        if (res.type === "failure") {
+            console.error("Failed to revert status");
+            setTimeout(() => {
+                toast.error("Failed to revert status");
+            }, 10);
+
+        } else {
+            console.log("Status reverted successfully");
+            setTimeout(() => {
+                toast.success("Status reverted successfully");
+            }, 10);
+            // backend sends the new status after revert for optimistic ui
+            status = res.data;
+            if (status) {
+                value = statusValues[status];
+            }
+        }
+    }
 
     async function updateStatus(newStatus: keyof typeof statusValues) {
         // for better UX, update value before fetch
@@ -88,6 +82,9 @@
         const response = await fetch(`/dashboard?/editstatus`, {
             method: "POST",
             body: formData,
+            headers: {
+		        'x-sveltekit-action': 'true'
+	        }
         });
 
         const res = await response.json();
@@ -96,27 +93,6 @@
             console.error("Failed to update application");
         } else {
             console.log("Application updated successfully");
-
-            // store used to display toast notification
-            // '{role} at {company} status updated from {prevStatus} to {status}, click to undo'
-            statusUpdateStore.set({
-                ok: true,
-                jobID: objectID,
-                status: newStatus,
-                prevStatus: status, 
-                role: role,
-                company: company,
-            });
-
-            // slight delay to ensure that this renders
-            setTimeout(() => {
-                toast.success(`${role} at ${company} status updated to ${newStatus}, click below to undo`, {
-                    action: {
-                        label: "Undo",
-                        onClick: revertStatus,
-                    },
-                });
-            }, 10);
         }
     }
 
@@ -133,6 +109,9 @@
         const response = await fetch(`/dashboard?/delete`, {
             method: "POST",
             body: formData,
+            headers: {
+		        'x-sveltekit-action': 'true'
+	        }
         });
 
         const res = await response.json();
@@ -180,13 +159,32 @@
         role = updatedJob.role;
         location = updatedJob.location;
         link = updatedJob.link;
-        appliedDate = updatedJob.appliedDate;
         status = updatedJob.status;
         value = statusValues[status];
 
         if (companyChanged) {
             console.log("Company changed, fetching new logo");
             fetchLogo(updatedJob.company);
+        }
+    }
+
+    async function showTimeline() {
+        const formData = new FormData();
+        formData.append("id", objectID);
+
+        const response = await fetch(`/dashboard/timeline`, { 
+            method: "POST",
+            body: formData,
+        });
+
+        // i was going crazy at gpt and claude and gemini for hours but a 30s google search fixed it. never using llms again lol
+        // the problem was because I was using +page.server.ts for this instead of a +server.ts file. HOLY FUCK BRO LMFAO
+        // https://stackoverflow.com/questions/74966175/sveltekit-actions-returns-garbled-json
+        const res = await response.json();
+        if (res.type === "failure") {
+            console.error("Failed to get application timeline");
+        } else if (res.type === "success") {
+            timeline = res.data || [];
         }
     }
 
@@ -198,6 +196,7 @@
 
     let value = statusValues[status];
     let imgSrc: string | null = null;
+    let timeline: any;
 </script>
 
 {#if visible}
@@ -269,21 +268,69 @@
                     <div
                         class="flex flex-row sm:flex-col items-center sm:items-baseline gap-1 px-0 sm:px-5 w-[384px] sm:w-[300px]"
                     >
-                        <p class="flex items-end w-full truncate">
-                            {#if link}
-                                <a
-                                    href={link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="hover:underline truncate text-md font-medium"
-                                    >{role}</a
+                        <div class="flex flex-row items-center w-full gap-4 sm:gap-0 justify-stretch">
+                            <p class="flex items-center sm:w-full truncate">
+                                {#if link}
+                                    <a
+                                        href={link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="hover:underline truncate text-md font-medium p-0"
+                                        >{role}</a
+                                    >
+                                {:else}
+                                    <span class="truncate text-md font-medium p-0"
+                                        >{role}</span
+                                    >
+                                {/if}
+                            </p>
+                            <Dialog.Root>
+                                <Dialog.Trigger
+                                    class={badgeVariants({ variant: "default"}) + "text-xs"}
+                                    on:click={showTimeline}
                                 >
-                            {:else}
-                                <span class="truncate text-md font-medium"
-                                    >{role}</span
-                                >
-                            {/if}
-                        </p>
+                                    Timeline
+                                </Dialog.Trigger>
+                                <Dialog.Content>
+                                    <Dialog.Title>Timeline</Dialog.Title>
+                                    <Dialog.Description>
+                                        {#if timeline && timeline.length > 0}
+                                            <div class="space-y-3 my-4">
+                                                {#each timeline as event}
+                                                    <div class="border rounded p-3 bg-muted/30">
+                                                        <div class="flex justify-between">
+                                                            <div class="flex flex-col items-start gap-2">
+                                                                <span class="font-medium">{event.status}</span>
+                                                                <span class="font-medium">Action: {event.operation}</span>
+                                                            </div>
+                                                            <!-- IM SORRY THIS IS SO WEIRD BUT... remember that backend
+                                                             adds 12 hours to the event_time so we need to subtract 12 hours here -->
+                                                            <div class="flex flex-col items-end gap-2">
+                                                                <span class="text-xs text-muted-foreground">
+                                                                    {(() => {
+                                                                        const date = new Date(event.event_time);
+                                                                        date.setHours(date.getHours() - 12); // Subtract 12 hours to compensate
+                                                                        return date.toLocaleString();
+                                                                    })()}
+                                                                </span>
+                                                                <Button size="sm" on:click={() => revertStatus(event.operationID)}>
+                                                                    Revert
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                {/each}
+                                            </div>
+                                        {:else}
+                                            <p>Fetching timeline...</p>
+                                        {/if}
+                                    </Dialog.Description>
+                                    <Dialog.Close class={buttonVariants({ variant: "default" }) + " w-fit"}>
+                                       Close
+                                    </Dialog.Close>
+                                </Dialog.Content>
+                            </Dialog.Root>
+                        </div>
                         <p
                             class="flex flex-row items-end text-xs gap-1 h-full w-full"
                         >

@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ fetch, locals }) => {
     }
 
     const data = await response.json();
-    
+
     return {
         email: data.email,
         applicationsCount: data.applicationsCount,

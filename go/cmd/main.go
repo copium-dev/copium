@@ -11,59 +11,30 @@ import (
     "github.com/copium-dev/copium/go/utils"
 
 	"cloud.google.com/go/pubsub"
-    firebase "firebase.google.com/go"
+	firebase "firebase.google.com/go"
+	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/firestore"
     "google.golang.org/api/option"
 
 	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
 )
 
 func main() {
-
     // initialize firestore; use service account credentials so nothing to do
-    ctx := context.Background()
-    
-    conf := &firebase.Config{
-        ProjectID: "jtrackerkimpark",
-    }       
-    
-    // create firestore emulator connection (in prod we can literally just delete this if statement and it
-    // will connect to prod firestore instance)
-    // BEFORE RUNNING `go run cmd/main.go`:
-    // 1. cd into `go/`
-    // 2. run `firebase emulators:start` (starts firestore emulator on localhost:8080)
-    // 3. open firestore emulator UI and add `users` collection
-    // 4. open another terminal and cd into `go/`
-    // 5. run `export FIRESTORE_EMULATOR_HOST=localhost:8080`
-    //    - if windows, run `$env:FIRESTORE_EMULATOR_HOST="localhost:8080"`
-    // 6. run `go run cmd/main.go`
-    if firestoreEmulatorHost := os.Getenv("FIRESTORE_EMULATOR_HOST"); firestoreEmulatorHost != "" {
-        log.Printf("Connecting to Firestore emulator at %s", firestoreEmulatorHost)
-        conf.DatabaseURL = "http://" + firestoreEmulatorHost
-    } else {
-        log.Println("FIRESTORE_EMULATOR_HOST not set")
-    }
+	firestoreClient, err := initializeFirestoreClient()
+	if err != nil {
+		log.Fatal("Failed to initialize Firestore client: ", err)
+	}
+	defer firestoreClient.Close()
 
-    app, err := firebase.NewApp(ctx, conf)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    firestoreClient, err := app.Firestore(ctx)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    defer firestoreClient.Close()
-
-	// cloud run will provide PORT 8080 by default in env
-    port := os.Getenv("PORT")
-    if port == "" {
-        port = "8000"
-    }
-
-    log.Printf("Starting server on port %s", port)
-
+	// initialize auth handler
     authHandler := utils.NewAuthHandler()
+
+	// initialize bigquery client
+	bigQueryClient, err := initializeBigQueryClient()
+	if err != nil {
+		log.Fatal("Failed to initialize BigQuery client: ", err)
+	}
 
 	// initialize pubsub (two topics: `algolia` and `bigquery`)
 	// typically will be port 8085 
@@ -77,7 +48,6 @@ func main() {
 	// >>>> The first time you call Topic.Publish on a Topic, goroutines are started
 	// >>>> in the background. To clean up these goroutines, call Topic.Stop
 	defer applicationsTopic.Stop()
-
 	defer pubsubClient.Close()
 
 	// initialize algolia client (read-only)
@@ -88,10 +58,16 @@ func main() {
 
 	pubSubOrderingKey := os.Getenv("PUBSUB_ORDERING_KEY")
 
-    // temp: firestore emulator is on 8080 so use 8000 for API server
-    // in prod, use Google Cloud Run's default PORT env variable
-    // In main.go, modify your server initialization:
-	server := api.NewAPIServer(":" + port, firestoreClient, algoliaClient, authHandler, applicationsTopic, pubSubOrderingKey)
+
+	// cloud run will provide PORT 8080 by default in env
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "8000"
+    }
+
+    log.Printf("Starting server on port %s", port)
+
+	server := api.NewAPIServer(":" + port, firestoreClient, algoliaClient, bigQueryClient, authHandler, applicationsTopic, pubSubOrderingKey)
     if err := server.Run(); err != nil {
         log.Fatal(err)
     }
@@ -149,4 +125,43 @@ func initializePubSubClient() (*pubsub.Client, *pubsub.Topic, error) {
 	applicationsTopic.EnableMessageOrdering = true
 
     return pubsubClient, applicationsTopic, nil
+}
+
+func initializeBigQueryClient() (*bigquery.Client, error) {
+	// use service account credentials, no need to pass in anything
+	ctx := context.Background()
+	projectID := "jtrackerkimpark" // in prod, retrieve from env vars
+
+	client, err := bigquery.NewClient(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+func initializeFirestoreClient() (*firestore.Client, error) {
+    ctx := context.Background()
+	    
+    conf := &firebase.Config{
+        ProjectID: "jtrackerkimpark",
+    }       
+    
+	if firestoreEmulatorHost := os.Getenv("FIRESTORE_EMULATOR_HOST"); firestoreEmulatorHost != "" {
+        log.Printf("Connecting to Firestore emulator at %s", firestoreEmulatorHost)
+        conf.DatabaseURL = "http://" + firestoreEmulatorHost
+    } else {
+        log.Println("FIRESTORE_EMULATOR_HOST not set; using service account credentials, nothing to pass in")
+    }
+
+	app, err := firebase.NewApp(ctx, conf)
+    if err != nil {
+       return nil, err
+    }
+
+    firestoreClient, err := app.Firestore(ctx)
+    if err != nil {
+        return nil, err
+    }
+
+	return firestoreClient, nil
 }
