@@ -11,32 +11,23 @@ import (
 
 	"github.com/copium-dev/copium/go/utils"
 
-	"cloud.google.com/go/firestore"
 	"github.com/gorilla/mux"
 	"github.com/markbates/goth/gothic"
 	"github.com/golang-jwt/jwt/v5"
-	
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Handler struct {
-	AuthHandler     *utils.AuthHandler
-	firestoreClient *firestore.Client
+	authHandler *utils.AuthHandler
+	pgClient *pgxpool.Pool
+	frontendURL string
 }
 
-// initialize a new handler with an AuthHandler (implementation in utils/main.go) and Firestore client
-// authHandler parameter passed in from cmd/main.go
-//
-//	reason: gorilla/mux spins up a new goroutine for each request
-//	        so, we pass in the same AuthHandler to each handler to ensure global state is maintained
-func NewHandler(
-	firestoreClient *firestore.Client,
-	authHandler *utils.AuthHandler,
-) *Handler {
+func NewHandler(authHandler *utils.AuthHandler, pgClient *pgxpool.Pool, frontendURL string) *Handler {
 	return &Handler{
-		AuthHandler:     authHandler,
-		firestoreClient: firestoreClient,
+		authHandler: authHandler,
+		pgClient: pgClient,
+		frontendURL: frontendURL,
 	}
 }
 
@@ -56,16 +47,10 @@ func (h *Handler) Auth(w http.ResponseWriter, r *http.Request) {
 	provider := mux.Vars(r)["provider"]
 	r = r.WithContext(context.WithValue(r.Context(), "provider", provider))
 
-	// if the user is already authenticated, redirect them to their dashboard
-	frontendURL := os.Getenv("FRONTEND_URL")
-	if frontendURL == "" {
-		frontendURL = "http://localhost:5173"
-	}
-
 	user, err := IsAuthenticated(r)
 	if err == nil {
 		fmt.Println("user already authenticated", user)
-		http.Redirect(w, r, frontendURL + "/dashboard", http.StatusFound)
+		http.Redirect(w, r, h.frontendURL + "/dashboard", http.StatusFound)
 		return
 	}
 
@@ -103,39 +88,26 @@ func (h *Handler) AuthProviderCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// at this point, user is verified to be authed and we have
-	// 1. made a session (locally with gothic)
-	// 2. made a JWT (to send to frontend)
-
-	// check if user exists in Firestore
-	userExists, err := checkUserExists(user.Email, h.firestoreClient, r.Context())
+	// rpc call to postgres (on supabase) to create user and update login time
+	// note: QueryRow is used when we expect single row results
+	var success bool
+	err = h.pgClient.QueryRow(r.Context(), "SELECT service.login($1)", user.Email).Scan(&success)
 	if err != nil {
-		fmt.Println("Error checking if user exists:", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("Database error: %v", err)
+		http.Error(w, "Failed to create or update user", http.StatusInternalServerError)
 		return
 	}
 
-	if !userExists {
-		// add user to firestore (gmail document id)
-		// by default, firestore will create a new document if it doesnt exist
-		// no need to create a default application subcollection since it will be created on first add application request
-		_, err = h.firestoreClient.Collection("users").Doc(user.Email).Set(r.Context(), map[string]interface{}{
-			"email":             user.Email,
-			"applicationsCount": 0,
-		})
-		if err != nil {
-			fmt.Printf("Error adding user to Firestore: %v\n", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	if !success {
+		log.Println("Failed to create or update user")
+		http.Error(w, "Failed to create or update user", http.StatusInternalServerError)
+		return
 	}
 
-	frontendURL := os.Getenv("FRONTEND_URL")
-	if frontendURL == "" {
-		frontendURL = "http://localhost:5173"
-	}
+	log.Println("User created or updated successfully")
+	log.Println("-----------------")
 
-	http.Redirect(w, r, frontendURL + "/auth-complete?token=" + tokenString, http.StatusFound)
+	http.Redirect(w, r, h.frontendURL + "/auth-complete?token=" + tokenString, http.StatusFound)
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
@@ -149,13 +121,8 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r = r.WithContext(context.WithValue(r.Context(), "provider", provider))
-
-	frontendURL := os.Getenv("FRONTEND_URL")
-	if frontendURL == "" {
-		frontendURL = "http://localhost:5173"
-	}
 	
-	http.Redirect(w, r, frontendURL + "/logout-complete", http.StatusTemporaryRedirect)
+	http.Redirect(w, r, h.frontendURL + "/logout-complete", http.StatusTemporaryRedirect)
 }
 
 // check for authentication using JWT
@@ -207,18 +174,4 @@ func IsAuthenticated(r *http.Request) (string, error) {
     log.Println("-----------------")
     
     return email, nil
-}
-
-func checkUserExists(userEmail string, firestoreClient *firestore.Client, ctx context.Context) (bool, error) {
-	_, err := firestoreClient.Collection("users").Doc(userEmail).Get(ctx) // queries users collection for document username
-
-	if err != nil {
-		if status.Code(err) == codes.NotFound { // not a real error
-			return false, nil
-		} else { // any other error
-			return false, err
-		}
-	} else { // no error == user found
-		return true, nil
-	}
 }

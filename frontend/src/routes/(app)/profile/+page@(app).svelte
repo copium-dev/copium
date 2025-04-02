@@ -45,15 +45,15 @@
 
     // create a chart on mount
     onMount(() => {
-        if (data.analytics?.monthly_trends && chartCanvas) {
-            //@ts-ignore
-            const months = data.analytics.monthly_trends.map((item) => item.Month);
-            //@ts-ignore
-            const applications = data.analytics.monthly_trends.map((item) => item.Applications);
-            //@ts-ignore
-            const interviews = data.analytics.monthly_trends.map((item) => item.Interviews);
-            //@ts-ignore
-            const offers = data.analytics.monthly_trends.map((item) => item.Offers);
+        if (data.analytics?.yearly_trends && chartCanvas) {
+            const trendsData = data.analytics.yearly_trends;
+            
+            // get all the month keys (sorted chronologically)
+            const months = Object.keys(trendsData).sort();
+
+            const applications = months.map(month => trendsData[month].applications || 0);
+            const interviews = months.map(month => trendsData[month].interviews || 0);
+            const offers = months.map(month => trendsData[month].offers || 0);
 
             chart = new Chart(chartCanvas, {
                 type: "line",

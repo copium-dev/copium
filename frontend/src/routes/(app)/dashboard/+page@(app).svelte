@@ -8,6 +8,7 @@
     import AddJob from "$lib/components/AddJob/AddJob.svelte";
     import FilterJobs from "$lib/components/FilterJobs/FilterJobs.svelte";
     import PaginateJobs from "$lib/components/PaginateJobs/PaginateJobs.svelte";
+    import { Toaster } from "$lib/components/ui/sonner/index.js";
 
     import { jobsFilterStore } from "$lib/stores/jobsFilterStore";
     import { dashboardPaginationStore } from "$lib/stores/dashboardPaginationStore";
@@ -147,6 +148,7 @@
     });
 </script>
 
+<Toaster />
 <div class="flex flex-col justify-start gap-4 items-stretch w-full my-12">
     <!-- sticky controls wrapper -->
     <div

@@ -2,42 +2,41 @@ package postings
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
-	"strconv"
-
-	"github.com/copium-dev/copium/go/service/auth"
-	"github.com/copium-dev/copium/go/service/postings/postingsutils"
-	"github.com/copium-dev/copium/go/utils"
 
 	"github.com/gorilla/mux"
-
-	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
 )
 
-type Handler struct {
-	algoliaClient *search.APIClient
+// refer to https://api.cvrve.me/internships/playground
+type CvrveAPIResponse struct {
+	ID string `json:"id"`
+	Company string `json:"company_name"`
+	Title string `json:"title"`
+	Locations []string `json:"locations"`
+	PostedDate int64 `json:"date_posted"`
+	UpdatedDate int64 `json:"date_updated"`
+	Active bool `json:"active"`
+	IsVisible bool `json:"is_visible"`
+	Sponsorship string `json:"sponsorship"`
+	Url string `json:"url"`
 }
 
-type AlgoliaResponse struct {
-	Company     string   `json:"company_name"`
-	Locations   []string `json:"locations"`
-	Title       string   `json:"title"`
-	PostedDate  int64    `json:"date_posted"`
-	UpdatedDate int64    `json:"date_updated"`
-	Url         string   `json:"url"`
-}
-
+// need total pages and current pages for nice looking pagination
 type PostingsResponse struct {
-	Applications []AlgoliaResponse `json:"postings"`
-	TotalPages   int               `json:"totalPages"`
-	CurrentPage  int               `json:"currentPage"`
+	Applications []CvrveAPIResponse `json:"postings"`
+	TotalPages   int               	`json:"totalPages"`
+	CurrentPage  int               	`json:"currentPage"`
 }
 
-func NewHandler(algoliaClient *search.APIClient) *Handler {
+type Handler struct {
+	// nothinggg
+}
+
+func NewHandler() *Handler {
 	return &Handler{
-		algoliaClient: algoliaClient,
+		// this has nothing, but just for consistency we keep the handler if later on
+		// some dependency is needed in postings. otherwise its just simple api call
 	}
 }
 
@@ -49,121 +48,21 @@ func (h *Handler) GetPostings(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] GetPostings [*]")
 	log.Println("-----------------")
 
-	// the ONLY point of auth is so that only logged in users can access this endpoint
-	_, err := auth.IsAuthenticated(r)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+	// user does not have to be authed to access this
 
-	log.Println("User authenticated")
+	// fetch from cvrve api with query params. api key is in env
+	// params: intern || new grad, company, title, location, sponsorship, active, page, hitsPerPage 
 
-	// 1.a) extract search query from request
-	// 		we need a different function than userutils.ParseQuery (so maybe make a postingutils package)
-	queryText, filtersString, err := postingsutils.ParseQuery(r)
-
-	// 1.b) get the page number from request
-	// any invalid query params will return a 400 error
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		http.Error(w, "Error parsing query", http.StatusBadRequest)
-		return
-	}
-	log.Println("Filters parsed", filtersString)
-
-	// extract page number from query params
-	pageStr := r.URL.Query().Get("page")
-	page := 0
-	if pageStr != "" {
-		p, err := strconv.Atoi(pageStr)
-		// since frontend always sends 1-indexed page number, subtract by 1
-		if err == nil && p > 0 {
-			page = p - 1
-		}
-	}
-	log.Println("Page requested:", page)
-
-	hitsPerPage := r.URL.Query().Get("hits")
-	hitsPerPageInt := 10 // Default value
-
-	if hitsPerPage != "" {
-		parsed, err := strconv.Atoi(hitsPerPage)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			http.Error(w, "Error parsing hitsPerPage", http.StatusBadRequest)
-			return
-		}
-		hitsPerPageInt = parsed
-	}
-
-	if hitsPerPageInt < 10 {
-		hitsPerPageInt = 10
-	} else if hitsPerPageInt > 20 {
-		hitsPerPageInt = 20
-	}
-
-	log.Println("Hits per page requested:", hitsPerPageInt)
-
-	// 2. build a search params object (see users/dashboard as a reference)
-	// 2.a) set free text query if provided
-	// 2.b) finalize search params object
-
-	searchParamsObject := &search.SearchParamsObject{
-		HitsPerPage: utils.IntPtr(int32(hitsPerPageInt)),
-		Filters:     utils.StringPtr(filtersString),
-		Page:        utils.IntPtr(int32(page)),
-	}
-
-	// set free text query if present
-	if queryText != "" {
-		searchParamsObject.Query = utils.StringPtr(queryText)
-		log.Println("Free text query text extracted: ", queryText)
-	}
-
-	searchParams := &search.SearchParams{
-		SearchParamsObject: searchParamsObject,
-	}
-
-	// 3. query algolia w/ search params
-	response, err := h.algoliaClient.SearchSingleIndex(
-		h.algoliaClient.NewApiSearchSingleIndexRequest("postings").WithSearchParams(searchParams),
-	)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		http.Error(w, "Error querying Algolia", http.StatusInternalServerError)
-		return
-	}
-
-	// 4.a) extract hits
-	var applications []AlgoliaResponse
-
-	// 4.b) marshal raw hits into json
-	hitsBytes, err := json.Marshal(response.Hits)
-	if err != nil {
-		fmt.Printf("Error marshaling hits: %v\n", err)
-		http.Error(w, "Error processing hits", http.StatusInternalServerError)
-		return
-	}
-
-	// 4.c) unmarshal json into algoliaresponse slice
-	err = json.Unmarshal(hitsBytes, &applications)
-	if err != nil {
-		fmt.Printf("Error unmarshaling hits: %v\n", err)
-		http.Error(w, "Error processing applications", http.StatusInternalServerError)
-		return
-	}
-
-	log.Println("Postings extracted:", applications)
+	log.Println("(not implemented): fetch from cvrve api instead")
 	log.Println("-----------------")
 
-	// 5. return
-	responseObject := PostingsResponse{
-		Applications: applications,
-		TotalPages:   postingsutils.CalculateTotalPages(int(*response.NbHits), hitsPerPageInt),
-		CurrentPage:  page,
+	// build response object 
+	postingsResponse := PostingsResponse{
+		Applications: nil,
+		TotalPages:   1,
+		CurrentPage:  1,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(responseObject)
+	json.NewEncoder(w).Encode(postingsResponse)
 }

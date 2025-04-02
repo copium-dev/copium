@@ -2,6 +2,10 @@
     import { onMount } from "svelte";
 
     import EditJob from "$lib/components/EditJob/EditJob.svelte";
+    import { badgeVariants } from "$lib/components/ui/badge";
+    import { buttonVariants } from "$lib/components/ui/button";
+    import * as Dialog from "$lib/components/ui/dialog";
+    import { toast } from "svelte-sonner";
 
     import { Map } from "lucide-svelte";
     import { Calendar } from "lucide-svelte";
@@ -32,6 +36,57 @@
         Interviewing: 77,
         Offer: 100,
     };
+
+    async function showTimeline() {
+        const formData = new FormData();
+        formData.append("id", objectID);
+
+        const response = await fetch(`/dashboard/timeline`, { 
+            method: "POST",
+            body: formData,
+        });
+
+        // i was going crazy at gpt and claude and gemini for hours but a 30s google search fixed it. never using llms again lol
+        // the problem was because I was using +page.server.ts for this instead of a +server.ts file. HOLY FUCK BRO LMFAO
+        // https://stackoverflow.com/questions/74966175/sveltekit-actions-returns-garbled-json
+        const res = await response.json();
+        if (res.type === "failure") {
+            console.error("Failed to get application timeline");
+        } else if (res.type === "success") {
+            timeline = res.data || [];
+        }
+    }
+
+    async function revertStatus(operationID: string) {
+        const formData = new FormData();
+        formData.append("id", objectID);
+        formData.append("operationID", operationID);
+
+        const response = await fetch(`/dashboard/revert`, {
+            method: "POST",
+            body: formData,
+        });
+
+        const res = await response.json();
+
+        if (res.type === "failure") {
+            console.error("Failed to revert status");
+            setTimeout(() => {
+                toast.error("Failed to revert status");
+            }, 10);
+
+        } else {
+            console.log("Status reverted successfully");
+            setTimeout(() => {
+                toast.success("Status reverted successfully");
+            }, 10);
+            // backend sends the new status after revert for optimistic ui
+            status = res.data;
+            if (status) {
+                value = statusValues[status];
+            }
+        }
+    }
 
     async function updateStatus(newStatus: keyof typeof statusValues) {
         value = statusValues[newStatus];
@@ -139,6 +194,7 @@
 
     let value = statusValues[status];
     let imgSrc: string | null = null;
+    let timeline: any;
 </script>
 
 {#if visible}
@@ -169,6 +225,46 @@
                                 {location}
                             </div>
                         </div>
+                        <Dialog.Root>
+                            <Dialog.Trigger
+                                class={badgeVariants({ variant: "default"}) + "text-xs"}
+                                on:click={showTimeline}
+                            >
+                                Timeline
+                            </Dialog.Trigger>
+                            <Dialog.Content>
+                                <Dialog.Title>Timeline</Dialog.Title>
+                                <Dialog.Description>
+                                    {#if timeline && timeline.length > 0}
+                                        <div class="space-y-3 my-4">
+                                            {#each timeline as event}
+                                                <div class="border rounded p-3 bg-muted/30">
+                                                    <div class="flex justify-between">
+                                                        <div class="flex flex-col items-start gap-2">
+                                                            <span class="font-medium">{event.status}</span>
+                                                            <span class="font-medium">Action: {event.operation}</span>
+                                                        </div>
+                                                        <div class="flex flex-col items-end gap-2">
+                                                            <span class="text-xs text-muted-foreground">
+                                                                {new Date(event.event_time).toLocaleString()}
+                                                            </span>
+                                                            <Button size="sm" on:click={() => revertStatus(event.operationID)}>
+                                                                Revert
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {/each}
+                                        </div>
+                                    {:else}
+                                        <p>Fetching timeline...</p>
+                                    {/if}
+                                </Dialog.Description>
+                                <Dialog.Close class={buttonVariants({ variant: "default" }) + " w-fit"}>
+                                   Close
+                                </Dialog.Close>
+                            </Dialog.Content>
+                        </Dialog.Root>
                     </div>
                 </div>
 

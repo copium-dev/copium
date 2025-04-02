@@ -2,30 +2,15 @@ package user
 
 // this file contains the HTTP handlers for the user service
 // it contains the following handlers:
-// (R) - Dashboard: queries Algolia for applications based on search query
-// (R) - Profile: (for now) returns simply email and app count; once we figure out what kind of data analytics we want to show, it will be updated
-// (C) - AddApplication: adds an application to Firestore and publishes a message to PubSub
-// (D) - DeleteApplication: deletes an application from Firestore and publishes a message to PubSub
-// (U) - EditStatus: edits the status of an application in Firestore and publishes a message to PubSub
-// (U) - EditApplication: edits an application in Firestore and publishes a message to PubSub
-// (D) - DeleteUser: deletes a user from Firestore and publishes a message to PubSub to delete all applications from Algolia
-// this file contains the following utility functions:
-// - deleteUserFromFirestore: deletes a user from Firestore, including all applications
-// - publishMessage: publishes a message to PubSub with publish and connection retries
-//     (relies on utils.PublishWithRetry)
-// NOTE: all CRUD operations (AddApplication, DeleteApplication, EditStatus, EditApplication, DeleteUser) are idempotent
-//       and can be retried without side effects. This is why there is no timestamping or versioning.
-// NOTE: all CRUD operations are NOT commutative. We rely on an optimistic but strong consistency model. So,
-//	 	 every user request is fulfilled to DB, but in the rare event of publishing failure, we can quickly revert.
-//		 Actually, this does not add any latency because we have frontend send previous state in the delete or edit request
-//       so there's no need to query the DB for the previous state.
-// Q: why not use event sourcing?
-// A: all that matters is latest state; rebuilding history is not necessary. HOWEVER, compliance and auditing
-//    may require event sourcing in the future if this project takes off
-// Q: why is EditStatus and EditApplication separate?
-// A: EditStatus has a different UI flow and separate actions, mainly because a user will very rarely edit
-//    fields such as role, company, applied date, etc. but will frequently edit status. This separation
-//    allows for a more optimized UI flow and better user experience
+// (R) - Dashboard: queries Postgres w/ search query for applications
+// (R) - Profile: queries Postgres for user profile data and their analytics
+// (C) - AddApplication: adds an application to Postgres, updates applied count and application velocity
+// (D) - DeleteApplication: deletes an application from Postgres, fully recalculates analytics
+// (U) - EditStatus: edits status of application, incr/decr old and new status counts and selectively updates analytics
+// (U) - EditApplication: simply edit application metadata, no analytics updates
+// (D) - DeleteUser: just cascade delete the user, analytics updates will follow
+// this file used to have crazy pubsub logic with compensating transactions but after
+// a full postgres migration, that's no longer necessary!
 
 import (
 	"context"
@@ -34,22 +19,20 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
+	"database/sql"
+	"math"
 
 	"github.com/copium-dev/copium/go/service/auth"
 	"github.com/copium-dev/copium/go/service/user/userutils"
-	"github.com/copium-dev/copium/go/utils"
 
-	"cloud.google.com/go/firestore"
-	"cloud.google.com/go/pubsub"
-	"cloud.google.com/go/bigquery"
 	"github.com/gorilla/mux"
-	"google.golang.org/api/iterator"
-
-	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
+	"github.com/jackc/pgx/v5"
 )
 
+// just some stupid way to make an enum and implement the json unmarshaler interface
 type ApplicationStatus = userutils.ApplicationStatus
 
 type AddApplicationRequest struct {
@@ -79,12 +62,12 @@ type Operation struct {
 }
 
 type DashboardResponse struct {
-	Applications []AlgoliaResponse `json:"applications"`
-	TotalPages   int               `json:"totalPages"`
+	Applications []SearchResponse `json:"applications"`
+	TotalPages   int64               `json:"totalPages"`
 	CurrentPage  int               `json:"currentPage"`
 }
 
-type AlgoliaResponse struct {
+type SearchResponse struct {
 	ID          string `json:"objectID"`
 	Role        string `json:"role"`
 	Company     string `json:"company"`
@@ -104,25 +87,21 @@ type DeleteApplicationRequest struct {
 	Link        string `json:"link"`
 }
 
+
 type EditApplicationStatusRequest struct {
 	ID          string `json:"id"`
 	Status      ApplicationStatus `json:"status"`
-	OldStatus   ApplicationStatus `json:"oldStatus"`
-	AppliedDate int64  `json:"appliedDate"`
 }
 
 // edit application does not include status because status is edited separately
+// as of postgres migration, no need to send old values to perform compensating
+// transactions because this is just a DB update... yay
 type EditApplicationRequest struct {
 	ID             string `json:"id"`
 	Role           string `json:"role"`
 	Company        string `json:"company"`
 	Location       string `json:"location"`
 	Link           string `json:"link"`
-	OldRole        string `json:"oldRole"`
-	OldCompany     string `json:"oldCompany"`
-	OldLocation    string `json:"oldLocation"`
-	OldLink        string `json:"oldLink"`
-	Status         ApplicationStatus `json:status`
 }
 
 type RevertApplicationStatusRequest struct {
@@ -135,26 +114,14 @@ type ApplicationTimelineRequest struct {
 }
 
 type Handler struct {
-	FirestoreClient *firestore.Client
-	algoliaClient   *search.APIClient
-	bigQueryClient *bigquery.Client
-	pubsubTopic     *pubsub.Topic
-	orderingKey     string
+	pgClient *pgxpool.Pool
+	redisClient *redis.Client
 }
 
-func NewHandler(
-	firestoreClient *firestore.Client,
-	algoliaClient *search.APIClient,
-	bigQueryClient *bigquery.Client,
-	pubsubTopic *pubsub.Topic,
-	orderingKey string,
-) *Handler {
+func NewHandler(pgClient *pgxpool.Pool, redisClient *redis.Client) *Handler {
 	return &Handler{
-		FirestoreClient: firestoreClient,
-		algoliaClient:   algoliaClient,
-		bigQueryClient: bigQueryClient,
-		pubsubTopic:     pubsubTopic,
-		orderingKey:     orderingKey,
+		pgClient: pgClient,
+		redisClient: redisClient,
 	}
 }
 
@@ -183,52 +150,22 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("User authenticated")
 
-	// get user's applications count
-	doc, err := h.FirestoreClient.Collection("users").Doc(email).Get(r.Context())
+	res, err := h.extractAnalytics(r.Context(), email)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
-		http.Error(w, "Error retrieving user data", http.StatusInternalServerError)
+		http.Error(w, "Error extracting analytics", http.StatusInternalServerError)
 		return
-	}
-
-	userData := doc.Data()
-
-	applicationsCount := int64(0)
-	if countVal, exists := userData["applicationsCount"]; exists && countVal != nil {
-		if count, ok := countVal.(int64); ok {
-			applicationsCount = count
-		}
-	}
-
-	response := map[string]interface{}{
-		"email":             email,
-		"applicationsCount": applicationsCount,
-	}
-
-	analyticsFields := []string{
-		"application_velocity_trend", "application_velocity",
-		"resume_effectiveness_trend", "resume_effectiveness",
-		"interview_effectiveness_trend", "interview_effectiveness",
-		"avg_response_time_trend", "avg_response_time",
-		"monthly_trends", "rejected_count", "ghosted_count", "applied_count",
-		"screen_count", "interviewing_count", "offer_count", "last_updated",
-	}
-
-	// loop over each field and add to response if it exists
-	for _, field := range analyticsFields {
-		if val, exists := doc.Data()[field]; exists {
-			response[field] = val
-		}
 	}
 
 	log.Println("Profile data extracted")
 	log.Println("-----------------")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(res)
 }
 
-// queries algolia for applications based on search query
+// does FTS search on applications table (if query provided)
+// plus other filters
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] Dashboard [*]")
 	log.Println("-----------------")
@@ -242,16 +179,11 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("User authenticated")
 
-	// 1. extract search query from request and parse
-	queryText, filtersString, err := userutils.ParseQuery(r)
-	// any invalid query params will return a 400 error
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		http.Error(w, "Error parsing query", http.StatusBadRequest)
-		return
-	}
+	// extract params 
+	params := r.URL.Query()
+	queryText := params.Get("q")
 
-	log.Println("Filters parsed", filtersString)
+	log.Println("Query text:", queryText)
 
 	// extract page number from query params
 	pageStr := r.URL.Query().Get("page")
@@ -264,9 +196,35 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	log.Println("Page requested:", page)
+	
+	// get latest cache version for this user. we use cache versions to avoid having
+	// to do expensive cache deletes; we just let the old one expire
+	versionKey := fmt.Sprintf("user:%s:cache_version", email)
+    version, err := h.redisClient.Get(r.Context(), versionKey).Int64()
+    if err == redis.Nil {
+		// no version exists, create new one 
+        version = 1
+        h.redisClient.Set(r.Context(), versionKey, version, 0) // no expiration
+    }
+
+	// get previous page's time boundary
+	boundaryKey := fmt.Sprintf("user:%s:page:%d:%d", email, page-1, version)
+    val, err := h.redisClient.Get(r.Context(), boundaryKey).Result()
+    
+    var prevPageBoundary *time.Time
+	if err == nil {
+		fmt.Println("Previous page boundary cached:", val)
+		// storing as milliseconds in redis, so convert to time.UnixMilli()
+		// we can interchangeably use timestamptz (Postgres) and time.Time (Go)
+		millis, err := strconv.ParseInt(val, 10, 64)
+		if err == nil {
+			t := time.UnixMilli(millis)
+			prevPageBoundary = &t
+		}
+	}
 
 	hitsPerPage := r.URL.Query().Get("hits")
-	hitsPerPageInt := 10 // Default value
+	hitsPerPageInt := 10
 
 	if hitsPerPage != "" {
 		parsed, err := strconv.Atoi(hitsPerPage)
@@ -278,69 +236,38 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		hitsPerPageInt = parsed
 	}
 
-	if hitsPerPageInt < 10 {
-		hitsPerPageInt = 10
-	} else if hitsPerPageInt > 18 {
-		hitsPerPageInt = 18
-	}
-
-	log.Println("Hits per page requested:", hitsPerPageInt)
-
-	// 2. build a search params object
-	searchParamsObject := &search.SearchParamsObject{
-		Facets:       []string{"email"},
-		FacetFilters: &search.FacetFilters{String: utils.StringPtr("email:" + email)},
-		HitsPerPage:  utils.IntPtr(int32(hitsPerPageInt)),
-		Filters:      utils.StringPtr(filtersString),
-		Page:         utils.IntPtr(int32(page)),
-	}
-
-	// set free text query if present
-	if queryText != "" {
-		searchParamsObject.Query = utils.StringPtr(queryText)
-		log.Println("Free text query text extracted: ", queryText)
-	}
-
-	searchParams := &search.SearchParams{
-		SearchParamsObject: searchParamsObject,
-	}
-
-	// 3. query Algolia with the search params
-	response, err := h.algoliaClient.SearchSingleIndex(
-		h.algoliaClient.NewApiSearchSingleIndexRequest("users").WithSearchParams(searchParams),
-	)
+	// 1. email
+	// 2. query text (full text on title, company, locations)
+	// 3. limit
+	// 4. offset (aka page requested)
+	// 5. prevPageBoundary (optional, for pagination)
+	applications, totalHits, err := h.filterQueryText(email, queryText, r.Context(), hitsPerPageInt, page, prevPageBoundary)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
-		http.Error(w, "Error querying Algolia", http.StatusInternalServerError)
+		http.Error(w, "Error filtering applications", http.StatusInternalServerError)
 		return
 	}
 
-	// 4. extract hits from response
-	var applications []AlgoliaResponse
-
-	// 4a. marshal the raw hits into JSON bytes.
-	hitsBytes, err := json.Marshal(response.Hits)
-	if err != nil {
-		fmt.Printf("Error marshaling hits: %v\n", err)
-		http.Error(w, "Error processing hits", http.StatusInternalServerError)
-		return
-	}
-
-	// 4b. unmarshal the JSON bytes into AlgoliaResponse slice.
-	err = json.Unmarshal(hitsBytes, &applications)
-	if err != nil {
-		fmt.Printf("Error unmarshaling hits: %v\n", err)
-		http.Error(w, "Error processing applications", http.StatusInternalServerError)
-		return
-	}
-
+	// set new boundary (if any) for the current page, also make sure we're on the right cache version
+	if len(applications) > 0 {
+		// recall that we need millisecond precision for keyset pagination
+		// thankfully we already store millisecond precision in database
+        h.redisClient.Set(r.Context(), 
+            fmt.Sprintf("user:%s:page:%d:%d", email, page, version),
+			fmt.Sprintf("%d", applications[len(applications)-1].AppliedDate),
+            time.Hour) // 1 hour TTL
+    }
+	
 	log.Println("Applications extracted:", applications)
 	log.Println("-----------------")
+
+	log.Println("total hits:", totalHits)
 
 	// create response object pagination info
 	responseObject := DashboardResponse{
 		Applications: applications,
-		TotalPages:   userutils.CalculateTotalPages(int(*response.NbHits), hitsPerPageInt),
+		// so ugly sorry but yeah gotta do this
+		TotalPages: int64(math.Ceil(float64(totalHits) / float64(hitsPerPageInt))),
 		CurrentPage:  page,
 	}
 
@@ -362,7 +289,6 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("User authenticated")
 
-	// extract json from request body
 	var addApplicationRequest AddApplicationRequest
 	err = json.NewDecoder(r.Body).Decode(&addApplicationRequest)
 	if err != nil {
@@ -370,73 +296,47 @@ func (h *Handler) AddApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// add application to Firestore using users/{email} where jobs is a document within the user's collection
-	doc, _, err := h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Add(r.Context(), map[string]interface{}{
-		"role":        addApplicationRequest.Role,
-		"company":     addApplicationRequest.Company,
-		"location":    addApplicationRequest.Location,
-		"appliedDate": addApplicationRequest.AppliedDate,
-		"status":      addApplicationRequest.Status,
-		"link":        addApplicationRequest.Link,
-	})
+	fmt.Println("AddApplicationRequest:", addApplicationRequest)
+
+	// extract json from request body
+	var newAppID sql.NullString
+	// note: postgres to_timestamp expects seconds so convert here, but we use floating point
+	// to preserve millisecond precision by storing it in the decimal
+	err = h.pgClient.QueryRow(r.Context(), `
+		SELECT service.add_application($1, to_timestamp(($2::BIGINT)/1000.0)::timestamptz, $3, $4, $5, $6, $7, $8)
+	`, 
+		email,                                      // p_email
+		addApplicationRequest.AppliedDate,         	// p_applied_date (as Unix timestamp, convert to timestamp)
+		"add",
+		addApplicationRequest.Status,               // p_app_status
+		addApplicationRequest.Company,              // p_company
+		addApplicationRequest.Role,                 // p_title (role)
+		addApplicationRequest.Link,                 // p_link
+		addApplicationRequest.Location,             // p_locations
+	).Scan(&newAppID)
 	if err != nil {
-		fmt.Printf("Error adding application: %v\n", err)
+		fmt.Printf("Error calling add_application: %v\n", err)
 		http.Error(w, "Error adding application", http.StatusInternalServerError)
 		return
 	}
 
+	objectID := newAppID.String
+	if !newAppID.Valid {
+		fmt.Println("Error: add_application returned null ID")
+		http.Error(w, "Error adding application", http.StatusInternalServerError)
+		return
+	}
+
+	// 'invalidate' aka increment cache so user has a new cache version
+	h.invalidateUserCache(r.Context(), email)
+
 	log.Println("Application added")
+	log.Println("-----------------")
 
-	message := map[string]interface{}{
-		"operation":   "add",
-		"email":       email,
-		"appliedDate": addApplicationRequest.AppliedDate,
-		"company":     addApplicationRequest.Company,
-		"link":        addApplicationRequest.Link,
-		"location":    addApplicationRequest.Location,
-		"role":        addApplicationRequest.Role,
-		"status":      addApplicationRequest.Status,
-		"timestamp":   time.Now().Add(12 * time.Hour).Unix(),
-		"objectID":    doc.ID,
-	}
-
-	err = h.publishMessage(message)
-	if err != nil {
-		// delete added application if publish fails
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(doc.ID).Delete(ctx)
-		if err != nil {
-			fmt.Printf("Error deleting application: %v\n", err)
-			http.Error(w, "Error reverting application add", http.StatusInternalServerError)
-		}
-		log.Println("AddApplication reverted because of publish failure")
-		http.Error(w, "Error publishing message", http.StatusInternalServerError)
-		return
-	}
-
-	// to reduce amount of reads in this single request, increment applicationCount AFTER verifying publish success
-	// this means we don't have to revert applicationCount on top of reverting the add operation. this DOES
-	// introduce small window of inconsistency but this is reducing costs and reducing complexity
-	userDoc := h.FirestoreClient.Collection("users").Doc(email)
-	_, err = userDoc.Update(r.Context(), []firestore.Update{
-		{Path: "applicationsCount", Value: firestore.Increment(1)},
-		{Path: "applied_count", Value: firestore.Increment(1)},
-	})
-	if err != nil {
-		fmt.Printf("Error updating applications count: %v\n", err)
-		http.Error(w, "Error updating application count", http.StatusInternalServerError)
-		return
-	}
-
-	log.Println("Applications count updated, added by 1")
-	log.Println("DB and PubSub operations success, returning ID for eager loading")
-
-	// return doc.ID to user for eager loading
+	// return id for optimsitic UI
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"objectID": doc.ID,
+		"objectID": objectID,
 	})
 }
 
@@ -465,95 +365,27 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 
 	applicationID := deleteApplicationRequest.ID
 
-	// delete application from Firestore
-	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Delete(r.Context())
+	var success bool
+	err = h.pgClient.QueryRow(r.Context(), 
+		`SELECT service.delete_application($1, $2)`, email, applicationID,
+	).Scan(&success)
 	if err != nil {
-		fmt.Printf("Error deleting application: %v\n", err)
+		fmt.Printf("Error calling delete_full_recalculate_analytics: %v\n", err)
 		http.Error(w, "Error deleting application", http.StatusInternalServerError)
 		return
 	}
 
-	log.Println("Application deleted")
-
-	message := map[string]interface{}{
-		"operation": "delete",
-		"email":     email,
-		"objectID":  applicationID,
-	}
-
-	err = h.publishMessage(message)
-	if err != nil {
-		// revert status if publish fails
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Set(ctx, map[string]interface{}{
-			"role":        deleteApplicationRequest.Role,
-			"company":     deleteApplicationRequest.Company,
-			"location":    deleteApplicationRequest.Location,
-			"appliedDate": deleteApplicationRequest.AppliedDate,
-			"status":      deleteApplicationRequest.Status,
-			"link":        deleteApplicationRequest.Link,
-		})
-		if err != nil {
-			fmt.Printf("Error reverting application: %v\n", err)
-			http.Error(w, "Error reverting application delete", http.StatusInternalServerError)
-			return
-		}
-		log.Println("DeleteApplication reverted because of publish failure")
-		http.Error(w, "Error publishing message", http.StatusInternalServerError)
+	if !success {
+		fmt.Println("Error: delete_full_recalculate_analytics failed")
+		http.Error(w, "Error deleting application", http.StatusInternalServerError)
 		return
 	}
 
-	// to reduce amount of reads in this single request, decrement applicationCount AFTER verifying publish success
-	// this means we don't have to revert applicationCount on top of reverting the delete operation. this DOES
-	// introduce small window of inconsistency but this is reducing costs and reducing complexity
-	// transaction is used to ensure that if an increment fails, decrement wont happen and vice versa
-	err = h.FirestoreClient.RunTransaction(r.Context(), func(ctx context.Context, tx *firestore.Transaction) error {
-		userDoc := h.FirestoreClient.Collection("users").Doc(email)
-		doc, err := tx.Get(userDoc)
-		if err != nil {
-			return err
-		}
-		
-		statusCount := 0
-		countKey := fmt.Sprintf("%s_count", strings.ToLower(string(deleteApplicationRequest.Status)))
-		if val, exists := doc.Data()[countKey]; exists {
-			if count, ok := val.(int64); ok {
-				statusCount = int(count)
-			}
-		}
+	// 'invalidate' aka increment cache so user has a new cache version
+	h.invalidateUserCache(r.Context(), email)
 
-		applicationsCount := 0
-		if val, exists := doc.Data()["applicationsCount"]; exists {
-			if count, ok := val.(int64); ok {
-				applicationsCount = int(count)
-			}
-		}
-
-		var updates []firestore.Update
-
-		if applicationsCount > 0 {
-			updates = append(updates, firestore.Update{
-				Path: "applicationsCount", Value: firestore.Increment(-1),
-			})
-		}
-		
-		if statusCount > 0 {
-			updates = append(updates, firestore.Update{
-				Path: countKey, Value: firestore.Increment(-1),
-			})
-		}
-		
-		return tx.Update(userDoc, updates)
-	})
-	if err != nil {
-		fmt.Printf("Error updating applications count: %v\n", err)
-		http.Error(w, "Error updating application count", http.StatusInternalServerError)
-	}
-
-	log.Println("Applications count updated, decremented by 1")
-	log.Println("DB and PubSub operations success, returning success for eager loading")
+	log.Println("Application deleted, logs recalculated")
+	log.Println("-----------------")
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -581,108 +413,34 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("EditApplicationStatusRequest:", EditApplicationStatusRequest)
+
 	applicationID := EditApplicationStatusRequest.ID
 	newStatus := EditApplicationStatusRequest.Status
-	appliedDate := EditApplicationStatusRequest.AppliedDate
 
-	// before doing DB updates check if we even need to update
-	if newStatus == EditApplicationStatusRequest.OldStatus {
-		log.Println("No status change, returning success")
-		w.WriteHeader(http.StatusOK)
-		return
-	}
+	var success bool
+	err = h.pgClient.QueryRow(r.Context(), `
+		SELECT service.update_application_status($1, $2, $3)
+	`, email, applicationID, newStatus,
+	).Scan(&success)
 
-	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), []firestore.Update{
-		{
-			Path:  "status",
-			Value: newStatus,
-		},
-	})
 	if err != nil {
-		fmt.Printf("Error editing application: %v\n", err)
-		http.Error(w, "Error editing application", http.StatusInternalServerError)
+		fmt.Printf("Error calling update_application_status: %v\n", err)
+		http.Error(w, "Error editing application status", http.StatusInternalServerError)
 		return
 	}
+
+	if !success {
+		fmt.Println("Error: update_application_status failed")
+		http.Error(w, "Error editing application status", http.StatusInternalServerError)
+		return
+	}
+
+	// 'invalidate' aka increment cache so user has a new cache version
+	h.invalidateUserCache(r.Context(), email)
 
 	log.Println("Application status edited")
-
-	message := map[string]interface{}{
-		"operation":   "editStatus",
-		"email":       email,
-		"objectID":    applicationID,
-		"status":      newStatus,
-		"appliedDate": appliedDate,	// just to satisfy BigQuery schema
-		// since appliedDate is always using noon as the time, we need to ensure
-		// that the timestamp sent to PubSub is always at or after noon. this is because
-		// a user can edit status of an application at 11:59 AM and the appliedDate is 12:00 PM
-		// so this will cause response time metrics to be incorrect
-		// so, simply add 12 hours to guarantee it's always at or after noon
-		"timestamp": time.Now().Add(12 * time.Hour).Unix(),
-	}
-
-	err = h.publishMessage(message)
-	if err != nil {
-		// revert status if publish fails
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(ctx, []firestore.Update{
-			{
-				Path:  "status",
-				Value: EditApplicationStatusRequest.OldStatus,
-			},
-		})
-		if err != nil {
-			fmt.Printf("Error reverting status: %v\n", err)
-			http.Error(w, "Error reverting status", http.StatusInternalServerError)
-			return
-		}
-		log.Println("EditStatus reverted because of publish failure")
-		http.Error(w, "Error publishing message", http.StatusInternalServerError)
-		return
-	}
-
-	log.Println("Status edited")
-
-	// to reduce amount of reads in this single request, update status count AFTER verifying publish success
-	// this means we don't have to revert status count on top of reverting the edit operation. this DOES
-	// introduce small window of inconsistency but this is reducing costs and reducing complexity
-	// transaction is used to ensure that if an increment fails, decrement wont happen and vice versa
-	err = h.FirestoreClient.RunTransaction(r.Context(), func(ctx context.Context, tx *firestore.Transaction) error {
-		userDoc := h.FirestoreClient.Collection("users").Doc(email)
-		doc, err := tx.Get(userDoc)
-		if err != nil {
-			return err
-		}
-		
-		// get old status count
-		oldStatusCount := 0
-		countKey := fmt.Sprintf("%s_count", strings.ToLower(string(EditApplicationStatusRequest.OldStatus)))
-		if val, exists := doc.Data()[countKey]; exists {
-			if count, ok := val.(int64); ok {
-				oldStatusCount = int(count)
-			}
-		}
-
-		// no block for new status count because it will always be incremented
-		updates := []firestore.Update{
-			{Path: fmt.Sprintf("%s_count", strings.ToLower(string(newStatus))), Value: firestore.Increment(1)},
-		}
-		
-		// only decrement old status count if it was greater than 0
-		if oldStatusCount > 0 {
-			updates = append(updates, firestore.Update{
-				Path: countKey, Value: firestore.Increment(-1),
-			})
-		}
-		
-		return tx.Update(userDoc, updates)
-	})
-	if err != nil {
-		fmt.Printf("Error updating status count: %v\n", err)
-		http.Error(w, "Error updating status count", http.StatusInternalServerError)
-		return
-	}
+	log.Println("-----------------")
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -709,91 +467,36 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	applicationID := editApplicationRequest.ID
+	role := editApplicationRequest.Role
+	company := editApplicationRequest.Company
+	location := editApplicationRequest.Location
+	link := editApplicationRequest.Link
 
-	// 1. check if we need to update at all but also
-	// 2. populate a changedFields map so that we only update what we have to in Firestore
-	// unfortunately though Algolia **does** require all fields to be sent regardless
-	// so this is just a little optimization on the Firestore side
-	// NOTE: the EditApplicationRequest struct's fields are still required for the publish message
-	// and possible rollbacks, so frontend cannot make the optimization of what to send
-	changedFields := make(map[string]interface{}, 0)
 
-	// no loops or function calls to reduce memory overhead, big ugly if statements
-	if editApplicationRequest.Role != editApplicationRequest.OldRole {
-		changedFields["role"] = editApplicationRequest.Role
-	}
-	if editApplicationRequest.Company != editApplicationRequest.OldCompany {
-		changedFields["company"] = editApplicationRequest.Company
-	}
-	if editApplicationRequest.Location != editApplicationRequest.OldLocation {
-		changedFields["location"] = editApplicationRequest.Location
-	}
-	if editApplicationRequest.Link != editApplicationRequest.OldLink {
-		changedFields["link"] = editApplicationRequest.Link
-	}
-	
-	if len(changedFields) == 0 {
-		log.Println("No application change, returning success")
-		w.WriteHeader(http.StatusOK)
-		return
-	}
+	// update application in Postgres
+	var success bool
 
-	// create updates array for Firestore
-	updates := make([]firestore.Update, len(changedFields))
-	i := 0
-	for key, value := range changedFields {
-		updates[i] = firestore.Update{Path: key, Value: value}
-		i++
-	}
-
-	_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(r.Context(), updates)
+	err = h.pgClient.QueryRow(r.Context(), `
+		SELECT service.edit_application($1, $2, $3, $4, $5, $6)
+	`, email, applicationID, company, role, link, location,
+	).Scan(&success)
 	if err != nil {
-		fmt.Printf("Error editing application: %v\n", err)
+		fmt.Printf("Error calling edit_application: %v\n", err)
 		http.Error(w, "Error editing application", http.StatusInternalServerError)
 		return
 	}
 
-	log.Println("Application edited")
-
-	// bigquery does nothing on application edits, only status changes
-	// this is why we need a diffentiating operation for application edits
-	// is this wasted data transfer? yea... but its not a lot of data and
-	// not worth setting up different messaging pipeline when just one operation is not supported by BigQuery
-	message := map[string]interface{}{
-		"operation":   "editApplication",
-		"email":       email,
-		"company":     editApplicationRequest.Company,
-		"link":        editApplicationRequest.Link,
-		"location":    editApplicationRequest.Location,
-		"role":        editApplicationRequest.Role,
-		"objectID":    applicationID,
-		"timestamp":   time.Now().Add(12 * time.Hour).Unix(),
-	}
-
-	err = h.publishMessage(message)
-	if err != nil {
-		// revert status if publish fails
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(applicationID).Update(ctx, []firestore.Update{
-			{Path: "role", Value: editApplicationRequest.OldRole},
-			{Path: "company", Value: editApplicationRequest.OldCompany},
-			{Path: "location", Value: editApplicationRequest.OldLocation},
-			{Path: "link", Value: editApplicationRequest.OldLink},
-		})
-		if err != nil {
-			fmt.Printf("Error reverting application: %v\n", err)
-			http.Error(w, "Error reverting application edit", http.StatusInternalServerError)
-			return
-		}
-		log.Println("EditApplication reverted because of publish failure")
-		http.Error(w, "Error publishing message", http.StatusInternalServerError)
+	if !success {
+		fmt.Println("Error: edit_application failed")
+		http.Error(w, "Error editing application", http.StatusInternalServerError)
 		return
 	}
 
+	// 'invalidate' aka increment cache so user has a new cache version
+	h.invalidateUserCache(r.Context(), email)
+
 	log.Println("Application edited")
-	log.Println("DB and PubSub operations success, returning success for eager loading")
+	log.Println("-----------------")
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -822,192 +525,39 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// two cases:
-	// 1: operation is most recent (get from BigQuery); we have to update Algolia and Firestore to the previous status
-	//	  compensating transaction is needed here because latest state may have changed
-	// 2: operation not most recent; simply flag the operation as "reverted" in BigQuery. Algolia and Firestore still have most recent status
-	//	  compensating transaction is not needed here because latest state never changed
 	operationID := revertApplicationStatusRequest.OperationID
 	jobID := revertApplicationStatusRequest.ID
 
-	// get the two max event times; the first is to determine if case 2, the second is to revert if case 1
-	q := h.bigQueryClient.Query(`
-		SELECT operationID, status, event_time, operation
-		FROM applications_data.applications
-		WHERE email = @email
-		AND jobID = @jobID
-		AND operation NOT IN ('revert', 'add') -- cannot revert a revert or an add
-		ORDER BY event_time DESC
-		LIMIT 2
-	`)
-	q.Parameters = []bigquery.QueryParameter{
-		{Name: "email", Value: email},
-		{Name: "jobID", Value: jobID},
-	}
+	var newStatus sql.NullString
 
-	job, err := q.Run(r.Context())
+	err = h.pgClient.QueryRow(r.Context(), `
+		SELECT service.revert_operation($1, $2, $3)
+	`, email, jobID, operationID).Scan(&newStatus)
 	if err != nil {
-		fmt.Printf("Error getting max event time: %v\n", err)
+		fmt.Printf("Error calling revert_operation: %v\n", err)
 		http.Error(w, "Error reverting status", http.StatusInternalServerError)
 		return
 	}
 
-	_, err = job.Wait(r.Context())
-	if err != nil {
-		fmt.Printf("Error getting max event time: %v\n", err)
+	if !newStatus.Valid {
+		fmt.Println("Error: revert_operation failed")
 		http.Error(w, "Error reverting status", http.StatusInternalServerError)
 		return
 	}
 
-	it, err := job.Read(r.Context())
-	if err != nil {
-		fmt.Printf("Error reading query results: %v\n", err)
-		http.Error(w, "Error reverting status", http.StatusInternalServerError)
-		return
+	// 'invalidate' aka increment cache so user has a new cache version
+	h.invalidateUserCache(r.Context(), email)
+
+	log.Println("Application status reverted")
+	log.Println("-----------------")
+
+	// return the latest status for optimistc UI
+	response := map[string]interface{}{
+		"status": newStatus.String,
 	}
 
-	var latestOperationID string
-	var currStatus string	// just in case we need to rollback
-	var prevStatus string
-	rowCount := 0
-
-	for {
-		var row []bigquery.Value
-		err := it.Next(&row)
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			fmt.Printf("Error getting max event time: %v\n", err)
-			http.Error(w, "Error reverting status", http.StatusInternalServerError)
-			return
-		}	
-
-		if rowCount == 0{
-			latestOperationID = row[0].(string)    
-			currStatus = row[1].(string)           
-		} else if rowCount == 1 {
-			prevStatus = row[1].(string)          
-		}
-
-		rowCount++
-	}
-
-	// if there's no non-revert/add operations, can't revert
-	if rowCount <= 0 {
-		fmt.Printf("Error: Not enough operations to revert: %v\n", rowCount)
-		http.Error(w, "Not enough operations to revert", http.StatusBadRequest)
-		return
-	}
-
-	var operation string
-
-	if latestOperationID != operationID {
-		// case 2: flag as reverted in BQ. Algolia and Firestore are already up to date
-		operation = "revert"
-		fmt.Println("Case 2: Reverting deeper in history -- only BigQuery needs to be updated")
-	} else {
-		// case 1: Firestore and Algolia need to be updated to previous status (secondLatestOperation)
-		operation = "revertLatest"
-		fmt.Println("Case 1: Reverting most recent operation -- Firestore and Algolia need to be updated as well")
-	}
-
-	if operation == "revertLatest" {
-		// try to revert status in Firestore
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Update(r.Context(), []firestore.Update{
-			{Path: "status", Value: prevStatus},
-		})
-		// failed to revert, don't send message. at this point we haven't done anything
-		// to other services so we can just return an error
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			http.Error(w, "Error reverting status", http.StatusInternalServerError)
-			return
-		}
-	}
-
-	log.Println("Status reverted in Firestore, continuing to publish message")
-
-	message := map[string]interface{}{
-		"operation": operation,
-		"email":     email,
-		"objectID":  jobID,
-		"operationID": operationID,
-		"status":    prevStatus,
-	}
-
-	err = h.publishMessage(message)
-	// revertLatest is a special case -- need to revert Firestore status if publish fails
-	if err != nil && operation == "revertLatest" {
-		// revert status if publish fails
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		_, err = h.FirestoreClient.Collection("users").Doc(email).Collection("applications").Doc(jobID).Update(ctx, []firestore.Update{
-			{Path: "status", Value: currStatus},
-		})
-		if err != nil {
-			fmt.Printf("Error reverting application: %v\n", err)
-			http.Error(w, "Error reverting application edit", http.StatusInternalServerError)
-			return
-		}
-		log.Println("RevertStatus reverted because of publish failure")
-		http.Error(w, "Error publishing message", http.StatusInternalServerError)
-		return
-	}
-
-	log.Println("RevertStatus success")
-	// finally, we can decrement status counts (only if we're reverting latest operation
-	// remember: we store latest status in Firestore. so, if we're reverting latest operation,
-	// we need to increment the number of prevStatus and decrement the number of currStatus
-	// if reverting deep, nothing to do because Firestore only stores latest state
-	if operation == "revertLatest" {
-		log.Println("Latest operation reverted, decrementing/incrementing status counts")
-		// run a transaction to ensure consistency in decrementing/incrementing status counts
-		err = h.FirestoreClient.RunTransaction(r.Context(), func(ctx context.Context, tx *firestore.Transaction) error {
-			userDoc := h.FirestoreClient.Collection("users").Doc(email)
-			doc, err := tx.Get(userDoc)
-			if err != nil {
-				return err
-			}
-			
-			currentStatusCount := 0
-			currentCountKey := fmt.Sprintf("%s_count", strings.ToLower(currStatus))
-			if val, exists := doc.Data()[currentCountKey]; exists {
-				if count, ok := val.(int64); ok {
-					currentStatusCount = int(count)
-				}
-			}
-			
-			// no blocking on incrementing previous state
-			updates := []firestore.Update{
-				{Path: fmt.Sprintf("%s_count", strings.ToLower(prevStatus)), Value: firestore.Increment(1)},
-			}
-			
-			// only decrement if current status count > 0
-			if currentStatusCount > 0 {
-				updates = append(updates, firestore.Update{
-					Path: currentCountKey, Value: firestore.Increment(-1),
-				})
-			}
-			
-			return tx.Update(userDoc, updates)
-		})
-		if err != nil {
-			fmt.Printf("Error updating status count: %v\n", err)
-			http.Error(w, "Error updating status count", http.StatusInternalServerError)
-			return
-		}
-
-		// if latest status decrement, send to frontend for optimistic ui
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status": prevStatus,
-		})
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
 }
 
 func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -1023,28 +573,25 @@ func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("User authenticated")
 
-	// send to algolia to delete all applications associated with this user
-	message := map[string]interface{}{
-		"operation": "userDelete",
-		"email":     email,
-	}
-
-	err = h.publishMessage(message)
+	var success bool
+	err = h.pgClient.QueryRow(r.Context(), `
+		SELECT service.delete_user($1)
+	`, email).Scan(&success)
 	if err != nil {
-		fmt.Printf("Error publishing message: %v\n", err)
+		fmt.Printf("Error calling delete_user: %v\n", err)
 		http.Error(w, "Error deleting user", http.StatusInternalServerError)
 		return
 	}
 
-	// since we can't exactly revert a user deletion, we will delete only if publish is successful
-	err = h.deleteUserFromFirestore(email, 10)
-	if err != nil {
-		fmt.Printf("Error deleting user: %v\n", err)
+	if !success {
+		fmt.Println("Error: delete_user failed")
 		http.Error(w, "Error deleting user", http.StatusInternalServerError)
 		return
 	}
+
 
 	log.Println("User deleted")
+	log.Println("-----------------")
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -1062,7 +609,6 @@ func (h *Handler) GetApplicationTimeline(w http.ResponseWriter, r *http.Request)
 
 	log.Println("User authenticated")
 
-
 	var getApplicationTimelineRequest ApplicationTimelineRequest
 	err = json.NewDecoder(r.Body).Decode(&getApplicationTimelineRequest)
 	if err != nil {
@@ -1072,164 +618,203 @@ func (h *Handler) GetApplicationTimeline(w http.ResponseWriter, r *http.Request)
 
 	jobID := getApplicationTimelineRequest.ID
 
-	q := h.bigQueryClient.Query(`
-		SELECT operationID, operation, status, event_time
-		FROM applications_data.applications
-		WHERE email = @email
-		AND jobID = @jobID
-		AND operation != 'revert'
-		ORDER BY event_time DESC
-	`)
-	q.Parameters = []bigquery.QueryParameter{
-		{Name: "email", Value: email},
-		{Name: "jobID", Value: jobID},
-	}
-
-	job, err := q.Run(r.Context())
+	rows, err := h.pgClient.Query(r.Context(), `
+		SELECT * from service.get_application_timeline($1, $2)
+	`, email, jobID)
 	if err != nil {
-		fmt.Printf("Error getting timeline: %v\n", err)
-		http.Error(w, "Error getting timeline", http.StatusInternalServerError)
+		fmt.Printf("Error: %v\n", err)
+		http.Error(w, "Error getting application timeline", http.StatusInternalServerError)
 		return
 	}
+	defer rows.Close()
 
-	status, err := job.Wait(r.Context())
-	if err != nil {
-		fmt.Printf("Error getting timeline: %v\n", err)
-		http.Error(w, "Error getting timeline", http.StatusInternalServerError)
-		return
-	}
-	if err := status.Err(); err != nil {
-		fmt.Printf("Job completed with erorr: %v\n", err)
-		http.Error(w, "Job completed with error", http.StatusInternalServerError)
-		return
-	}
-
-
-	it, err := job.Read(r.Context())
-	if err != nil {
-		fmt.Printf("Error reading timeline: %v\n", err)
-		http.Error(w, "Error reading timeline", http.StatusInternalServerError)
-		return
-	}
-
-	type Row struct {
-		OperationID string `bigquery:"operationID"`
-		Operation   string `bigquery:"operation"`
-		Status      string `bigquery:"status"`
-		EventTime   time.Time `bigquery:"event_time"`
-	}
-
-	var rows []Operation
-
-	for {
-		var row Row
-		err := it.Next(&row)
-		if err == iterator.Done {
-			break
-		}
+	timeline := make([]Operation, 0)
+	for rows.Next() {
+		var (
+			operationID string
+			eventTime   time.Time
+			status      string
+			operation   string
+		)
+		err := rows.Scan(
+			&operationID,
+			&eventTime,
+			&status,
+			&operation,
+		)
 		if err != nil {
-			fmt.Printf("Error iterating timeline: %v\n", err)
-			http.Error(w, "Error iterating timeline", http.StatusInternalServerError)
+			fmt.Printf("Error scanning row: %v\n", err)
+			http.Error(w, "Error scanning row", http.StatusInternalServerError)
 			return
 		}
-		rows = append(rows, Operation{
-			OperationID: row.OperationID,
-			Operation:   row.Operation,
-			Status:      row.Status,
-			EventTime:   row.EventTime,
+		timeline = append(timeline, Operation{
+			OperationID: operationID,
+			Operation:   operation,
+			Status:      status,
+			EventTime:   eventTime.Local(),	// postgres stores UTC, convert local
 		})
+	}
+	if err := rows.Err(); err != nil {
+		fmt.Printf("Error iterating rows: %v\n", err)
+		http.Error(w, "Error iterating rows", http.StatusInternalServerError)
+		return
 	}
 
 	log.Println("Timeline extracted")
+	log.Println("-----------------")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(rows)
+	json.NewEncoder(w).Encode(timeline)
 }
 
-// publishes to both algolia and bigquery topics
-func (h *Handler) publishMessage(message map[string]interface{}) error {
-	// new context here -- message should be published regardless of context cancellation
-	// for consistency enforcement. use 10 second timeout to prevent indefinite blocking
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	messageBody, err := json.Marshal(message)
-	if err != nil {
-		fmt.Printf("Error marshaling message: %v\n", err)
-		return err
+func (h *Handler) extractAnalytics(ctx context.Context, email string) (map[string]interface{}, error) {
+	res := map[string]interface{}{
+		"email": email,
 	}
 
-	// hold the publish result. this is necessary for
-	// our strong consistency model
-	var result *pubsub.PublishResult
+	// im sorry bruh this is the only way to do it lol
+	var (
+		applicationsCount, appliedCount, ghostedCount, rejectedCount, screenCount, interviewingCount,
+		offerCount, applicationVelocity, applicationVelocityTrend, resumeEffectiveness,
+		resumeEffectivenessTrend, interviewEffectiveness, interviewEffectivenessTrend,
+		avgResponseTime, avgResponseTimeTrend int
+	) 
 
-	// attempt to publish message (algolia and bigquery both subscribe to this topic)
-	r := h.pubsubTopic.Publish(ctx, &pubsub.Message{
-		Data:        messageBody,
-		OrderingKey: h.orderingKey,
-	})
+	var yearlyTrends []byte
 
-	// if message publish fails, propagate an error to revert Firestore operation
-	result = r
-	id, err := result.Get(ctx)
+	err := h.pgClient.QueryRow(ctx, "SELECT * FROM service.profile($1)", email).Scan(
+		&applicationsCount, &appliedCount, &ghostedCount, &rejectedCount, &screenCount,
+		&interviewingCount, &offerCount, &applicationVelocity, &applicationVelocityTrend,
+		&resumeEffectiveness, &resumeEffectivenessTrend, &interviewEffectiveness,
+		&interviewEffectivenessTrend, &avgResponseTime, &avgResponseTimeTrend,
+		&yearlyTrends,
+	)
 	if err != nil {
-		fmt.Printf("Error publishing message: %v\n", err)
-		return err
+		// if no profile found (pgx.ErrNoRows), umm how tf did u even authenticate this call
+		// anyways just return nothing cause this should never happen
+		fmt.Printf("Error querying profile: %v\n", err)
+		return nil, err
 	}
 
-	fmt.Printf("Published message with ID: %s\n", id)
+	res["applications_count"] = applicationsCount
+    res["applied_count"] = appliedCount
+    res["ghosted_count"] = ghostedCount
+    res["rejected_count"] = rejectedCount
+    res["screen_count"] = screenCount
+    res["interviewing_count"] = interviewingCount
+    res["offer_count"] = offerCount
+    res["application_velocity"] = applicationVelocity
+    res["application_velocity_trend"] = applicationVelocityTrend
+    res["resume_effectiveness"] = resumeEffectiveness
+    res["resume_effectiveness_trend"] = resumeEffectivenessTrend
+    res["interview_effectiveness"] = interviewEffectiveness
+    res["interview_effectiveness_trend"] = interviewEffectivenessTrend
+    res["avg_response_time"] = avgResponseTime
+    res["avg_response_time_trend"] = avgResponseTimeTrend
 
-	return nil
+	// parse JSONB yearly trends
+    if len(yearlyTrends) > 0 {
+        var trends map[string]interface{}
+        if err := json.Unmarshal(yearlyTrends, &trends); err == nil {
+            res["yearly_trends"] = trends
+        } else {
+            res["yearly_trends"] = map[string]interface{}{}
+        }
+    } else {
+        res["yearly_trends"] = map[string]interface{}{}
+    }
+
+    return res, nil
 }
 
-// Firestore does not delete subcollections automatically
-// so, delete all documents in users/{email}/applications
-// then, delete users/{email}
-func (h *Handler) deleteUserFromFirestore(email string, batchSize int) error {
-	// a user might just close the tab after running delete, so we need to ensure
-	// that the context is not cancelled and the delete still goes through
-	ctx := context.Background()
+func (h *Handler) filterQueryText(email, queryText string, ctx context.Context, hitsPerPageInt, page int, prevPageBoundary *time.Time) ([]SearchResponse, int64, error) {
+    var applications []SearchResponse
+    var rows pgx.Rows
+    var err error
 
-	// delete subcollection FIRST (just applications)
-	applicationsCollection := h.FirestoreClient.Collection("users").Doc(email).Collection("applications")
-	bulkWriter := h.FirestoreClient.BulkWriter(ctx)
-
-	// for each batch...
-	for {
-		iter := applicationsCollection.Limit(batchSize).Documents(ctx)
-		numDeleted := 0
-
-		// for each document...
-		for {
-			doc, err := iter.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				return fmt.Errorf("Failed to iterate: %v", err)
-			}
-
-			bulkWriter.Delete(doc.Ref)
-			numDeleted++
-		}
-
-		if numDeleted == 0 {
-			bulkWriter.End()
-			break
-		}
-
-		bulkWriter.Flush()
-	}
-
-	fmt.Println("Applications subcollection deleted for user", email)
-
-	// delete user document
-	_, err := h.FirestoreClient.Collection("users").Doc(email).Delete(ctx)
+    if prevPageBoundary != nil {
+        // use keyset pagiantion
+        rows, err = h.pgClient.Query(ctx, `
+            SELECT * FROM service.get_user_applications($1, $2, $3, $4, $5)
+        `, email, queryText, hitsPerPageInt, 0, prevPageBoundary)
+    } else {
+        // use offset pagination
+        rows, err = h.pgClient.Query(ctx, `
+            SELECT * FROM service.get_user_applications($1, $2, $3, $4, $5)
+        `, email, queryText, hitsPerPageInt, page*hitsPerPageInt, nil)
+    }
 	if err != nil {
-		return fmt.Errorf("Failed to delete user document: %v", err)
+		fmt.Printf("Error: %v\n", err)
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var totalHits sql.NullInt64
+
+	for rows.Next() {
+		var (
+			applicationID sql.NullString
+			email         sql.NullString	// not used in the response, but scanned
+			appliedDate   time.Time
+			operation     sql.NullString	// might be useful if needed; not used below
+			appStatus     sql.NullString
+			company       sql.NullString
+			title         sql.NullString	// we treat title as the Role
+			link          sql.NullString
+			locations     sql.NullString	// we treat locations as Location
+		)
+		err := rows.Scan(
+			&applicationID,
+			&email,
+			&appliedDate,
+			&operation,
+			&appStatus,
+			&company,
+			&title,
+			&link,
+			&locations,
+			&totalHits,
+		)
+		if err != nil {
+			// handle scan error
+			fmt.Printf("Error scanning row: %v\n", err)
+			return nil, 0, err
+		}
+
+		appStatusStr := ""
+		if appStatus.Valid {
+			appStatusStr = appStatus.String
+		}
+		
+		application := SearchResponse{
+			ID:          applicationID.String,
+			Role:        title.String,
+			Company:     company.String,
+			Location:    locations.String,
+			AppliedDate: appliedDate.UnixMilli(),
+			Status:      ApplicationStatus(appStatusStr),	// ApplicationStatus() is basically enum wrapper
+			Link:        link.String,
+		}
+		
+		applications = append(applications, application)
 	}
 
-	fmt.Println("User document deleted for user", email)
+	var hits int64 = 0
+	if totalHits.Valid {
+		hits = int64(totalHits.Int64)
+	}
 
-	return nil
+	if err := rows.Err(); err != nil {
+		fmt.Printf("Error iterating rows: %v\n", err)
+		return nil, 0, err
+	}
+
+	return applications, hits, nil
+}
+
+// for every data mutation, change cache version
+func (h *Handler) invalidateUserCache(ctx context.Context, email string) {
+	// increment the cache version for this user
+	versionKey := fmt.Sprintf("user:%s:cache_version", email)
+	h.redisClient.Incr(ctx, versionKey)
 }

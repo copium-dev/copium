@@ -25,7 +25,9 @@ export const POST: RequestHandler = async ({ request, fetch, locals }) => {
         })
     }
 
-    const newStatus = await response.json();
+    const res = await response.json();
+
+    const newStatus = res.status;
 
     return new Response(JSON.stringify({
         type: 'success',

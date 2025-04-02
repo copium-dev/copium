@@ -75,7 +75,7 @@
                     type="date"
                     name="appliedDate"
                     placeholder="Applied Date"
-                    value={formatDateForInput(Math.floor(Date.now()/1000))}
+                    value={formatDateForInput(Date.now())}
                     required
                 />
                 <AlertDialog.Footer>

@@ -11,7 +11,6 @@
     import { badgeVariants } from "$lib/components/ui/badge";
     import { Progress } from "$lib/components/ui/progress/index.js";
     import { toast } from "svelte-sonner";
-    import { Toaster } from "$lib/components/ui/sonner/index.js";
     import * as AlertDialog from "$lib/components/ui/alert-dialog";
     import * as Dialog from "$lib/components/ui/dialog";
 
@@ -200,7 +199,6 @@
 </script>
 
 {#if visible}
-    <Toaster />
     <Separator
         orientation="horizontal"
         class="mx-auto w-full border-t border-dashed bg-transparent"
@@ -303,15 +301,9 @@
                                                                 <span class="font-medium">{event.status}</span>
                                                                 <span class="font-medium">Action: {event.operation}</span>
                                                             </div>
-                                                            <!-- IM SORRY THIS IS SO WEIRD BUT... remember that backend
-                                                             adds 12 hours to the event_time so we need to subtract 12 hours here -->
                                                             <div class="flex flex-col items-end gap-2">
                                                                 <span class="text-xs text-muted-foreground">
-                                                                    {(() => {
-                                                                        const date = new Date(event.event_time);
-                                                                        date.setHours(date.getHours() - 12); // Subtract 12 hours to compensate
-                                                                        return date.toLocaleString();
-                                                                    })()}
+                                                                    {new Date(event.event_time).toLocaleString()}
                                                                 </span>
                                                                 <Button size="sm" on:click={() => revertStatus(event.operationID)}>
                                                                     Revert

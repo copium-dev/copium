@@ -17,15 +17,17 @@ export const load: PageServerLoad = async ({ fetch, locals }) => {
 
     const data = await response.json();
 
+    console.log(data.yearly_trends)
+
     return {
         email: data.email,
-        applicationsCount: data.applicationsCount,
+        applicationsCount: data.applications_count,
         analytics: {
             application_velocity: data.application_velocity,
             application_velocity_trend: data.application_velocity_trend,
             resume_effectiveness: data.resume_effectiveness,
             resume_effectiveness_trend: data.resume_effectiveness_trend,
-            monthly_trends: data.monthly_trends,
+            yearly_trends: data.yearly_trends,
             interview_effectiveness: data.interview_effectiveness,
             interview_effectiveness_trend: data.interview_effectiveness_trend,
             avg_response_time: data.avg_response_time,

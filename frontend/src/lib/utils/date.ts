@@ -1,8 +1,16 @@
+/**
+ * IF YOU WERE WONDERING ARE WE MILLISECONDS OR SECONDS...
+ * BACKEND STORES MILLISECONDS BECAUSE IT'S KEYSET PAGINATION BY APPLIED DATE
+ * SO IT NEEDS TO BE MORE PRECISE THAN SECONDS. HOWEVER, FRONTEND SHOULDN'T BE 
+ * DISPLAYING THE SECONDS SO WE CONVERT IT TO SECONDS... OKAY???????? FURTHERMORE,
+ * ALL BACKEND RETURNS TO FRONTEND IS IN SECONDS TO FURTHER CONFUSE YOU :D
+ */
+
 // for input type="date"
 export function formatDateForInput(timestamp: number): string {
     if (!timestamp) return "";
 
-    const date = new Date(timestamp * 1000);
+    const date = new Date();
     if (isNaN(date.getTime())) return "";
 
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -16,7 +24,7 @@ export function formatDateForInput(timestamp: number): string {
 export function formatDateForDisplay(timestamp: number): string {
     if (!timestamp) return "";
 
-    const date = new Date(timestamp * 1000);
+    const date = new Date(timestamp);
     if (isNaN(date.getTime())) return "";
 
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -44,15 +52,17 @@ export function formatDateWithSeconds(timestamp: number): string {
     return `${month}-${day}-${year} ${hour}:${min}:${sec} ${date.getHours() >= 12 ? "PM" : "AM"}`;
 }
 
-// convert to unix seconds for backend
-// no need to adjust for timezone 
 export function convertLocalDateToTimestamp(dateString: string): number {
+    // this is just for current time 
+    const now = new Date();
     // dateString comes as yyyy-mm-dd
     const [year, month, day] = dateString.split('-').map(Number);
+
+    const [hours, mins, secs, ms] = [now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds()];
     
     // month is 0-indexed in Date constructor
-    const date = new Date(year, month - 1, day, 12, 0, 0);
-    
-    // return unix timestamp in seconds
-    return Math.floor(date.getTime() / 1000);
+    const date = new Date(year, month - 1, day, hours, mins, secs, ms);
+
+    // convert to unix timestamp in milliseconds
+    return date.getTime();
 }

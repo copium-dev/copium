@@ -3,46 +3,34 @@ package api
 import (
     "log"
     "net/http"
+	"os"
 	
 	"github.com/copium-dev/copium/go/service/user"
     "github.com/copium-dev/copium/go/service/auth"
 	"github.com/copium-dev/copium/go/service/postings"
     "github.com/copium-dev/copium/go/utils"
     
-	"cloud.google.com/go/firestore"
-	"cloud.google.com/go/bigquery"
 	"github.com/gorilla/mux"
     "github.com/rs/cors"
-	"github.com/algolia/algoliasearch-client-go/v4/algolia/search"
-	"cloud.google.com/go/pubsub"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 type APIServer struct {
-    addr string
-    firestoreClient *firestore.Client
-	algoliaClient *search.APIClient
-	bigQueryClient *bigquery.Client
-    authHandler *utils.AuthHandler
-	pubsubTopic *pubsub.Topic
-	orderingKey string
+	addr string
+	pgClient *pgxpool.Pool
+	redisClient *redis.Client
+	authHandler *utils.AuthHandler
 }
 
-func NewAPIServer(addr string,
-	firestoreClient *firestore.Client,
-	algoliaClient *search.APIClient,
-	bigQueryClient *bigquery.Client,
-	authHandler *utils.AuthHandler,
-	pubsubTopic *pubsub.Topic,
-	orderingKey string,
+func NewAPIServer(
+	addr string, pgClient *pgxpool.Pool, redisClient *redis.Client, authHandler *utils.AuthHandler,
 ) *APIServer {
     return &APIServer{
         addr: addr,
-        firestoreClient: firestoreClient,
-		algoliaClient: algoliaClient,
-		bigQueryClient: bigQueryClient,
-        authHandler: authHandler,
-		pubsubTopic: pubsubTopic,
-		orderingKey: orderingKey,
+		pgClient: pgClient,
+		redisClient: redisClient,
+		authHandler: authHandler,
     }
 }
 
@@ -52,16 +40,22 @@ func (s *APIServer) Run() error {
 
     log.Println("Listening on", s.addr)
 
-    userHandler := user.NewHandler(s.firestoreClient, s.algoliaClient, s.bigQueryClient, s.pubsubTopic, s.orderingKey)
+    userHandler := user.NewHandler(s.pgClient, s.redisClient)
     userHandler.RegisterRoutes(router)
 
-    authHandler := auth.NewHandler(s.firestoreClient, s.authHandler)
+	// authHandler requires frontendURL
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173"
+	}
+
+    authHandler := auth.NewHandler(s.authHandler, s.pgClient, frontendURL)
     authHandler.RegisterRoutes(router)
 
-	postingsHandler := postings.NewHandler(s.algoliaClient)
+	// postings handler requires nada but use same pattern for consistency & future-proofing for future features
+	postingsHandler := postings.NewHandler()
 	postingsHandler.RegisterRoutes(router)
 
-    // create new CORS handler
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"https://www.copium.dev", "https://copium.dev", "http://localhost:5173"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
