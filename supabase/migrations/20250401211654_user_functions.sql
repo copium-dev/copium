@@ -3,14 +3,14 @@ CREATE OR REPLACE FUNCTION service.login(p_email TEXT)
 RETURNS BOOLEAN AS $$
 BEGIN
     -- insert into users table, update last login if user already exists
-    INSERT INTO users (email, last_login)
+    INSERT INTO service.users (email, last_login)
     VALUES (p_email, date_trunc('milliseconds', NOW() AT TIME ZONE 'UTC'))
     ON CONFLICT (email) DO UPDATE
     SET last_login = date_trunc('milliseconds', NOW() AT TIME ZONE 'UTC');
 
     -- initialize user_analytics so user can see dashboard w/o adding anything
     -- schema already defaults everything to 0 so don't worry
-    INSERT INTO user_analytics
+    INSERT INTO service.user_analytics
         (email)
     VALUES (p_email)
     ON CONFLICT (email) DO NOTHING;
@@ -40,6 +40,7 @@ RETURNS TABLE (
     interview_effectiveness INT,
     interview_effectiveness_trend INT,
     avg_first_response_time INT,
+    prev_avg_first_response_time INT,
     avg_first_response_time_trend INT,
     yearly_trends JSONB
 ) AS $$
@@ -53,16 +54,17 @@ BEGIN
         ua.screen_count,
         ua.interviewing_count,
         ua.offer_count,
-        COALESCE(ua.application_velocity, 0) AS application_velocity,
-        COALESCE(ua.application_velocity_trend, 0) AS application_velocity_trend,
-        COALESCE(ua.resume_effectiveness, 0) AS resume_effectiveness,
-        COALESCE(ua.resume_effectiveness_trend, 0) AS resume_effectiveness_trend,
-        COALESCE(ua.interview_effectiveness, 0) AS interview_effectiveness,
-        COALESCE(ua.interview_effectiveness_trend, 0) AS interview_effectiveness_trend,
-        COALESCE(ua.avg_first_response_time, 0) AS avg_first_response_time,
-        COALESCE(ua.avg_first_response_time_trend, 0) AS avg_first_response_time_trend,
+        ua.application_velocity AS application_velocity,
+        ua.application_velocity_trend AS application_velocity_trend,
+        ua.resume_effectiveness AS resume_effectiveness,
+        ua.resume_effectiveness_trend AS resume_effectiveness_trend,
+        ua.interview_effectiveness AS interview_effectiveness,
+        ua.interview_effectiveness_trend AS interview_effectiveness_trend,
+        ua.avg_first_response_time AS avg_first_response_time,
+        ua.prev_avg_first_response_time AS prev_avg_first_response_time,
+        ua.avg_first_response_time_trend AS avg_first_response_time_trend,
         COALESCE(ua.yearly_trends, '{}'::JSONB) AS yearly_trends
-    FROM user_analytics ua
+    FROM service.user_analytics ua
     WHERE ua.email = p_email;
 END;
 $$ LANGUAGE plpgsql;
@@ -95,7 +97,7 @@ DECLARE
 BEGIN
     -- get total hits first
     SELECT COUNT(DISTINCT ua.application_id) INTO v_total_hits
-    FROM user_applications ua
+    FROM service.user_applications ua
     WHERE ua.email = p_email
         AND (
             p_query IS NULL
@@ -105,7 +107,10 @@ BEGIN
         );
     
     IF p_last_applied_date IS NOT NULL THEN
-        -- prev page boundary cached, just get everything before it considering the limit
+        -- prev page boundary cached, just get everything before it up to limit
+        -- this makes sequential navigation very fast. we cache page boundaries for every
+        -- page so if we jump to page 90 we can do fast sequential navigation
+        -- a potential optimization (if page numbers get crazy) is to cache surrounding pages too
         RETURN QUERY
         SELECT 
             ua.application_id,
@@ -118,7 +123,7 @@ BEGIN
             ua.link,
             ua.locations,
             v_total_hits
-        FROM user_applications ua
+        FROM service.user_applications ua
         WHERE ua.email = p_email
             AND ua.applied_date < p_last_applied_date
             -- full text search on title OR company OR locations
@@ -144,7 +149,7 @@ BEGIN
             ua.link,
             ua.locations,
             v_total_hits
-        FROM user_applications ua
+        FROM service.user_applications ua
         WHERE ua.email = p_email
             AND (
                 p_query IS NULL
@@ -174,7 +179,7 @@ RETURNS UUID AS $$
 DECLARE
     v_application_id UUID;
 BEGIN
-    INSERT INTO user_applications (
+    INSERT INTO service.user_applications (
         application_id,
         email,
         applied_date,
@@ -198,7 +203,7 @@ BEGIN
     )
     RETURNING application_id INTO v_application_id;
     
-    INSERT INTO application_history (
+    INSERT INTO service.application_history (
         operation_id,
         application_id,
         email,
@@ -217,7 +222,7 @@ BEGIN
         p_operation
     );
     
-    UPDATE user_analytics
+    UPDATE service.user_analytics
     SET
         analytics_status = 'pending',
         applications_count = applications_count + 1,
@@ -241,13 +246,13 @@ BEGIN
     -- just get the most recent status from application_history. but obviously this is +1 read
     -- BUT index should make this good enough
     SELECT app_status INTO v_status
-    FROM application_history
+    FROM service.application_history
     WHERE email = p_email 
         AND application_id = p_application_id
     ORDER BY event_time DESC
     LIMIT 1;
 
-    UPDATE user_analytics
+    UPDATE service.user_analytics
     SET 
         applications_count = GREATEST(0, applications_count - 1), 
         -- only decrement the status count that matches the current status
@@ -261,7 +266,7 @@ BEGIN
 
     -- now delete the application from user_applications and application_history
     -- we already cascade deletes so just delete from user_applications
-    DELETE FROM user_applications
+    DELETE FROM service.user_applications
     WHERE email = p_email
         AND application_id = p_application_id; 
 
@@ -282,7 +287,7 @@ RETURNS BOOLEAN AS $$
 BEGIN
     -- delete user from users table
     -- all tables use cascading deletes on this primary key
-    DELETE FROM users
+    DELETE FROM service.users
     WHERE email = p_email;
 
     RETURN TRUE;
@@ -304,7 +309,7 @@ CREATE OR REPLACE FUNCTION service.edit_application(
 )
 RETURNS BOOLEAN AS $$
 BEGIN
-    UPDATE user_applications
+    UPDATE service.user_applications
     SET 
         company = COALESCE(p_company, company),
         title = COALESCE(p_title, title),
@@ -338,7 +343,7 @@ BEGIN
     -- NOTE: applied date is put in history; its redundant but avoids joins
     SELECT app_status, applied_date
     INTO v_prev_status, v_applied_date
-    FROM user_applications
+    FROM service.user_applications
     WHERE email = p_email
         AND application_id = p_application_id;
 
@@ -348,14 +353,14 @@ BEGIN
     END IF;
 
     -- atp confirmed to be a new event; update status and append to history
-    UPDATE user_applications ua
+    UPDATE service.user_applications ua
     SET 
         app_status = p_app_status,
         operation = 'edit'
     WHERE ua.email = p_email
         AND ua.application_id = p_application_id;
 
-    INSERT INTO application_history (
+    INSERT INTO service.application_history (
         operation_id,
         application_id,
         email,
@@ -412,7 +417,7 @@ BEGIN
         event_time,
         app_status,
         operation
-    FROM application_history ah
+    FROM service.application_history ah
     WHERE ah.email = p_email
       AND ah.application_id = p_application_id
     ORDER BY event_time DESC;
@@ -437,7 +442,7 @@ DECLARE
 BEGIN
     SELECT operation
     INTO v_operation_type
-    FROM application_history
+    FROM service.application_history
     WHERE email = p_email
         AND application_id = p_application_id
         AND operation_id = p_operation_id;
@@ -460,7 +465,7 @@ BEGIN
         applied_date,
         event_time,
         ROW_NUMBER() OVER (ORDER BY event_time DESC) AS rn
-    FROM application_history
+    FROM service.application_history
     WHERE email = p_email
         AND application_id = p_application_id
         AND operation != 'revert'
@@ -499,15 +504,15 @@ BEGIN
         -- so we only update if this is the latest operation
         PERFORM service.update_application_counts(p_email, v_latest_op.app_status, v_prev_status);
 
-        -- also update the status (not histrocial just latest)
-        UPDATE user_applications
+        -- also update the status (not historical just latest)
+        UPDATE service.user_applications
         SET app_status = v_prev_status
         WHERE email = p_email
             AND application_id = p_application_id;
     END IF;
 
     -- set as reverted in history regardless of latest or not
-    UPDATE application_history
+    UPDATE service.application_history
     SET operation = 'revert'
     WHERE email = p_email
         AND application_id = p_application_id
@@ -520,7 +525,7 @@ BEGIN
     IF v_is_latest THEN
         RETURN v_prev_status;
     ELSE
-        RETURN NULL;
+        RETURN '';
     END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -539,7 +544,7 @@ BEGIN
         RETURN TRUE;
     END IF;
 
-    UPDATE user_analytics
+    UPDATE service.user_analytics
     SET 
         applied_count = GREATEST(0, applied_count + 
             CASE 
@@ -610,7 +615,7 @@ BEGIN
         ah.event_time,
         ah.app_status,
         ah.operation
-    FROM application_history ah
+    FROM service.application_history ah
     WHERE ah.email = p_email
       AND ah.application_id = p_application_id
       AND ah.operation != 'revert'

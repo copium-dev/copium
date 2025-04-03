@@ -23,6 +23,8 @@ type CvrveAPIResponse struct {
 }
 
 // need total pages and current pages for nice looking pagination
+// vansh i already implemented keyset + offset hybrid pagination
+// let me integrate bro :handshake:
 type PostingsResponse struct {
 	Applications []CvrveAPIResponse `json:"postings"`
 	TotalPages   int               	`json:"totalPages"`
@@ -30,7 +32,7 @@ type PostingsResponse struct {
 }
 
 type Handler struct {
-	// nothinggg
+	// nothinggg unless in the future we need to know if user has premium or whatevuh
 }
 
 func NewHandler() *Handler {

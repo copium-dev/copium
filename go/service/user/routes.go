@@ -392,6 +392,7 @@ func (h *Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 
 // NOTE: eager loading is not necessary here because frontend already assumes success
 // if any error, a refresh would show the correct (reverted) state
+// does not invalidate cache because applied date does not change
 func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] EditStatus [*]")
 	log.Println("-----------------")
@@ -436,15 +437,13 @@ func (h *Handler) EditStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 'invalidate' aka increment cache so user has a new cache version
-	h.invalidateUserCache(r.Context(), email)
-
 	log.Println("Application status edited")
 	log.Println("-----------------")
 
 	w.WriteHeader(http.StatusOK)
 }
 
+// does not invalidate cache because this is just a metadata update
 func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] EditApplication [*]")
 	log.Println("-----------------")
@@ -492,15 +491,13 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 'invalidate' aka increment cache so user has a new cache version
-	h.invalidateUserCache(r.Context(), email)
-
 	log.Println("Application edited")
 	log.Println("-----------------")
 
 	w.WriteHeader(http.StatusOK)
 }
 
+// don't invalidate cache because this does not change the applied date
 func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 	log.Println("[*] RevertStatus [*]")
 	log.Println("-----------------")
@@ -544,9 +541,6 @@ func (h *Handler) RevertStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error reverting status", http.StatusInternalServerError)
 		return
 	}
-
-	// 'invalidate' aka increment cache so user has a new cache version
-	h.invalidateUserCache(r.Context(), email)
 
 	log.Println("Application status reverted")
 	log.Println("-----------------")
@@ -677,7 +671,7 @@ func (h *Handler) extractAnalytics(ctx context.Context, email string) (map[strin
 		applicationsCount, appliedCount, ghostedCount, rejectedCount, screenCount, interviewingCount,
 		offerCount, applicationVelocity, applicationVelocityTrend, resumeEffectiveness,
 		resumeEffectivenessTrend, interviewEffectiveness, interviewEffectivenessTrend,
-		avgResponseTime, avgResponseTimeTrend int
+		avgResponseTime, prevAvgResponseTime, avgResponseTimeTrend sql.NullInt64
 	) 
 
 	var yearlyTrends []byte
@@ -686,7 +680,7 @@ func (h *Handler) extractAnalytics(ctx context.Context, email string) (map[strin
 		&applicationsCount, &appliedCount, &ghostedCount, &rejectedCount, &screenCount,
 		&interviewingCount, &offerCount, &applicationVelocity, &applicationVelocityTrend,
 		&resumeEffectiveness, &resumeEffectivenessTrend, &interviewEffectiveness,
-		&interviewEffectivenessTrend, &avgResponseTime, &avgResponseTimeTrend,
+		&interviewEffectivenessTrend, &avgResponseTime, &prevAvgResponseTime, &avgResponseTimeTrend,
 		&yearlyTrends,
 	)
 	if err != nil {
@@ -696,21 +690,33 @@ func (h *Handler) extractAnalytics(ctx context.Context, email string) (map[strin
 		return nil, err
 	}
 
-	res["applications_count"] = applicationsCount
-    res["applied_count"] = appliedCount
-    res["ghosted_count"] = ghostedCount
-    res["rejected_count"] = rejectedCount
-    res["screen_count"] = screenCount
-    res["interviewing_count"] = interviewingCount
-    res["offer_count"] = offerCount
-    res["application_velocity"] = applicationVelocity
-    res["application_velocity_trend"] = applicationVelocityTrend
-    res["resume_effectiveness"] = resumeEffectiveness
-    res["resume_effectiveness_trend"] = resumeEffectivenessTrend
-    res["interview_effectiveness"] = interviewEffectiveness
-    res["interview_effectiveness_trend"] = interviewEffectivenessTrend
-    res["avg_response_time"] = avgResponseTime
-    res["avg_response_time_trend"] = avgResponseTimeTrend
+	// set nullable int values to nil if not valid
+	setNullableInt := func(m map[string]interface{}, key string, val sql.NullInt64) {
+		if val.Valid {
+			m[key] = val.Int64
+		} else {
+			m[key] = nil
+		}
+	
+	}
+
+	// so fucking ugly sorry
+	setNullableInt(res, "applications_count", applicationsCount)
+	setNullableInt(res, "applied_count", appliedCount)
+	setNullableInt(res, "ghosted_count", ghostedCount)
+	setNullableInt(res, "rejected_count", rejectedCount)
+	setNullableInt(res, "screen_count", screenCount)
+	setNullableInt(res, "interviewing_count", interviewingCount)
+	setNullableInt(res, "offer_count", offerCount)
+	setNullableInt(res, "application_velocity", applicationVelocity)
+	setNullableInt(res, "application_velocity_trend", applicationVelocityTrend)
+	setNullableInt(res, "resume_effectiveness", resumeEffectiveness)
+	setNullableInt(res, "resume_effectiveness_trend", resumeEffectivenessTrend)
+	setNullableInt(res, "interview_effectiveness", interviewEffectiveness)
+	setNullableInt(res, "interview_effectiveness_trend", interviewEffectivenessTrend)
+	setNullableInt(res, "avg_response_time", avgResponseTime)
+	setNullableInt(res, "prev_avg_response_time", prevAvgResponseTime)
+	setNullableInt(res, "avg_response_time_trend", avgResponseTimeTrend)
 
 	// parse JSONB yearly trends
     if len(yearlyTrends) > 0 {
@@ -727,6 +733,8 @@ func (h *Handler) extractAnalytics(ctx context.Context, email string) (map[strin
     return res, nil
 }
 
+// note that prevPageBoundary is unix and we always store timezone-independent in Postgres
+// so this is safe to use :))))))) i tested btw it works :))))
 func (h *Handler) filterQueryText(email, queryText string, ctx context.Context, hitsPerPageInt, page int, prevPageBoundary *time.Time) ([]SearchResponse, int64, error) {
     var applications []SearchResponse
     var rows pgx.Rows

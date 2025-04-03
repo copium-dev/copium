@@ -16,9 +16,7 @@ export const load: PageServerLoad = async ({ fetch, locals }) => {
     }
 
     const data = await response.json();
-
-    console.log(data.yearly_trends)
-
+    
     return {
         email: data.email,
         applicationsCount: data.applications_count,
@@ -31,6 +29,7 @@ export const load: PageServerLoad = async ({ fetch, locals }) => {
             interview_effectiveness: data.interview_effectiveness,
             interview_effectiveness_trend: data.interview_effectiveness_trend,
             avg_response_time: data.avg_response_time,
+            prev_avg_response_time: data.prev_avg_response_time,
             avg_response_time_trend: data.avg_response_time_trend,
             rejected_count: data.rejected_count,
             ghosted_count: data.ghosted_count,

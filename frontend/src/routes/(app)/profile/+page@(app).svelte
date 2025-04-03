@@ -530,7 +530,7 @@
                             <div class="text-2xl font-bold">
                                 <!-- if nil then X.X -->
                                 {data.analytics?.avg_response_time != null
-                                    ? data.analytics.avg_response_time.toFixed(1)
+                                    ? data.analytics?.avg_response_time.toFixed(1)
                                     : "X.X"
                                 } 
                                 days
@@ -603,8 +603,8 @@
                                 Slower
                             {:else}
                                 Same response time
-                            {/if} than previous 30 day period ({data.analytics?.avg_response_time_trend != null 
-                                    ? Math.abs(data.analytics.avg_response_time_trend).toFixed(1)
+                            {/if} than previous 30 day period ({data.analytics?.prev_avg_response_time != null 
+                                    ? Math.abs(data.analytics?.prev_avg_response_time).toFixed(1)
                                     : 'X.X'}
                                 days)
                         </p>

@@ -46,7 +46,7 @@ BEGIN
             (applied_date >= NOW() - INTERVAL '30 days') AS in_current_period,
             (applied_date >= NOW() - INTERVAL '60 days' AND applied_date < NOW() - INTERVAL '30 days') AS in_previous_period,
             TO_CHAR(applied_date, 'YYYY-MM') AS month
-        FROM application_history
+        FROM service.application_history
         WHERE email = p_email
             AND operation != 'revert'
             -- all operations in the past 365 days are relevant. technically this could be split
@@ -88,43 +88,29 @@ BEGIN
             -- Application velocity metrics
             COALESCE(SUM(CASE WHEN in_current_period AND is_application THEN 1 ELSE 0 END), 0) AS current_30day_count,
             COALESCE(SUM(CASE WHEN in_previous_period AND is_application THEN 1 ELSE 0 END), 0) AS previous_30day_count,
-            COALESCE(SUM(CASE WHEN in_current_period AND is_application THEN 1 ELSE 0 END), 0) - 
-                COALESCE(SUM(CASE WHEN in_previous_period AND is_application THEN 1 ELSE 0 END), 0) AS application_velocity_trend,
             
             -- Resume effectiveness metrics
             COUNT(DISTINCT CASE WHEN event_time >= NOW() - INTERVAL '30 days' AND is_interview 
                         THEN application_id END) AS current_30day_interviews,
             COUNT(DISTINCT CASE WHEN event_time >= NOW() - INTERVAL '60 days' AND event_time < NOW() - INTERVAL '30 days' 
                         AND is_interview THEN application_id END) AS previous_30day_interviews,
-            COUNT(DISTINCT CASE WHEN event_time >= NOW() - INTERVAL '30 days' AND is_interview 
-                        THEN application_id END) -
-            COUNT(DISTINCT CASE WHEN event_time >= NOW() - INTERVAL '60 days' AND event_time < NOW() - INTERVAL '30 days' 
-                        AND is_interview THEN application_id END) AS resume_effectiveness_trend,
             
             -- Interview effectiveness metrics
             COUNT(DISTINCT CASE WHEN event_time >= NOW() - INTERVAL '30 days' AND is_offer 
                         THEN application_id END) AS current_30day_offers,
             COUNT(DISTINCT CASE WHEN event_time >= NOW() - INTERVAL '60 days' AND event_time < NOW() - INTERVAL '30 days' 
                         AND is_offer THEN application_id END) AS previous_30day_offers,
-            COUNT(DISTINCT CASE WHEN event_time >= NOW() - INTERVAL '30 days' AND is_offer 
-                        THEN application_id END) -
-            COUNT(DISTINCT CASE WHEN event_time >= NOW() - INTERVAL '60 days' AND event_time < NOW() - INTERVAL '30 days' 
-                        AND is_offer THEN application_id END) AS interview_effectiveness_trend,
             
             -- Response time metrics
-            (SELECT COALESCE(AVG(CASE WHEN applied_date >= NOW() - INTERVAL '30 days' 
-                            THEN days_to_response END), 0)::INT
-             FROM ResponseMetrics) AS current_30day_avg_response_time,
-            (SELECT COALESCE(AVG(CASE WHEN applied_date >= NOW() - INTERVAL '60 days' 
+            (SELECT AVG(CASE WHEN applied_date >= NOW() - INTERVAL '30 days' 
+                            THEN days_to_response ELSE NULL END)
+            FROM ResponseMetrics)::INT AS current_30day_avg_response_time,
+                        
+            (SELECT AVG(CASE WHEN applied_date >= NOW() - INTERVAL '60 days' 
                             AND applied_date < NOW() - INTERVAL '30 days'
-                            THEN days_to_response END), 0)::INT
-             FROM ResponseMetrics) AS previous_30day_avg_response_time,
-            (SELECT COALESCE(AVG(CASE WHEN applied_date >= NOW() - INTERVAL '30 days' 
-                            THEN days_to_response END), 0)::INT -
-                    COALESCE(AVG(CASE WHEN applied_date >= NOW() - INTERVAL '60 days' 
-                                AND applied_date < NOW() - INTERVAL '30 days'
-                                THEN days_to_response END), 0)::INT
-             FROM ResponseMetrics) AS response_time_trend,
+                            THEN days_to_response ELSE NULL END)
+            FROM ResponseMetrics)::INT AS previous_30day_avg_response_time,
+
              
             -- Monthly trends 
             (SELECT jsonb_object_agg(month, jsonb_build_object(
@@ -137,17 +123,18 @@ BEGIN
     )
     
     -- FINALLY analytics can be updated
-    UPDATE user_analytics ua
+    UPDATE service.user_analytics ua
     SET 
         analytics_status = 'fresh',
         application_velocity = m.current_30day_count,
-        application_velocity_trend = m.application_velocity_trend,
+        application_velocity_trend = m.current_30day_count - m.previous_30day_count,
         resume_effectiveness = m.current_30day_interviews,
-        resume_effectiveness_trend = m.resume_effectiveness_trend,
+        resume_effectiveness_trend = m.current_30day_interviews - m.previous_30day_interviews,
         interview_effectiveness = m.current_30day_offers,
-        interview_effectiveness_trend = m.interview_effectiveness_trend,
+        interview_effectiveness_trend = m.current_30day_offers - m.previous_30day_offers,
         avg_first_response_time = m.current_30day_avg_response_time,
-        avg_first_response_time_trend = m.response_time_trend,
+        prev_avg_first_response_time = m.previous_30day_avg_response_time,
+        avg_first_response_time_trend = m.current_30day_avg_response_time - m.previous_30day_avg_response_time,
         yearly_trends = COALESCE(m.yearly_trends, '{}'::JSONB)
     FROM Metrics m
     WHERE ua.email = p_email;

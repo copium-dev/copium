@@ -1,0 +1,11 @@
+-- -- simply for extracting email from JWT token for RLS policy
+-- CREATE SCHEMA IF NOT EXISTS auth;
+
+-- CREATE OR REPLACE FUNCTION auth.email()
+-- RETURNS TEXT AS $$
+-- BEGIN
+--     RETURN current_setting('jwt.claims.email', true);
+-- EXCEPTION
+--   WHEN OTHERS THEN RETURN NULL;
+-- END;
+-- $$ LANGUAGE plpgsql STABLE;
