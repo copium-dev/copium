@@ -204,7 +204,8 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
     if err == redis.Nil {
 		// no version exists, create new one 
         version = 1
-        h.redisClient.Set(r.Context(), versionKey, version, 0) // no expiration
+		// if inactive for 30 days (which is also auth expiry), delete user cache
+        h.redisClient.Set(r.Context(), versionKey, version, time.Hour * 24 * 30)
     }
 
 	// get previous page's time boundary
@@ -470,7 +471,6 @@ func (h *Handler) EditApplication(w http.ResponseWriter, r *http.Request) {
 	company := editApplicationRequest.Company
 	location := editApplicationRequest.Location
 	link := editApplicationRequest.Link
-
 
 	// update application in Postgres
 	var success bool
