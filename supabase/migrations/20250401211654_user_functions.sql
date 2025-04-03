@@ -393,37 +393,6 @@ EXCEPTION
 END;
 $$ LANGUAGE plpgsql;
 
--- get all application history
-CREATE OR REPLACE FUNCTION service.get_application_history(
-    p_email TEXT,
-    p_application_id UUID
-)
-RETURNS TABLE (
-    operation_id UUID,
-    application_id UUID,
-    email TEXT,
-    applied_date TIMESTAMPTZ,
-    event_time TIMESTAMPTZ,
-    app_status TEXT,
-    operation TEXT
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        operation_id,
-        application_id,
-        email,
-        applied_date,
-        event_time,
-        app_status,
-        operation
-    FROM service.application_history ah
-    WHERE ah.email = p_email
-      AND ah.application_id = p_application_id
-    ORDER BY event_time DESC;
-END;
-$$ LANGUAGE plpgsql;
-
 -- revert an operation; bit tricky since we have no joins, we have to check two cases:
 -- 1. most recent operation: update the user_applications table to previous status (from history)
 -- 2. not most recent: just delete most recent operation (soft delete; its flagged as reverted just in case)
