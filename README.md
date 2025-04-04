@@ -1,3 +1,11 @@
+**NOTE:** New features are being paused for a bit so we can finalize a merger with [cvrve](https://cvrve.me)! This insane three data store infra will be migrated all to Postgres. From testing, pagination is faster, analytics are recalculated *way* faster, and search has not been affected; we'd argue it's even a bit better. Extra features coming *immediately* after the merger will be:
+- A more accurate and faster company logo fetching CDN
+- Average time to first response will be split into average time to first positive and average time to first negative response
+- Timeline viewing will look much better
+- Timeline supports editing event time instead of being only the time you clicked the new status (for truly accurate analytics when you move from a previous tracking solution to ours)
+- Job board data is more fresh, and search/filtering on it is faster since we can now directly integrate with [cvrve](https://cvrve.me) tooling
+- And possibly more!
+ 
 # copium.dev
 - **frontend:** SvelteKit & Vercel
 - **search engine:** Algolia
