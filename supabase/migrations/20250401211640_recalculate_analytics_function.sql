@@ -1,30 +1,43 @@
 -- full recalculation for ANY kind of event
 -- this is as optimized as i possibly could've made it (1 pass, no joins)
--- and in reality user got 1000 apps max; we need a 
--- a self-healing mechanism with three-stage 'pending' updates, as follows:
---  1. user adds an app
---  2. insert app, get a UUID
---  3. flush headers to user with this UUID for optimistic UI
+-- and in the most generous reality ever a user has 5000 historical events (this ain't shi....)
+-- PREPARE FOR MASSIVE YAP SESH ABOUT WHY THIS WORKS. THIS COMES FROM THE FLAWS OF THE BIGQUERY IMPLEMENTATION
+-- THAT WAS IN PROD FOR 2 WEEKS. TALK TO ME (SEAN) IF U HAVE SUGGESTIONS TO MAKE THIS BETTER
+-- ----------
+-- here's an example of async processing replicated all within postgres using triggers and pg_cron for cleanup
+--  1. user adds an app or makes a status change
+--  2. insert app into latest, add to history, get a UUID
+--  3. increment basic counters in user_analytics (e.g. app count, interview count)
+--     gotta be done in this transaction in case add (or edit) rollback; dont wanna manage consistency app-side
 --  4. set analytics status to 'pending' in user_analytics
---  5. try to run analytics update in the background
---      a) if success, set to 'fresh'
---      b) if fail, set to 'stale'
---  6. when user loads profile, check analytics:
---      a) if fresh, show it
---      b) if pending, show loading indicator and ping again in 5s
---      c) if stale, show warning and retry button
--- this is essentially the idea of making UX feel snappier without truly fast backend
+--  5. an AFTER trigger will push the UUID to a queue table
+--     after this point, the app remains responsive. Since the trigger isn't analytics recalculation
+--     and rather a simple insert, this is essentially the same as waiting for pushing to RabbitMQ
+--  6. an AFTER trigger on the queue table will call full_recalculate_analytics on the UUID
+--     a) succeeds, status is set to 'fresh'
+--     b) fails, status is set to 'error'
+--  7. pg_cron will run a cleanup job at 3AM every day to remove any entries older than 3 days
+--     this is a safety net in case the queue table gets too big, does a batch delete in off-peak hours
+--     to ensure speed during peak hours
+--  8. user loads the profile page. 
+--     a) if analytics status is 'pending', show a loading spinner in the last updated area, and have frontend re-poll every 5s
+--     b) if analytics status is 'fresh', show the analytics and last updated
+--     c) if analytics status is 'error', show a retry button that calls this function again
+-- this is essentially the idea of making UX feel snappier without truly fast analytics
 -- it's because our demands are hard; need OLAP-style reads but OLTP-style writes...
--- well could do like read replicas but that is a ton of work and scale is not there yet 
+-- well could do like read replicas but that is a ton of work and scale is not there yet
+-- but in general this is super minimal extra code but tons of good UX gains. literally a complete replica
+-- of the old bigquery implementation but now all in postgres. postgres is king
 -- ----------
 -- the premature optimization strategy would be to do selective analytic updates
--- but in reality, 1000 apps is not a lot to recalculate on even with all the aggregations being done
+-- but in reality, 5000 rows is not a lot to recalculate on even with all the aggregations being done
 -- also, when you have to scan the full history table anyway for ANY analytic, the cost
--- of adding more aggregations is negligible since that is the main bottleneck
+-- of adding more aggregations is negligible since the main bottleneck is the scan
 -- and lowkey every 'selective' update isnt even that selective it still has to run monthly trends
--- ---------
--- the most naive way is to run all in one transaction. but this is bad for user 
--- ---------
+-- plus it's annoying as hell to manage all the different cases and makes adding new analytics hard
+-- ----------
+-- the most naive way is to run all in one transaction. but this is bad for UX once app scales and we have network hops and stuff
+-- ----------
 -- yap sesh over, here's the code. a straight copy paste from previous bigquery implementation 
 CREATE OR REPLACE FUNCTION service.full_recalculate_analytics(p_email TEXT)
 RETURNS BOOLEAN AS $$
