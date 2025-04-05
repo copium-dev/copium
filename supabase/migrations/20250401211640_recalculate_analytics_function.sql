@@ -1,44 +1,5 @@
--- full recalculation for ANY kind of event
--- this is as optimized as i possibly could've made it (1 pass, no joins)
--- and in the most generous reality ever a user has 5000 historical events (this ain't shi....)
--- PREPARE FOR MASSIVE YAP SESH ABOUT WHY THIS WORKS. THIS COMES FROM THE FLAWS OF THE BIGQUERY IMPLEMENTATION
--- THAT WAS IN PROD FOR 2 WEEKS. TALK TO ME (SEAN) IF U HAVE SUGGESTIONS TO MAKE THIS BETTER
--- ----------
--- here's an example of async processing replicated all within postgres using triggers and pg_cron for cleanup
---  1. user adds an app or makes a status change
---  2. insert app into latest, add to history, get a UUID
---  3. increment basic counters in user_analytics (e.g. app count, interview count)
---     gotta be done in this transaction in case add (or edit) rollback; dont wanna manage consistency app-side
---  4. set analytics status to 'pending' in user_analytics
---  5. push the email to a queue table (CANNOT use a trigger here since they can't take params)
---     after this point, the app remains responsive. Since this transaction does not require waiting
---     for full_recalculate_analytics to finish, and rather a simple insert, this is essentially like pushing to MQ
---  6. an AFTER trigger on the queue table will call full_recalculate_analytics on the new email
---     a) succeeds, analytics status is set to 'fresh'
---     b) fails, analytics status is set to 'error'
---  7. pg_cron will run a cleanup job at 3AM every day to remove any entries older than 3 days
---     this is a safety net in case the queue table gets too big, does a batch delete in off-peak hours
---     to ensure speed during peak hours
---  8. user loads the profile page. 
---     a) if analytics status is 'pending', show a loading spinner in the last updated area, and have frontend re-poll every 5s
---     b) if analytics status is 'fresh', show the analytics and last updated
---     c) if analytics status is 'error', show a retry button that calls this function again
--- this is essentially the idea of making UX feel snappier without truly fast analytics
--- it's because our demands are hard; need OLAP-style reads but OLTP-style writes...
--- well could do like read replicas but that is a ton of work and scale is not there yet
--- but in general this is super minimal extra code but tons of good UX gains. literally a complete replica
--- of the old bigquery implementation but now all in postgres. postgres is king
--- ----------
--- the premature optimization strategy would be to do selective analytic updates
--- but in reality, 5000 rows is not a lot to recalculate on even with all the aggregations being done
--- also, when you have to scan the full history table anyway for ANY analytic, the cost
--- of adding more aggregations is negligible since the main bottleneck is the scan
--- and lowkey every 'selective' update isnt even that selective it still has to run monthly trends
--- plus it's annoying as hell to manage all the different cases and makes adding new analytics hard
--- ----------
--- the most naive way is to run all in one transaction. but this is bad for UX once app scales and we have network hops and stuff
--- ----------
--- yap sesh over, here's the code. a straight copy paste from previous bigquery implementation 
+-- if you wanna see a whole yap sesh about how i've made sure analytics do not block the UX
+-- and all the choices and why I made one specific choice over the rest, look at comments under this function
 CREATE OR REPLACE FUNCTION service.full_recalculate_analytics(p_email TEXT)
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -159,3 +120,49 @@ EXCEPTION
         RETURN FALSE;
 END;
 $$ LANGUAGE plpgsql;
+
+-- this is a *full* recalculation for ANY kind of mutating event, contained to the user
+-- this is as optimized as i possibly could've made it (1 pass, no joins)
+-- and in the most generous reality ever a user has 5000 historical events (this ain't shi... and is why selective updates are not worth it)
+-- PREPARE FOR MASSIVE YAP SESH ABOUT WHY THIS WORKS. THIS COMES FROM THE FLAWS OF THE BIGQUERY IMPLEMENTATION
+-- THAT WAS IN PROD FOR 2 WEEKS. TALK TO ME (SEAN) IF U HAVE SUGGESTIONS
+-- ----------
+-- here's how async processing was replicated; also explains why we don't use triggers, separate workers, notify/listen, and pg_background
+--  1. user adds an app or makes a status change
+--  2. insert app into latest, add to history, get a UUID which is used for optimistic UI
+--  3. increment basic counters in user_analytics (e.g. app count, interview count)
+--     gotta be done in this transaction in case add (or edit) rollback; dont wanna manage consistency app-side
+--  4. set analytics status to 'pending' in user_analytics
+--  5. commit transaction
+--  6. flush headers NOW (either fail or success), atp they do not have to wait further. If success, UUID is sent
+--  7. run the full_recalculate_analytics function for this authed user (this is now a separate transaction)
+--  8. user loads the profile page. 
+--     a) if analytics status is 'pending', show a loading spinner in the last updated area, and have frontend re-poll every 5s
+--     b) if analytics status is 'fresh', show the analytics and last updated
+--     c) if analytics status is 'error', show a retry button that calls this function again
+-- this is essentially the idea of making UX feel snappier without truly fast analytics
+-- it's because our demands are hard; need OLAP-style reads but OLTP-style writes...
+-- well could do like read replicas but that is a ton of work and scale is not there yet
+-- if you're wondering...
+--     - why not triggers? triggers execute in the same transaction that fired it, so this doesn't
+--       actually help with UX at all. the original idea was to have a 'queue' table and insert into
+--       this queue table and have a trigger that reads from it to recalculate, but the problem is
+--       that the trigger is fired from the INSERT so this literally does not work. 
+--     - what about pg_background? yes this is true fire-and-forget but pg_background spins up a whole new
+--       connection and background worker for every call... too much overhead when we can reuse the same
+--       connection on the application-side and not force DBMS to spin up new workers.
+--     - NOTIFY/LISTEN? good idea in theory (actually was the OG architecture w/ bigquery & pubsub), but we are 
+--       serverless (while listeners must be long-lived) and the whole point of this postgres migration is
+--       to minimize network hops, connections, and extra services when we can achieve this all by simply
+--       flushing headers early and running a separate transaction w/ self-healing mechanisms
+-- ----------
+-- the premature optimization strategy would be to do selective analytic updates
+-- but in reality, 5000 rows is not a lot to recalculate on even with all the aggregations being done
+-- also, when you have to scan the full history table anyway for ANY analytic, the cost
+-- of adding more aggregations is negligible since the main bottleneck is the scan
+-- and lowkey every 'selective' update isnt even that selective it still has to run monthly trends
+-- plus it's annoying as hell to manage all the different cases and makes adding new analytics hard
+-- ----------
+-- the most naive way is to run all in one transaction. but this is bad for UX once app scales and we have network hops and stuff
+-- ----------
+-- yap sesh over, here's the code. a straight copy paste from previous bigquery implementation 
