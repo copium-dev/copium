@@ -10,12 +10,12 @@
 --  3. increment basic counters in user_analytics (e.g. app count, interview count)
 --     gotta be done in this transaction in case add (or edit) rollback; dont wanna manage consistency app-side
 --  4. set analytics status to 'pending' in user_analytics
---  5. an AFTER trigger will push the UUID to a queue table
---     after this point, the app remains responsive. Since the trigger isn't analytics recalculation
---     and rather a simple insert, this is essentially the same as waiting for pushing to RabbitMQ
---  6. an AFTER trigger on the queue table will call full_recalculate_analytics on the UUID
---     a) succeeds, status is set to 'fresh'
---     b) fails, status is set to 'error'
+--  5. push the email to a queue table (CANNOT use a trigger here since they can't take params)
+--     after this point, the app remains responsive. Since this transaction does not require waiting
+--     for full_recalculate_analytics to finish, and rather a simple insert, this is essentially like pushing to MQ
+--  6. an AFTER trigger on the queue table will call full_recalculate_analytics on the new email
+--     a) succeeds, analytics status is set to 'fresh'
+--     b) fails, analytics status is set to 'error'
 --  7. pg_cron will run a cleanup job at 3AM every day to remove any entries older than 3 days
 --     this is a safety net in case the queue table gets too big, does a batch delete in off-peak hours
 --     to ensure speed during peak hours
