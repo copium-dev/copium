@@ -1,4 +1,8 @@
-**NOTE:** New features are being paused for a bit so we can finalize a merger with [cvrve](https://cvrve.me)! This insane three data store infra will be migrated all to Postgres. From testing, pagination is faster, analytics are recalculated *way* faster, and search has not been affected; we'd argue it's even a bit better. Extra features coming *immediately* after the merger will be:
+**NOTE:** New features are being paused for a bit so we can finalize a merger with [cvrve](https://cvrve.me)! This insane three data store infra will be migrated all to Postgres. From testing, pagination is faster, analytics are recalculated *way* faster, and search has not been affected; we'd argue it's even a bit better.
+
+If you'd like to see the current progress of things, check out the [cvrve branch](https://github.com/copium-dev/copium/tree/cvrve), you'll see a much cleaner codebase there :)
+
+Extra features coming *immediately* after the merger will be:
 - A more accurate and faster company logo fetching CDN
 - Average time to first response will be split into average time to first positive and average time to first negative response
 - Timeline viewing will look much better
